@@ -1,0 +1,7 @@
+-- Local Supabase seed file
+--
+-- This file is executed after migrations during `supabase db reset`.
+-- Keep it safe and idempotent; prefer real "seed data" to live in migrations
+-- when it must be shared across environments.
+--
+-- Currently a no-op (migrations handle required initial data).

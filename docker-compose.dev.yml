@@ -1,0 +1,173 @@
+services:
+  gateway:
+    build:
+      context: ../xynes-gateway
+      target: dev
+    env_file:
+      # Default to `.env.dev`. Override by setting `XYNES_DOCKER_ENV_FILE`
+      # (e.g. to `.env.dev.local` for local Supabase mode).
+      - ${XYNES_DOCKER_ENV_FILE:-.env.dev}
+    environment:
+      - PORT=${GATEWAY_PORT}
+      - DOC_SERVICE_URL=${DOC_SERVICE_URL}
+      - CMS_CORE_URL=${CMS_CORE_URL}
+      - ACCOUNTS_SERVICE_URL=${ACCOUNTS_SERVICE_URL}
+      - AUTHZ_SERVICE_URL=${AUTHZ_SERVICE_URL}
+      - TELEMETRY_SERVICE_URL=${TELEMETRY_SERVICE_URL}
+      # STORAGE-3: Universal Object Storage service URL.
+      # The storage-service container is introduced in STORAGE-4; until then
+      # this var is read but storage routes will fail closed with 502 if matched.
+      - STORAGE_SERVICE_URL=${STORAGE_SERVICE_URL:-}
+      - TELEMETRY_IP_HASH_SALT=${TELEMETRY_IP_HASH_SALT}
+    volumes:
+      - ../xynes-gateway:/app
+      - gateway-node_modules:/app/node_modules
+    ports:
+      - "${GATEWAY_PORT}:${GATEWAY_PORT}"
+    extra_hosts:
+      - "db.local:host-gateway"
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - authz-service
+      - doc-service
+      - cms-core
+      - accounts-service
+      - telemetry-service
+      - storage-service
+
+  accounts-service:
+    build:
+      context: ../xynes-accounts-service
+      target: dev
+    env_file:
+      - ${XYNES_DOCKER_ENV_FILE:-.env.dev}
+    environment:
+      - PORT=${ACCOUNTS_SERVICE_PORT}
+      - DATABASE_URL=${ACCOUNTS_DATABASE_URL}
+    volumes:
+      - ../xynes-accounts-service:/app
+      - accounts-node_modules:/app/node_modules
+    ports:
+      - "${ACCOUNTS_SERVICE_PORT}:${ACCOUNTS_SERVICE_PORT}"
+    extra_hosts:
+      - "db.local:host-gateway"
+      - "host.docker.internal:host-gateway"
+
+  doc-service:
+    build:
+      context: ../xynes-doc-service
+      target: dev
+    env_file:
+      - ${XYNES_DOCKER_ENV_FILE:-.env.dev}
+    environment:
+      - PORT=${DOC_SERVICE_PORT}
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ../xynes-doc-service:/app
+      - doc-node_modules:/app/node_modules
+    ports:
+      - "${DOC_SERVICE_PORT}:${DOC_SERVICE_PORT}"
+    extra_hosts:
+      - "db.local:host-gateway"
+      - "host.docker.internal:host-gateway"
+
+  cms-core:
+    build:
+      context: ../xynes-cms-core
+      target: dev
+    env_file:
+      - ${XYNES_DOCKER_ENV_FILE:-.env.dev}
+    environment:
+      - PORT=${CMS_CORE_PORT}
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ../xynes-cms-core:/app
+      - cms-node_modules:/app/node_modules
+    ports:
+      - "${CMS_CORE_PORT}:${CMS_CORE_PORT}"
+    extra_hosts:
+      - "db.local:host-gateway"
+      - "host.docker.internal:host-gateway"
+
+  authz-service:
+    build:
+      context: ../xynes-authz-service
+      target: dev
+    env_file:
+      - ${XYNES_DOCKER_ENV_FILE:-.env.dev}
+    environment:
+      - PORT=${AUTHZ_SERVICE_PORT}
+      - DATABASE_URL=${DATABASE_URL}
+      - AUTHZ_AUTO_SEED=${AUTHZ_AUTO_SEED:-1}
+    volumes:
+      - ../xynes-authz-service:/app
+      - authz-node_modules:/app/node_modules
+    command: >
+      sh -lc '
+        if [ ! -d node_modules/zod ]; then
+          echo "[authz-service] node_modules incomplete; running bun install" >&2
+          bun install --frozen-lockfile
+        fi
+        bun --watch src/index.ts
+      '
+    ports:
+      - "${AUTHZ_SERVICE_PORT}:${AUTHZ_SERVICE_PORT}"
+    extra_hosts:
+      - "db.local:host-gateway"
+      - "host.docker.internal:host-gateway"
+
+  telemetry-service:
+    build:
+      context: ../xynes-telemetry-service
+      target: dev
+    env_file:
+      - ${XYNES_DOCKER_ENV_FILE:-.env.dev}
+    environment:
+      - PORT=${TELEMETRY_SERVICE_PORT}
+      - DATABASE_URL=${DATABASE_URL}
+    volumes:
+      - ../xynes-telemetry-service:/app
+      - telemetry-node_modules:/app/node_modules
+    ports:
+      - "${TELEMETRY_SERVICE_PORT}:${TELEMETRY_SERVICE_PORT}"
+    extra_hosts:
+      - "db.local:host-gateway"
+      - "host.docker.internal:host-gateway"
+
+  # STORAGE-12: Universal Object Storage service.
+  # Listens on STORAGE_SERVICE_PORT (default 4204). Gateway proxies
+  # /workspaces/:workspaceId/storage/* routes to /internal/storage-actions
+  # via STORAGE_SERVICE_URL (set in .env.dev / .env.dev.local).
+  # No live S3-compatible provider is bundled; per-workspace provider
+  # config lives in platform.workspace_storage_providers and credentials
+  # resolve via credential_ref against the secret manager. See:
+  #   docs/plans/2026-05-10-universal-object-storage-file-upload-api.md
+  #   docs/plans/2026-05-13-storage-provider-env-values-worksheet.md
+  storage-service:
+    build:
+      context: ../xynes-storage-service
+      target: dev
+    env_file:
+      - ${XYNES_DOCKER_ENV_FILE:-.env.dev}
+    environment:
+      - PORT=${STORAGE_SERVICE_PORT:-4204}
+      - DATABASE_URL=${DATABASE_URL}
+      - INTERNAL_SERVICE_TOKEN=${INTERNAL_SERVICE_TOKEN}
+      - INTERNAL_AUTH_MODE=${INTERNAL_AUTH_MODE:-hybrid}
+    volumes:
+      - ../xynes-storage-service:/app
+      - storage-node_modules:/app/node_modules
+    ports:
+      - "${STORAGE_SERVICE_PORT:-4204}:${STORAGE_SERVICE_PORT:-4204}"
+    extra_hosts:
+      - "db.local:host-gateway"
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  gateway-node_modules:
+  doc-node_modules:
+  cms-node_modules:
+  accounts-node_modules:
+  authz-node_modules:
+  telemetry-node_modules:
+  storage-node_modules:

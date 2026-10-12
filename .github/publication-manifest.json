@@ -1,0 +1,568 @@
+{
+  "kind": "clean-public-baseline",
+  "source_commit": "d9bf301574cb5ffea2272414e32c667a1e358bab",
+  "history_imported": false,
+  "excluded": [
+    "internal reports",
+    "development narratives",
+    "agent session records",
+    "generated outputs"
+  ],
+  "files": [
+    {
+      "path": ".env.example",
+      "sha256": "d68dcad0c0c3b81a4cc962ece35bf3115bc1b70513ab232d206bf6f063f79511",
+      "bytes": 10505
+    },
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "9b9e9ed28518b41e35bcac0d02a7bdc0c881b38ecc7d6089c3abb0d9b202b711",
+      "bytes": 61
+    },
+    {
+      "path": ".github/ci/action-pins.json",
+      "sha256": "887cd329e5c637f7a4a42d2f2f3e2522a92d61ae6dc0c07f73fe1f2f6b20d43e",
+      "bytes": 737
+    },
+    {
+      "path": ".github/ci/ci-policy.ts",
+      "sha256": "76fb0283338f3a5fc46904c5ff9951dd96fd7f74483e8da55f0254998e4e280b",
+      "bytes": 8198
+    },
+    {
+      "path": ".github/ci/required-checks.json",
+      "sha256": "01d426dad19e3a64db31089bb20711ea3c6f8a57dc5bccbd62aa40270c7133ef",
+      "bytes": 13
+    },
+    {
+      "path": ".github/secret-scan-exceptions.json",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+      "bytes": 3
+    },
+    {
+      "path": ".github/workflows/security.yml",
+      "sha256": "ce34e63e53d350eeb3d33fe9a168997771ee1c3766c5a70961d129c83d50d28a",
+      "bytes": 1728
+    },
+    {
+      "path": ".gitignore",
+      "sha256": "1476a3b5357843b3b9cda149355ce353e9b108c47004c730d836faf64e739153",
+      "bytes": 642
+    },
+    {
+      "path": "README.md",
+      "sha256": "6cc19da8a542f88c3a61d8fa927fd15a4483643ab3080e438576b416bf3a8857",
+      "bytes": 1477
+    },
+    {
+      "path": "SECURITY.md",
+      "sha256": "ed2068377a96f0a3ab236532e9f8ea0ebcd22e33006a8dd6a92383234eec8798",
+      "bytes": 658
+    },
+    {
+      "path": "docker-compose.dev.yml",
+      "sha256": "2b99e9beeb9a7c37fb79effa6eac4c51ebc79e10f2aa050ccda3ba567141ace6",
+      "bytes": 5392
+    },
+    {
+      "path": "infra/compose/storage-live-processors.yml",
+      "sha256": "9b3ffb27e87073b886303fe28e361a65b5d8fc284ce737f89ac4e3bb24157443",
+      "bytes": 17750
+    },
+    {
+      "path": "scripts/README.md",
+      "sha256": "9a459737b93a13e0fc68d4b85e18fdce72ec8ecd72b1e5015500823bd1b00a6b",
+      "bytes": 10326
+    },
+    {
+      "path": "scripts/bootstrap-local-db.sh",
+      "sha256": "447b611e7d433f784faf888e442572872e6d52aad00294059f2e5344d2064bd0",
+      "bytes": 14381
+    },
+    {
+      "path": "scripts/cleanup-universal-storage.sh",
+      "sha256": "f4135fe1bbb8200467cac5a7fe0c0c6368ad7c165957f49fd9fd7bfbf05d94c6",
+      "bytes": 8535
+    },
+    {
+      "path": "scripts/lib/README.md",
+      "sha256": "0651b237cd7f706cf2bdce26a666c633118e080043521c7c7d731f9dc31a77f2",
+      "bytes": 3316
+    },
+    {
+      "path": "scripts/lib/colors.sh",
+      "sha256": "89caffb7e45360655ee1452d35a29bb776916ed7c2ae37548d1832feb2124c03",
+      "bytes": 327
+    },
+    {
+      "path": "scripts/lib/db-actions.sh",
+      "sha256": "f9b3c8d352b11aac2d21c657bd7f5c211117da6540f40c13eaefb528660ebdec",
+      "bytes": 15073
+    },
+    {
+      "path": "scripts/lib/db.sh",
+      "sha256": "b5a3c5e30de764640453eaece6d5c8ab961862a18c424f9024a1b66c6accf8d7",
+      "bytes": 3577
+    },
+    {
+      "path": "scripts/lib/env.sh",
+      "sha256": "743053ea21689e16c2a5ddd424e927abd106723a613ff0e3bb4d734381467dbc",
+      "bytes": 1422
+    },
+    {
+      "path": "scripts/lib/http.sh",
+      "sha256": "e340efa9f52f867f9d45dec9ef9933cf3f511791681443873c5634f5fef40324",
+      "bytes": 5323
+    },
+    {
+      "path": "scripts/lib/seed.sh",
+      "sha256": "8f928fae59a959e8e24f9da16d3c912f20326c5c021da4c858633f6350eeff8b",
+      "bytes": 11120
+    },
+    {
+      "path": "scripts/link-env-files.sh",
+      "sha256": "704b7eb70f86937b5c2bdd19c5fd6b900a15b0b7d74587a5a468a392f01ffe79",
+      "bytes": 2800
+    },
+    {
+      "path": "scripts/lint.sh",
+      "sha256": "7a5f3898002bea190e0b036b4f5c602891a7603a565f512689c81c1583af2d5b",
+      "bytes": 597
+    },
+    {
+      "path": "scripts/reset-dev-db.sh",
+      "sha256": "f4e9ecf013bcd791ae72777dc91c6dd5eb6aaf30aa8f1bd529d5b61a70217446",
+      "bytes": 7300
+    },
+    {
+      "path": "scripts/security/secret_gate.py",
+      "sha256": "e867920b9f6665161b785aac43f1f9a6b00edc2c699d1dc899e6078900bac7f5",
+      "bytes": 7721
+    },
+    {
+      "path": "scripts/smoke-all.sh",
+      "sha256": "653828a1dfa4a9135d2d29544f70bbc22827f23c342b91fc20a7e62c57c0564d",
+      "bytes": 33797
+    },
+    {
+      "path": "scripts/smoke-api-key-enforcement.sh",
+      "sha256": "8bc619d4890ffe489e30e65ef70d595586c2c94593071a3991848327c99225c9",
+      "bytes": 19894
+    },
+    {
+      "path": "scripts/smoke-auth.sh",
+      "sha256": "14150443a2c625c5f9bbfb369a055223ed83639439c479e91bee7b6d7d1cbb1a",
+      "bytes": 21109
+    },
+    {
+      "path": "scripts/smoke-cms-api-key.sh",
+      "sha256": "d0cf681fd97768cbe8c6f03bc911eb56f3bcc1367162d119a426d9a544961371",
+      "bytes": 28105
+    },
+    {
+      "path": "scripts/smoke-cms-entry.sh",
+      "sha256": "b8825df6b034422d492b0bc3ddf2ed07871b8e4557254b0ab6e69e8d7b2599a9",
+      "bytes": 14783
+    },
+    {
+      "path": "scripts/smoke-content.sh",
+      "sha256": "e29fdb194346ae1110226dddb8aea4882c7a48b6d5361eb2415d56dbdab87d4b",
+      "bytes": 11248
+    },
+    {
+      "path": "scripts/smoke-db.sh",
+      "sha256": "ad928325ea8657b42d3de958de560f99f2481a7216454c58b159694023ce7c46",
+      "bytes": 16737
+    },
+    {
+      "path": "scripts/smoke-gateway-audit.sh",
+      "sha256": "575cf7c1808c9ad5702c7b6bdf0103587f6a59a889b45ff5dec4d6650351afbf",
+      "bytes": 21593
+    },
+    {
+      "path": "scripts/smoke-health.sh",
+      "sha256": "e8fad710775571c64f21724b7e07023779809ccba130e8fae2ad9a04e553a4bf",
+      "bytes": 10985
+    },
+    {
+      "path": "scripts/smoke-security.sh",
+      "sha256": "70e6667393fa4d8518c86a5327bf86613b10de28ea58d29673462058225fb44c",
+      "bytes": 25112
+    },
+    {
+      "path": "scripts/smoke-setup.sh",
+      "sha256": "12e1ae7fce9025bc497236a2b9f1a5b3950c28e7ec56d4f37b81d3415138d182",
+      "bytes": 15809
+    },
+    {
+      "path": "scripts/smoke-universal-storage.sh",
+      "sha256": "1960457336a41e0bed3825a390b41eddd777f8c714bb977415613c6e881dbae4",
+      "bytes": 28613
+    },
+    {
+      "path": "scripts/smoke.sh",
+      "sha256": "4833a0702f257afb1c9fb96d11770c99b7f594a497abd05e6c1076e0282f7734",
+      "bytes": 9303
+    },
+    {
+      "path": "scripts/supabase-local.sh",
+      "sha256": "b17b80464d219d2145d92b5de5ec4bcbc2f67978c3fef54877c4a471b2dbf399",
+      "bytes": 5060
+    },
+    {
+      "path": "scripts/supabase-token.sh",
+      "sha256": "1cc9c9e3d676ba1c43fa0946c3faa4487d1520abb09a41d2ef1a5394c9626224",
+      "bytes": 12966
+    },
+    {
+      "path": "scripts/test/README.md",
+      "sha256": "91d83968b18258861ddb3479305b938488f070afe95e6d21d618f1e890e5d77f",
+      "bytes": 5252
+    },
+    {
+      "path": "scripts/test/bootstrap-local-db.test.sh",
+      "sha256": "2b8adaacdfea7b0fb466d78f3fe393fef9e86cd2f5475684c1f4e909ad463417",
+      "bytes": 3087
+    },
+    {
+      "path": "scripts/test/canonical-reset-smoke.test.sh",
+      "sha256": "139ba4cf20054831fd2c069d9860a43b5b7dc3768070496b8a0acd894dca3641",
+      "bytes": 12695
+    },
+    {
+      "path": "scripts/test/cms-actor-columns-migration.test.sh",
+      "sha256": "a536adc0b692e8bd6188638d610e5163b86c5c8eb488eb4d6fd92a6cb2a95e62",
+      "bytes": 675
+    },
+    {
+      "path": "scripts/test/cms-dashboard-gateway-routes.test.sh",
+      "sha256": "9e130fdbeef588c74218423ff54836b937742e157e696ea02b5cc3fb47f23f81",
+      "bytes": 3543
+    },
+    {
+      "path": "scripts/test/db-actions.test.sh",
+      "sha256": "2a82f3179a931011648ce721e7cb05b8cd8194801cb41cbaf50406ed2143e268",
+      "bytes": 7985
+    },
+    {
+      "path": "scripts/test/db.test.sh",
+      "sha256": "1eaebb2ff10b75ef186a6d372415892fa895a5070af5dac9143716da73174292",
+      "bytes": 3996
+    },
+    {
+      "path": "scripts/test/env-lib.test.sh",
+      "sha256": "634adefe5b8ab3da78e01cb83a58803ea6a33eb135b80e63866ca204d17206b3",
+      "bytes": 635
+    },
+    {
+      "path": "scripts/test/feature-flags.test.sh",
+      "sha256": "aac4ad3cf54933dbb469a84d0ecb9f09902c6dbbc5a633fc2dc93353c51c38d1",
+      "bytes": 16724
+    },
+    {
+      "path": "scripts/test/mail-1-supabase-inbucket.test.sh",
+      "sha256": "f95e67b5b9f17a061a908c91e0f1019bbc44701013b9008b6744c9a511e21d85",
+      "bytes": 6570
+    },
+    {
+      "path": "scripts/test/mail-5-resend-gateway-route.test.sh",
+      "sha256": "f495fbf87e90720e02285919ecab68ad22ca745970e9d717c069506823cf3c66",
+      "bytes": 10283
+    },
+    {
+      "path": "scripts/test/reset-dev-db.test.sh",
+      "sha256": "407df109d86b3fd844af26bc9a348d60dbb380c30eedf000c690b73cdfd50b37",
+      "bytes": 987
+    },
+    {
+      "path": "scripts/test/run.sh",
+      "sha256": "bea1ff05246f9f43287be45c2993cc6f951b9b33b0193b46a09d45af7dd0234a",
+      "bytes": 226
+    },
+    {
+      "path": "scripts/test/seed.test.sh",
+      "sha256": "09a8ab6878e82d72fe58a828077443eb984245c6801e507591b4fd2d6adbbbc2",
+      "bytes": 5942
+    },
+    {
+      "path": "scripts/test/smoke-auth.test.sh",
+      "sha256": "2e8c309e07cac844c9c6658aac15a44567c150ac868a52ec32f19a512686f3f0",
+      "bytes": 1464
+    },
+    {
+      "path": "scripts/test/smoke-cms-api-key.test.sh",
+      "sha256": "bcf66e77ccfa531c7e7ef2262843bf333d2bf5dfa34da159a747097b7ef401d7",
+      "bytes": 3269
+    },
+    {
+      "path": "scripts/test/smoke-cms-entry.test.sh",
+      "sha256": "9093451e5c6f6f73b453f33e21caf45d628d377a56911c4bf7ea508a21e08fc1",
+      "bytes": 2200
+    },
+    {
+      "path": "scripts/test/smoke-db.test.sh",
+      "sha256": "00fa3698d3754089dbf85d7ad591af02045ae64298f388d5963da638ae5da934",
+      "bytes": 3342
+    },
+    {
+      "path": "scripts/test/smoke-gateway-audit.test.sh",
+      "sha256": "91418d5b1abd79bdd317addaf2ad6640ca534edb7e95da40cbeb9a67a2e9e591",
+      "bytes": 4361
+    },
+    {
+      "path": "scripts/test/smoke-security.test.sh",
+      "sha256": "5d39b62fc5af22dfa8ced2467d5e6052a6980e867633c46b598964c4a8c2ffff",
+      "bytes": 9851
+    },
+    {
+      "path": "scripts/test/smoke-universal-storage.test.sh",
+      "sha256": "b11e51e429c4076cc51ef75f708cc97c5c33b888c6f2d4282b6d9f7bf8f2d485",
+      "bytes": 12676
+    },
+    {
+      "path": "scripts/test/smoke.test.sh",
+      "sha256": "e2aeb8d6fbf1a6f761bbfac041e79abf3c2d3a8850db89e3d493ce53e385478e",
+      "bytes": 6418
+    },
+    {
+      "path": "scripts/test/storage-fu-2-fu-1-active-jobs-index.test.sh",
+      "sha256": "311dd6c575523fd2160f640f5928361e6ec37d852dceeddb1a181b8295b0cffa",
+      "bytes": 9950
+    },
+    {
+      "path": "scripts/test/storage-fu-2-fu-2-payload-required-columns.test.sh",
+      "sha256": "cba45551ace31793b498e5f4c47d75a7a55ed0e854797f6b165541683bcedfd9",
+      "bytes": 8641
+    },
+    {
+      "path": "scripts/test/storage-fu-5-fu-e-deployment-posture.test.sh",
+      "sha256": "7ed1b823d6b64ec69bea4befad07599b1936832d75528a69b3598b00df1bab04",
+      "bytes": 22681
+    },
+    {
+      "path": "scripts/test/storage-fu-5-fu-g-libreoffice-sidecar-shim.test.sh",
+      "sha256": "77ab7cdf1be0fe51e3e79ca66520ef1f89dead64178d935f0f787f9b0b5882d1",
+      "bytes": 12287
+    },
+    {
+      "path": "scripts/test/storage-fu-ab-fix-1-live-processor-binaries.test.sh",
+      "sha256": "10e139200a6c4eea3a31a6c5583f8b2caf3690257aea30db85bd148c54af699a",
+      "bytes": 10212
+    },
+    {
+      "path": "scripts/test/supabase-email-templates.test.sh",
+      "sha256": "bed5050432168011c16c86aac62cfa4176250ca5cee743eca51dbf7e39b64ceb",
+      "bytes": 1361
+    },
+    {
+      "path": "scripts/test/supabase-local.test.sh",
+      "sha256": "bc90775f8ebc0e03e4aeb3ac3eaad7b93480a7c4c20045180d076652e91da469",
+      "bytes": 761
+    },
+    {
+      "path": "scripts/test/supabase-token.test.sh",
+      "sha256": "c3177c9e6e51bfd3b398490e7f8196aeba0a5849da0808ec4330aa0cd8e9e8ad",
+      "bytes": 621
+    },
+    {
+      "path": "scripts/test/universal-storage-dedup-schema.test.sh",
+      "sha256": "28fbe13c40c2bc20cabc5d4d2bb55e888462809a0dd8b9d7377ef15984f449db",
+      "bytes": 12318
+    },
+    {
+      "path": "scripts/test/universal-storage-gateway-routes.test.sh",
+      "sha256": "8c61459fd6e1cec0c4c85c6e24ba0ba3a2b26535572f5e61feeac2fb66aeeb68",
+      "bytes": 15781
+    },
+    {
+      "path": "scripts/test/universal-storage-migration.test.sh",
+      "sha256": "832b7ce3f5b96f6f77f9983c6fb03481085d497978787f157e7da4bbaa6e7b76",
+      "bytes": 13580
+    },
+    {
+      "path": "scripts/test/universal-storage-r2-dev-seed.test.sh",
+      "sha256": "bf617d2b31b6e31e484c5b276acd03f46025cce220ac0b442f0fa773669d45d6",
+      "bytes": 8139
+    },
+    {
+      "path": "scripts/test/wipe-identity.test.sh",
+      "sha256": "1597df2d4dfd4394c1781f5cc9081a84b4f04076f6f10e75b43ec11158605c42",
+      "bytes": 1007
+    },
+    {
+      "path": "scripts/test/workspace-admin-integrations-authz-permissions.test.sh",
+      "sha256": "e775e6d33de999fb649083e1b4e583d907221f770f999bd170d368cc2403684c",
+      "bytes": 6374
+    },
+    {
+      "path": "scripts/test/workspace-admin-integrations-domain-constraint.test.sh",
+      "sha256": "df9865cd2d717699a556862cd6dc8c699b08734081ee17e5fa804c89c74542ac",
+      "bytes": 8852
+    },
+    {
+      "path": "scripts/test/workspace-admin-integrations-gateway-routes.test.sh",
+      "sha256": "e2cf8892d839efb5d6036ea325fac73abf8ba0dbd3fa4599b52ec182fc6cdb12",
+      "bytes": 13960
+    },
+    {
+      "path": "scripts/test/workspace-admin-integrations-migration.test.sh",
+      "sha256": "14b558035691d7c9f1680589ec001916c2f6a3927d36b03518d86c13c0a10e1a",
+      "bytes": 7285
+    },
+    {
+      "path": "scripts/test/workspace-invites-mail-columns.test.sh",
+      "sha256": "207c3e4c8d81461f37e09c191dfc82a5ad4fb42f3707f835bb4cb18216348a41",
+      "bytes": 9184
+    },
+    {
+      "path": "scripts/wipe-identity.sh",
+      "sha256": "f9cd11f860c9c93bbf6b2274ba67d922103bf9d0a4666da9b83d4d026b107e3f",
+      "bytes": 9574
+    },
+    {
+      "path": "supabase/.env.example",
+      "sha256": "1641bf72147acb21bc1c2145c6389754badc76b34edb781a78898b1789024b91",
+      "bytes": 186
+    },
+    {
+      "path": "supabase/.gitignore",
+      "sha256": "3fc00a688878f3dea58f20b5852935f7af9dbb3eb1de0c9e6a8eae42890ad464",
+      "bytes": 77
+    },
+    {
+      "path": "supabase/config.toml",
+      "sha256": "1446b227d2f140ccf698f7c81cbba126a006558dd1e519a70f41b1d85cd88132",
+      "bytes": 14078
+    },
+    {
+      "path": "supabase/migrations/20251210135828_create_app_schemas.sql",
+      "sha256": "98ccde32deb7cd9da92ff956ad624cdeca6096112a816c59bd81bcf8f6fd5b65",
+      "bytes": 602
+    },
+    {
+      "path": "supabase/migrations/20251219133000_accounts_schema_1_identity_workspace_core.sql",
+      "sha256": "6ce10e0f40968fe16baa79f6c9566774e6c8ada0435c6a92262f4e24b7b6fb98",
+      "bytes": 2369
+    },
+    {
+      "path": "supabase/migrations/20251229100000_create_platform_routes.sql",
+      "sha256": "00243a805882a6dba37a98254e3df1420bc5c5f775a4b20806a98ea956e8e941",
+      "bytes": 1549
+    },
+    {
+      "path": "supabase/migrations/20251229100001_seed_platform_routes.sql",
+      "sha256": "545dbfeec2d8b744e0953c50ddba827726879fd7dd0b8976e1e6959b1e9e299c",
+      "bytes": 6921
+    },
+    {
+      "path": "supabase/migrations/20251230100000_create_route_rate_limits.sql",
+      "sha256": "6fd267812f69fd72baea93a9f65ba15db426cf3ef86b0a7e435dc0e39b9534fe",
+      "bytes": 2243
+    },
+    {
+      "path": "supabase/migrations/20251230100001_seed_route_rate_limits.sql",
+      "sha256": "af8c173ebbacc858a72552e99fb9b7108fd8f72cda1ea270611eb124de63dce3",
+      "bytes": 3962
+    },
+    {
+      "path": "supabase/migrations/20260218090000_add_me_profile_route.sql",
+      "sha256": "cb754d427bf8054cf6135eab147e026a3bc3bb7a2ae28ed7380346163bd66f94",
+      "bytes": 760
+    },
+    {
+      "path": "supabase/migrations/20260218160000_add_workspace_members_route.sql",
+      "sha256": "dff05d3f2c3d5d53698667320ca5d0df9977a88d48c770c386941c143785e37d",
+      "bytes": 853
+    },
+    {
+      "path": "supabase/migrations/20260424090000_workspace_admin_integrations.sql",
+      "sha256": "bd0b928959b8b07d1a70a2a6f7e49302125584127ded05add5057bde2cde5982",
+      "bytes": 8209
+    },
+    {
+      "path": "supabase/migrations/20260424103000_cms_content_entries_actor_columns.sql",
+      "sha256": "2ae18a3096a2c68b3d6fed3510861895c9db96a370fd76f57713111ae33af503",
+      "bytes": 3518
+    },
+    {
+      "path": "supabase/migrations/20260427090000_seed_cms_dashboard_routes.sql",
+      "sha256": "8215759975ead18c242a92759932f3b1eb7e43b2ee196b971c4f2b390e1e639a",
+      "bytes": 3540
+    },
+    {
+      "path": "supabase/migrations/20260508120000_fix_workspace_domains_hostname_shape.sql",
+      "sha256": "3fe101b1a6b3a26715d340b1c2e6f7a781043bc5f9508048bb4c364e578f3574",
+      "bytes": 2155
+    },
+    {
+      "path": "supabase/migrations/20260508130000_seed_platform_domain_regenerate_route.sql",
+      "sha256": "cd385459f7a33ef28267eea3352d3e29508a7d4db9d8576f3861425412f3b306",
+      "bytes": 1359
+    },
+    {
+      "path": "supabase/migrations/20260508140000_add_dns_records_found.sql",
+      "sha256": "c28e599c03d1e2f106d75d1f09eaacf710b6a9370d0df47515cf9615bfd2ff43",
+      "bytes": 1384
+    },
+    {
+      "path": "supabase/migrations/20260513090000_universal_storage_platform_schema.sql",
+      "sha256": "7b3f2827728bc7ab98be4589d5bf6e903a18fe4e25bba3048420395756c4aa4e",
+      "bytes": 19335
+    },
+    {
+      "path": "supabase/migrations/20260513120000_seed_platform_storage_routes.sql",
+      "sha256": "5f4e337aef19e4503ef8868b94c0334dc9680f0874e0b0467bc9ac508a430081",
+      "bytes": 3741
+    },
+    {
+      "path": "supabase/migrations/20260513140000_promote_workspace_invites_to_infra.sql",
+      "sha256": "0de26eab6c69ffef4f063264c2b8014474950270066758e0e46839ce15b0249b",
+      "bytes": 5623
+    },
+    {
+      "path": "supabase/migrations/20260516090000_seed_workspace_storage_providers_r2_dev.sql",
+      "sha256": "05f821b0d41efc739c63a90ecd1d7149d81083c4262830298892f2045ac185d8",
+      "bytes": 3532
+    },
+    {
+      "path": "supabase/migrations/20260528090000_storage_object_references_and_dedup_index.sql",
+      "sha256": "ded793f1c1738ef6bad80561813c7494b1854769172f9254f76a6fee92792f0f",
+      "bytes": 11097
+    },
+    {
+      "path": "supabase/migrations/20260528100000_storage_processing_jobs_active_unique_index.sql",
+      "sha256": "b2dcbc1d7fc962908912fbfa9d89552107d87bf3292bba22fdb56950f03a78cd",
+      "bytes": 8537
+    },
+    {
+      "path": "supabase/migrations/20260529090000_storage_processing_jobs_payload_and_required.sql",
+      "sha256": "f1748fddb721723fab0d583c29f4366b3391705711b9ce26c623247fb524db38",
+      "bytes": 7743
+    },
+    {
+      "path": "supabase/migrations/20260601090000_workspace_invites_mail_columns.sql",
+      "sha256": "61466d307d484d325bca75e0bb739ab9321e858597911827c5925e76c5777060",
+      "bytes": 8965
+    },
+    {
+      "path": "supabase/migrations/20260603090000_seed_platform_invite_resend_route.sql",
+      "sha256": "c5ef34dc6aebbe380bffa1480f6820beeb0a7a17a77c8c1d67d8c6c3bddb43de",
+      "bytes": 2519
+    },
+    {
+      "path": "supabase/seed.sql",
+      "sha256": "bf37449026bf2f981da085c308a25ff7acbbba615fc43a1e9ad1db1b7ea03d3d",
+      "bytes": 293
+    },
+    {
+      "path": "supabase/templates/confirmation.html",
+      "sha256": "6702711fba1bad36f27d3fa2e94e3fbb5583c806487bc3eab5b7d7d4c73259bf",
+      "bytes": 1641
+    },
+    {
+      "path": "supabase/templates/recovery.html",
+      "sha256": "27a816d54269a98619e6dbbde5a829eefb896fd4e6ba29f99d471583a4d8d2b7",
+      "bytes": 1291
+    }
+  ]
+}
