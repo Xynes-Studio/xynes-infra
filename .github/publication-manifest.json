@@ -16,8 +16,8 @@
     },
     {
       "path": ".github/CODEOWNERS",
-      "sha256": "9b9e9ed28518b41e35bcac0d02a7bdc0c881b38ecc7d6089c3abb0d9b202b711",
-      "bytes": 61
+      "sha256": "a2b6413baeec321bb189b1939d5d1ec1c7bc6359bc10a8d23c178b90737d9aef",
+      "bytes": 156
     },
     {
       "path": ".github/ci/action-pins.json",
