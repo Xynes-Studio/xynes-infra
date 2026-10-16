@@ -762,3 +762,28 @@ the final job/environment authorization refresh. Disk restart policy stays
 drained through replacement and smoke; failure paths retain warmth and close
 admission. The signed Git source and inert host installation must be refreshed
 to these reviewed bytes before activation.
+
+## Single final PR and inert host provisioning
+
+The final infra PR is https://github.com/Xynes-Studio/xynes-infra/pull/1.
+Its manifest now names that concrete PR and the selected release inventory.
+The manifest status is input data; native admission still requires the actual
+merged PR, Aman9804's approval of its final head, an equal complete Git tree,
+protected-main checks and the separate release/stage approval. No human approval
+or merge is claimed by this manifest update. Review must cover the final push.
+
+The final controller bundle `195a51f205b02d2cff6e9371cdbe13466d848f867f6e2200510d74ca9fd88d9f`
+is installed. Ten native component checks passed, with all three predecessor
+libraries and recovery copies preserved. Eight fresh SSH cases verified admin
+recovery, exact stage command refusals and cross-environment key denial.
+The signed-source idle binary reproduced from public commit
+`fb9327e9bef231d43294f44b0ef755f543415001`. Its fresh 47-path preflight passed;
+three non-login proxy accounts and 20 assets are installed. Nine units are enabled
+and stopped. Six real Linux identities passed cross-environment/private-file,
+write and Docker-socket denial checks; owned inert probe cleanup was verified.
+The original private policies and parent inodes were preserved.
+
+Live app stacks and routing remain unactivated. Protected publication, actual
+QA/staging deployment, rollback, recovery, capacity, 24-hour soak and approved
+production deployment remain required after independent review and authorized
+merge. The deployment goal remains active and incomplete.
