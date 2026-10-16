@@ -145,8 +145,12 @@ class RootTree:
         result = []
         for relative in DESIRED:
             with self.target(relative, missing=True) as fd:
-                result.append({'path': relative, 'exists': fd is not None,
-                               **(identity(os.fstat(fd)) if fd is not None else {})})
+                info = os.fstat(fd) if fd is not None else None
+                # Bind the dry-run snapshot to change time too: Linux can reuse
+                # an inode after deletion. Keep live FD identity stable while
+                # our own mkdir operations change ancestor directory metadata.
+                snapshot = {**identity(info), 'ctime_ns': info.st_ctime_ns} if info is not None else {}
+                result.append({'path': relative, 'exists': fd is not None, **snapshot})
         return result
 
     def validate_lock(self, fd=None):

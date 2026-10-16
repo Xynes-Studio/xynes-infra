@@ -787,3 +787,11 @@ Live app stacks and routing remain unactivated. Protected publication, actual
 QA/staging deployment, rollback, recovery, capacity, 24-hour soak and approved
 production deployment remain required after independent review and authorized
 merge. The deployment goal remains active and incomplete.
+
+Native PR CI found and reproduced a staging stale-plan safeguard gap on Linux,
+where a deleted directory inode can be reused. Plan snapshots now include each
+existing target directory's change time; held-FD identity checks stay stable
+during owned mkdir operations. A deterministic restored-metadata regression
+failed before the fix. All 29 substrate tests passed locally and on a real Linux
+filesystem afterward, with injected Docker responses, exact source cleanup and
+no hosted application changes. Native PR CI must still pass the final head.

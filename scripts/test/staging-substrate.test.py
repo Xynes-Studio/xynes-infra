@@ -183,6 +183,16 @@ class StagingTests(unittest.TestCase):
         p = instance.plan();self.docker.state['id'] = 'b'*64
         with self.assertRaises(ValueError):instance.apply(p['plan_sha256'])
 
+    def test_stale_plan_refuses_restored_metadata_even_when_inode_is_unchanged(self):
+        self.existing();instance = self.provisioner();plan = instance.plan()
+        path = self.root/'staging/compose';before = path.stat()
+        path.chmod(0o700);path.chmod(0o750);after = path.stat()
+        self.assertEqual((before.st_dev, before.st_ino, before.st_uid, before.st_gid, before.st_mode),
+                         (after.st_dev, after.st_ino, after.st_uid, after.st_gid, after.st_mode))
+        self.assertNotEqual(before.st_ctime_ns, after.st_ctime_ns)
+        with self.assertRaises(ValueError):instance.apply(plan['plan_sha256'])
+        self.assertFalse(any('create' in call for call in self.docker.calls))
+
     def test_owned_lock_is_exclusive_and_never_unlinked(self):
         instance = self.provisioner();p=instance.plan();lock=self.root/'.apex-staging-substrate.lock'
         fd=os.open(lock, os.O_CREAT|os.O_EXCL|os.O_RDWR, 0o600)
