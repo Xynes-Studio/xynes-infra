@@ -1,0 +1,62 @@
+{
+  "artifact_kind": "apex-storage-controller-integration-checkpoint",
+  "deployment_accepted": false,
+  "github_signature": {
+    "commits_unchanged": true,
+    "fingerprint_unchanged": true,
+    "identity_added_with_user_approval": true,
+    "public_certificate_replacement_pending": true
+  },
+  "host_boundary_installed": false,
+  "independent_integration_review": {
+    "files_edited": false,
+    "host_access": false,
+    "scoped_tests_passed": 87,
+    "status": "no_actionable_p1_p2"
+  },
+  "native_kernel_peer": {
+    "actual_kernel_pid_reuse_forced": false,
+    "actual_peer_and_cgroup_ancestry_verified": true,
+    "application_services_changed": false,
+    "cleanup_verified": true,
+    "deployable": false,
+    "injected_start_tick_discontinuity_refused": true,
+    "reversed_same_cgroup_ancestry_refused": true,
+    "source_sha256": "38f7ad959d90d8c5f0bc728588609f7531dcd813afebf9e30053288eafa759b6",
+    "wrong_container_id_refused": true
+  },
+  "parent_verified_passing_tests": {
+    "ci-apex-quality": 11,
+    "host-assets": 17,
+    "host-boundary": 21,
+    "host-compose": 30,
+    "host-quiescence": 11,
+    "host-runtime": 9,
+    "host-storage-control": 10,
+    "public-bundle": 3,
+    "root-executor": 20
+  },
+  "source_file_sha256": {
+    ".github/workflows/quality-gates.yml": "2576b265e42fdf357bf49beca1940366336b43136ba913019ab4537eef727825",
+    "infra/compose/hosted.yml": "ce585a53350229c7b54e0b97ebbcb6f0515802788d7dca6e8ff76d1876c747a6",
+    "scripts/release/host_assets.py": "f76044f56a25f6d54eb198a149a5bbaff482b00897733602d61b34cfb387ca2c",
+    "scripts/release/host_boundary.py": "b8e59b4e196b4eae06a5ffcdd79b79c97ec75c61781366523eaee304cc0b969b",
+    "scripts/release/host_compose.py": "9883c4aadca7f65464e44c0ec7a07777f97339a1da4e5e9b830371e460c46018",
+    "scripts/release/host_migrate.py": "19fcd8f5bafeca5f6ad9f2fd57d4f3168f6a074e501357936e60a1b7ba967a73",
+    "scripts/release/host_quiescence.py": "38f7ad959d90d8c5f0bc728588609f7531dcd813afebf9e30053288eafa759b6",
+    "scripts/release/host_runtime.py": "6c265d82b92b9546029851349e7e1da8bf1009b93ac8be39cf30f2082ec9baeb",
+    "scripts/release/host_storage_control.py": "94a864ef84901692318088ca43913fe903e60f7b31f1a12d8abca5e838309a16",
+    "scripts/release/root_executor.py": "878ba15eef11b5d436e33fe5c8f8b0024ccbb1f15741aa98d515f0ddf3726a4b",
+    "scripts/release/validate-hosted.py": "417bcc724dcb5b86b755812bc9c4e38c76710081accd640cd59eb3296f504a94",
+    "scripts/setup/ci-quality-profiles.json": "278a4c78c105240be6590f06dcc606b3911d2c1e236a7c461684b9206fbd5d14",
+    "scripts/test/host-assets.test.py": "e483d383e99fe6deef839d25f1d64b880c2f03bee37abfab48150f21db8cb3c6",
+    "scripts/test/host-boundary.test.py": "eaa2a6fb12ced4d870955d9aa65798dd85504a1a2a9111753e3dd458b8859b1b",
+    "scripts/test/host-compose.test.py": "f6b5025c4b6b1a5ffebecbade25c30ac4b3bc5c822f0870265efa86efd7a9be0",
+    "scripts/test/host-migrate.test.py": "07d912a4b9a117ad9384cbfb540cf4bdb10cd8120852610a8c86780c59e35788",
+    "scripts/test/host-quiescence.test.py": "3c34ab60d4c0f6d154462d5f54f4f269559fe72b57c95cf201050938413d55ad",
+    "scripts/test/host-storage-control.test.py": "7bca6e268e99313b3fd13d00f786ea26307981e1f7504a5b74549f2daf379360",
+    "scripts/test/hosted-release.test.py": "d8f7032bf1156c74e60b45357b90e0842f0f8228d5e9f8be9b8c15c8e31b556e",
+    "scripts/test/root-executor.test.py": "6a88bc9b0811ccf3b9d8d3f9dad422e28998356b6fd99fe88ddd9a03402d17e6"
+  },
+  "stage_apps_deployed": false
+}

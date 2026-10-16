@@ -1,0 +1,105 @@
+{
+  "xynes-gateway": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml"
+  },
+  "xynes-accounts-service": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml"
+  },
+  "xynes-authz-service": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml"
+  },
+  "xynes-cms-core": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml"
+  },
+  "xynes-doc-service": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml"
+  },
+  "xynes-telemetry-service": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml"
+  },
+  "xynes-storage-service": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml",
+    "release-image-security": ".github/workflows/ci.yml",
+    "immutable-source-security": ".github/workflows/ci.yml",
+    "integration-processors": ".github/workflows/ci.yml",
+    "archive-safety": ".github/workflows/ci.yml"
+  },
+  "xynes-auth-app": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml"
+  },
+  "xynes-cms-console-web": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml",
+    "Code and browser gates": ".github/workflows/quality.yml"
+  },
+  "xynes-auth-sdk": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml"
+  },
+  "xynes-i18n": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/quality-gates.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/quality-gates.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml",
+    "CodeQL analyze": ".github/workflows/codeql.yml"
+  },
+  "lumia-ds": {
+    "lint": ".github/workflows/quality-gates.yml",
+    "test": ".github/workflows/test.yml",
+    "coverage": ".github/workflows/quality-gates.yml",
+    "build": ".github/workflows/ci.yml",
+    "typecheck": ".github/workflows/quality-gates.yml",
+    "security": ".github/workflows/security.yml",
+    "Visual Regression": ".github/workflows/visual-regression.yml"
+  }
+}

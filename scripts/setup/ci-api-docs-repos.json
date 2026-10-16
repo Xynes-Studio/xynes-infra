@@ -1,0 +1,5 @@
+{
+  "owner": "Xynes-Studio",
+  "repos": ["xynes-api-docs"],
+  "comment": "SEC-008 documentation-only repository; user approved origin/main as the remediation base on 2026-10-06. Prepare main protection with this explicit inventory; do not bootstrap develop or apply remotely without authorization."
+}

@@ -1,0 +1,15 @@
+# Import this site into the existing always-awake Caddy config. The Caddy
+# container must NOT publish 8090 to the host. Install the six reviewed files
+# under the existing /config mount; this invariant content is shared across stages.
+http://:8090 {
+    @reviewed path /confirmation.html /magic_link.html /recovery.html /invite.html /email_change.html /reauthentication.html
+    handle @reviewed {
+        root * /config/apex-auth/templates
+        header Cache-Control "no-store"
+        header X-Content-Type-Options "nosniff"
+        file_server
+    }
+    handle {
+        respond "Not found" 404
+    }
+}

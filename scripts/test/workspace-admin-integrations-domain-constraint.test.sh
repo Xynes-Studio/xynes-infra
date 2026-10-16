@@ -78,7 +78,7 @@ fi
 
 # Probe reachability with a 3-second timeout so a misconfigured URL doesn't hang the suite.
 if ! PGCONNECT_TIMEOUT=3 psql "$DATABASE_URL_RESOLVED" -c "SELECT 1;" >/dev/null 2>&1; then
-  echo "SKIP: workspace-admin-integrations-domain-constraint.test.sh (DB unreachable: ${DATABASE_URL_RESOLVED%%@*}@…)"
+  echo "SKIP: workspace-admin-integrations-domain-constraint.test.sh (DB unreachable; connection details redacted)"
   exit 0
 fi
 

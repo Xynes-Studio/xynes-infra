@@ -1,0 +1,11 @@
+{
+  "artifact_kind": "local-complete-planning-oci-build",
+  "platform": "linux/amd64",
+  "images_verified": 15,
+  "source_manifest_sha256": "45f7536a2bbe1c953c12c8a8ca1cba9d4b296b93b60fe4cc03d31922b5a8fbdc",
+  "receipt_sha256": "2f89250b602cd6a43028c4522bddfda7668dea3c9c9bb27eaf7d43f02a229ae7",
+  "protected_workflow": false,
+  "published": false,
+  "deployable": false,
+  "hosted_acceptance": false
+}

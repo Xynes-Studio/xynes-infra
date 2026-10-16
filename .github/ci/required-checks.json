@@ -1,1 +1,8 @@
-["security"]
+[
+  "lint",
+  "test",
+  "coverage",
+  "build",
+  "typecheck",
+  "security"
+]

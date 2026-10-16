@@ -1,0 +1,41 @@
+{
+  "apply": {
+    "accounts_changed": false,
+    "all_old_profile_settings_preserved": true,
+    "app_services_changed": false,
+    "artifact_kind": "apex-staging-ssh-allowlist",
+    "boundary_installed": false,
+    "candidate_sha256": "c2858f26aa1828582f16bd8e5fec38700cb403a8677480fe790cc779de3b7b53",
+    "change_required": true,
+    "changed": true,
+    "credentials_changed": false,
+    "dns_changed": false,
+    "mode": "apply",
+    "native_config_valid": true,
+    "observed_at": 1791929437,
+    "old_sha256": "063d6e1d4c65015ad69437c329aeefb04b0e774b97afd97a9c4f89154485b907",
+    "parser_sha256": "294cde2f775e54498e1a19aad12e262435a3ecd9997e3c0bc1e7b9e1163ef368",
+    "staging_allowed": true
+  },
+  "artifact_kind": "apex-staging-ssh-allowlist-verification",
+  "deployment_accepted": false,
+  "fresh_recovery_ssh": true,
+  "verification": {
+    "accounts_changed": false,
+    "all_old_profile_settings_preserved": true,
+    "app_services_changed": false,
+    "artifact_kind": "apex-staging-ssh-allowlist",
+    "boundary_installed": false,
+    "candidate_sha256": "c2858f26aa1828582f16bd8e5fec38700cb403a8677480fe790cc779de3b7b53",
+    "change_required": false,
+    "changed": false,
+    "credentials_changed": false,
+    "dns_changed": false,
+    "mode": "preview",
+    "native_config_valid": true,
+    "observed_at": 1791929449,
+    "old_sha256": "063d6e1d4c65015ad69437c329aeefb04b0e774b97afd97a9c4f89154485b907",
+    "parser_sha256": "294cde2f775e54498e1a19aad12e262435a3ecd9997e3c0bc1e7b9e1163ef368",
+    "staging_allowed": true
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "artifact_kind": "backup-schedule-local-verification",
+  "deployable": false,
+  "execution_scope": "offline-fixture",
+  "failures": 0,
+  "files": {
+    "infra/release/host-boundary.md": "0def1fa8d30ad709216c90fc5135220238124c89876795350951295ea51a144a",
+    "infra/release/systemd/xynes-backup-alert@.service": "37c07f0733ae07beb44d81aff430ab93debe962f226c95a9ecacaa6ebc9c8fb2",
+    "infra/release/systemd/xynes-backup@.service": "bb618d151ddfd66cb0dd5c15453a1013587acb43aa97632b377edb5abb6a70fd",
+    "infra/release/systemd/xynes-backup@.timer": "ef2c432307016a902571d3c6ec35bd84936599f5a64804954f09e701dea83f1c",
+    "scripts/release/host_backup.py": "7b6837e2c0a8b29440d0b5bf2be45c5b29473a6c311c636b591a88b055574b9d",
+    "scripts/release/host_boundary.py": "0b16f15cba41926a61415d5845fb2f9229739d840f51f46420f8d5d111fe2c2a",
+    "scripts/test/host-backup-schedule.test.py": "982248ee55beb8597d5a20e179d3a0b531cdfd2425fa3509b66ddc6058d17497",
+    "scripts/test/host-backup.test.py": "43239e4ed3ee30b448c5256cd2c2545bb7f84391da36202186e91fcd66275165",
+    "scripts/test/host-boundary.test.py": "5bb710f74ca9825b6cf1712dc5e3a0d3ccd3c9ee0b24c50026f2677855371f77"
+  },
+  "hosted_acceptance": false,
+  "limits": [
+    "Docker and B2 are inert local executables",
+    "No VPS backup, offsite retrieval, isolated restore or Discord delivery performed",
+    "No timers installed or enabled by this verification"
+  ],
+  "native_age_version": "1.3.2",
+  "observed_at": "2026-10-15T07:24:19.680472+00:00",
+  "proofs": [
+    "accepted ledger and source binding retained without pending attempt fabrication",
+    "actual native age encryption and local decryption of full critical-table evidence",
+    "deployment lock race defers without backup or spurious failure",
+    "fixed Discord payload, URL scope and shared response deadline",
+    "immutable wrapper versions preserve previous release bytes",
+    "sealed root-only fourth bootstrap adds no stage SSH or sudo authority",
+    "native child cleanup never signals an already reaped PID"
+  ],
+  "schema_version": 1,
+  "skips": 0,
+  "tests": {
+    "host-backup-schedule.test.py": 14,
+    "host-backup.test.py": 10,
+    "host-boundary.test.py": 22,
+    "host-release-state.test.py": 16,
+    "pg-container-bridge.test.py": 11,
+    "public-bundle.test.py": 3,
+    "root-executor.test.py": 20
+  }
+}

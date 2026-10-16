@@ -71,18 +71,29 @@ http_request() {
     curl_args+=(-H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN")
   fi
 
-  # Add internal service token if available
-  if [ -n "${INTERNAL_SERVICE_TOKEN:-}" ]; then
-    curl_args+=(-H "X-Internal-Service-Token: $INTERNAL_SERVICE_TOKEN")
+  # The helper signs exact bytes and context; credentials stay in a mode-0600
+  # temporary header file, never in shared env templates or curl arguments.
+  local internal_headers=""
+  if [[ "$url" == */internal/* || "$url" == */authz/check ]]; then
+    internal_headers="$(mktemp)"
+    local signing_script
+    signing_script="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/internal-request-headers.ts"
+    if ! printf '%s' "$body" | CURRENT_WORKSPACE_ID="${CURRENT_WORKSPACE_ID:-}" CURRENT_USER_ID="${CURRENT_USER_ID:-}" bun --no-env-file "$signing_script" "$method" "$url" > "$internal_headers"; then
+      rm -f "$tmp" "$internal_headers"
+      HTTP_CODE="000"
+      HTTP_BODY='{"ok":false,"error":{"code":"INTERNAL_AUTH_CONFIG","message":"Bound smoke identity unavailable"}}'
+      return 1
+    fi
+    curl_args+=(-H "@$internal_headers")
   fi
 
   # Add workspace header if set
-  if [ -n "${CURRENT_WORKSPACE_ID:-}" ]; then
+  if [ -z "$internal_headers" ] && [ -n "${CURRENT_WORKSPACE_ID:-}" ]; then
     curl_args+=(-H "X-Workspace-Id: $CURRENT_WORKSPACE_ID")
   fi
 
   # Add user header if set
-  if [ -n "${CURRENT_USER_ID:-}" ]; then
+  if [ -z "$internal_headers" ] && [ -n "${CURRENT_USER_ID:-}" ]; then
     curl_args+=(-H "X-XS-User-Id: $CURRENT_USER_ID")
   fi
 
@@ -97,6 +108,7 @@ http_request() {
 
   HTTP_BODY="$(cat "$tmp" 2>/dev/null || true)"
   rm -f "$tmp"
+  if [ -n "$internal_headers" ]; then rm -f "$internal_headers"; fi
 
   if [ "$exit_code" -ne 0 ]; then
     HTTP_CODE="000"

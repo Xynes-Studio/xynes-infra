@@ -1,0 +1,14 @@
+{
+  "activated": false,
+  "administrator_and_dev_preserved": true,
+  "artifact_kind": "native-host-isolation-and-private-handoff",
+  "deployment_accepted": false,
+  "fresh_postrevocation_ssh_cases": 8,
+  "legacy_privileges_revoked": true,
+  "native_os_denials": 18,
+  "plan_sha256": "42349dd06ab12c2ed63bed49c49cc5ab7bbc8a701df0d49903cb29693fbd50c7",
+  "positive_deployment_admission": false,
+  "previous_envs_preserved": true,
+  "private_assets_verified": 42,
+  "private_installer_sha256": "fa72f5b7c50095aae5d0021dbc6e0fd734aad3dc2e2321b957a215821cafe457"
+}

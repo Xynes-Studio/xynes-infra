@@ -1,0 +1,1025 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "approval_reference",
+    "sources",
+    "recipes",
+    "base_images",
+    "tools",
+    "processors",
+    "external_images"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "status": {
+      "enum": [
+        "planning",
+        "approved"
+      ]
+    },
+    "approval_reference": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "string",
+          "pattern": "^https://github\\.com/Xynes-Studio/xynes-infra/(pull|issues)/[1-9][0-9]*$"
+        }
+      ]
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "xynes-gateway",
+        "xynes-accounts-service",
+        "xynes-authz-service",
+        "xynes-cms-core",
+        "xynes-doc-service",
+        "xynes-telemetry-service",
+        "xynes-storage-service",
+        "xynes-auth-app",
+        "xynes-cms-console-web",
+        "xynes-auth-sdk",
+        "xynes-i18n",
+        "lumia-ds"
+      ],
+      "properties": {
+        "xynes-gateway": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-gateway"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "xynes-accounts-service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-accounts-service"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "xynes-authz-service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-authz-service"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "xynes-cms-core": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-cms-core"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "xynes-doc-service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-doc-service"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "xynes-telemetry-service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-telemetry-service"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "xynes-storage-service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-storage-service"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "xynes-auth-app": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-auth-app"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "xynes-cms-console-web": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-cms-console-web"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "xynes-auth-sdk": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-auth-sdk"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "xynes-i18n": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/xynes-i18n"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        },
+        "lumia-ds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "repository",
+            "commit"
+          ],
+          "properties": {
+            "repository": {
+              "const": "Xynes-Studio/lumia-ds"
+            },
+            "commit": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{40}$"
+            }
+          }
+        }
+      }
+    },
+    "recipes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "xynes-gateway",
+        "xynes-accounts-service",
+        "xynes-authz-service",
+        "xynes-cms-core",
+        "xynes-doc-service",
+        "xynes-telemetry-service",
+        "xynes-storage-service",
+        "xynes-auth-app",
+        "xynes-cms-console-web"
+      ],
+      "properties": {
+        "xynes-gateway": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "path",
+            "sha256",
+            "target"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "xynes-gateway",
+                "xynes-infra"
+              ]
+            },
+            "path": {
+              "enum": [
+                "Dockerfile",
+                "infra/images/xynes-gateway.Dockerfile"
+              ]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "xynes-infra"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "path": {
+                    "const": "infra/images/xynes-gateway.Dockerfile"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "path": {
+                    "const": "Dockerfile"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "xynes-accounts-service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "path",
+            "sha256",
+            "target"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "xynes-accounts-service",
+                "xynes-infra"
+              ]
+            },
+            "path": {
+              "enum": [
+                "Dockerfile",
+                "infra/images/xynes-accounts-service.Dockerfile"
+              ]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "xynes-infra"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "path": {
+                    "const": "infra/images/xynes-accounts-service.Dockerfile"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "path": {
+                    "const": "Dockerfile"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "xynes-authz-service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "path",
+            "sha256",
+            "target"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "xynes-authz-service",
+                "xynes-infra"
+              ]
+            },
+            "path": {
+              "enum": [
+                "Dockerfile",
+                "infra/images/xynes-authz-service.Dockerfile"
+              ]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "xynes-infra"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "path": {
+                    "const": "infra/images/xynes-authz-service.Dockerfile"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "path": {
+                    "const": "Dockerfile"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "xynes-cms-core": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "path",
+            "sha256",
+            "target"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "xynes-cms-core",
+                "xynes-infra"
+              ]
+            },
+            "path": {
+              "enum": [
+                "Dockerfile",
+                "infra/images/xynes-cms-core.Dockerfile"
+              ]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "xynes-infra"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "path": {
+                    "const": "infra/images/xynes-cms-core.Dockerfile"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "path": {
+                    "const": "Dockerfile"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "xynes-doc-service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "path",
+            "sha256",
+            "target"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "xynes-doc-service",
+                "xynes-infra"
+              ]
+            },
+            "path": {
+              "enum": [
+                "Dockerfile",
+                "infra/images/xynes-doc-service.Dockerfile"
+              ]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "xynes-infra"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "path": {
+                    "const": "infra/images/xynes-doc-service.Dockerfile"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "path": {
+                    "const": "Dockerfile"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "xynes-telemetry-service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "path",
+            "sha256",
+            "target"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "xynes-telemetry-service",
+                "xynes-infra"
+              ]
+            },
+            "path": {
+              "enum": [
+                "Dockerfile",
+                "infra/images/xynes-telemetry-service.Dockerfile"
+              ]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "xynes-infra"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "path": {
+                    "const": "infra/images/xynes-telemetry-service.Dockerfile"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "path": {
+                    "const": "Dockerfile"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "xynes-storage-service": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "path",
+            "sha256",
+            "target"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "xynes-storage-service"
+              ]
+            },
+            "path": {
+              "enum": [
+                "Dockerfile"
+              ]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            }
+          }
+        },
+        "xynes-auth-app": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "path",
+            "sha256",
+            "target"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "xynes-auth-app",
+                "xynes-infra"
+              ]
+            },
+            "path": {
+              "enum": [
+                "Dockerfile",
+                "infra/images/auth-app.Dockerfile"
+              ]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            }
+          }
+        },
+        "xynes-cms-console-web": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "path",
+            "sha256",
+            "target"
+          ],
+          "properties": {
+            "source": {
+              "enum": [
+                "xynes-cms-console-web",
+                "xynes-infra"
+              ]
+            },
+            "path": {
+              "enum": [
+                "Dockerfile",
+                "infra/images/cms-console-web.Dockerfile"
+              ]
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "source": {
+                    "const": "xynes-infra"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "path": {
+                    "const": "infra/images/cms-console-web.Dockerfile"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "path": {
+                    "const": "Dockerfile"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "base_images": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9./_-]+:[A-Za-z0-9._-]+@sha256:[a-f0-9]{64}$"
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pnpm",
+        "lumia_pnpm"
+      ],
+      "properties": {
+        "pnpm": {
+          "const": "10.33.0"
+        },
+        "lumia_pnpm": {
+          "const": "10.23.0"
+        }
+      }
+    },
+    "processors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "archive-scanner",
+        "libreoffice"
+      ],
+      "properties": {
+        "archive-scanner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "context_prefix",
+            "recipe",
+            "sha256",
+            "target",
+            "platform",
+            "files",
+            "base_images"
+          ],
+          "properties": {
+            "source": {
+              "const": "xynes-storage-service"
+            },
+            "context_prefix": {
+              "const": "sidecars/archive-scanner"
+            },
+            "recipe": {
+              "const": "infra/images/archive-scanner.Dockerfile"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            },
+            "platform": {
+              "const": "linux/amd64"
+            },
+            "files": {
+              "type": "array",
+              "minItems": 8,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "mode",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "enum": [
+                      "archive.go",
+                      "archive_test.go",
+                      "coverage-gate.py",
+                      "gateway_test.go",
+                      "go.mod",
+                      "more_test.go",
+                      "server.go",
+                      "server_test.go"
+                    ]
+                  },
+                  "mode": {
+                    "enum": [
+                      "100644",
+                      "100755"
+                    ]
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                }
+              }
+            },
+            "base_images": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9./_-]+:[A-Za-z0-9._-]+@sha256:[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "libreoffice": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source",
+            "context_prefix",
+            "recipe",
+            "sha256",
+            "target",
+            "platform",
+            "files",
+            "base_images"
+          ],
+          "properties": {
+            "source": {
+              "const": "xynes-storage-service"
+            },
+            "context_prefix": {
+              "const": "sidecars/libreoffice"
+            },
+            "recipe": {
+              "const": "infra/images/libreoffice.Dockerfile"
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "target": {
+              "const": "prod"
+            },
+            "platform": {
+              "const": "linux/amd64"
+            },
+            "files": {
+              "type": "array",
+              "minItems": 21,
+              "maxItems": 21,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "mode",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "enum": [
+                      ".eslintrc.cjs",
+                      "bun.lock",
+                      "package.json",
+                      "src/convert.ts",
+                      "src/errors.ts",
+                      "src/health.ts",
+                      "src/parse-request.ts",
+                      "src/safe-mime.ts",
+                      "src/shim.ts",
+                      "src/soffice-runner.ts",
+                      "tests/_test-helpers.ts",
+                      "tests/config.test.ts",
+                      "tests/convert.test.ts",
+                      "tests/errors.test.ts",
+                      "tests/health.test.ts",
+                      "tests/parse-request.test.ts",
+                      "tests/safe-mime.test.ts",
+                      "tests/shim-boot.test.ts",
+                      "tests/shim.test.ts",
+                      "tests/soffice-runner.test.ts",
+                      "tsconfig.json"
+                    ]
+                  },
+                  "mode": {
+                    "enum": [
+                      "100644",
+                      "100755"
+                    ]
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                }
+              }
+            },
+            "base_images": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z0-9./_-]+:[A-Za-z0-9._-]+@sha256:[a-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "external_images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clamav-freshclam",
+        "supabase-db",
+        "supabase-auth"
+      ],
+      "properties": {
+        "clamav-freshclam": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "image",
+            "platform"
+          ],
+          "properties": {
+            "image": {
+              "type": "string",
+              "pattern": "^clamav/clamav:[A-Za-z0-9._-]+@sha256:[a-f0-9]{64}$"
+            },
+            "platform": {
+              "const": "linux/amd64"
+            }
+          }
+        },
+        "supabase-db": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "image",
+            "platform"
+          ],
+          "properties": {
+            "image": {
+              "type": "string",
+              "pattern": "^postgres:17-alpine@sha256:[a-f0-9]{64}$"
+            },
+            "platform": {
+              "const": "linux/amd64"
+            }
+          }
+        },
+        "supabase-auth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "image",
+            "platform"
+          ],
+          "properties": {
+            "image": {
+              "type": "string",
+              "pattern": "^supabase/gotrue:v2\\.[A-Za-z0-9._-]+@sha256:[a-f0-9]{64}$"
+            },
+            "platform": {
+              "const": "linux/amd64"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.xynes.com/releases/source-manifest-v1.json",
+  "title": "Apex pinned build sources; not a release/image manifest",
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "approved"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "approval_reference": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}

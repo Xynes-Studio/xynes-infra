@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "github-cli",
+  "version": "2.102.0",
+  "release": "https://github.com/cli/cli/releases/tag/v2.102.0",
+  "platforms": {
+    "linux-amd64": {
+      "archive_url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz",
+      "archive_sha256": "bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386",
+      "binary_sha256": "7469124f706944133d6a169691dd1c6c3511b12e85878d255e044e2948df4c9b"
+    },
+    "darwin-arm64": {
+      "archive_url": "https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_macOS_arm64.zip",
+      "archive_sha256": "da922c20d1792e5b2cbf375593d7a658acf034c12c84e007e71c76ef959c337e",
+      "binary_sha256": "8a4258433c81106343144857750316241759d06dcf16265cf3c4864a8f2f2ad6"
+    }
+  }
+}

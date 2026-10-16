@@ -1,0 +1,88 @@
+{
+  "application_deployment_pending": true,
+  "artifact_kind": "apex-live-boundary-installation-checkpoint",
+  "filled_stage_environment_installation_pending": true,
+  "full_isolation_verified": false,
+  "independent_code_review": "no_actionable_p1_p2_installation_only",
+  "installation": {
+    "administrator_recovery_copy_preserved": true,
+    "artifact_kind": "apex-reviewed-boundary-installation",
+    "audit": {
+      "boundary_ready": false,
+      "bundle_sha256": "bd5bfcb43c06678ac2222a14529679d13f7a7d38f23adf328cd19304d7de1b4f",
+      "execution_scope": "live-host",
+      "owned_assets_verified": true,
+      "plan_sha256": "42349dd06ab12c2ed63bed49c49cc5ab7bbc8a701df0d49903cb29693fbd50c7"
+    },
+    "code_readiness_only": true,
+    "deployment_accepted": false,
+    "input_cleanup_verified": true,
+    "installation": {
+      "boundary_ready": false,
+      "bundle_sha256": "bd5bfcb43c06678ac2222a14529679d13f7a7d38f23adf328cd19304d7de1b4f",
+      "execution_scope": "live-host",
+      "installed": true,
+      "plan_sha256": "42349dd06ab12c2ed63bed49c49cc5ab7bbc8a701df0d49903cb29693fbd50c7",
+      "privileges_revoked": false
+    },
+    "positive_native_admission": false
+  },
+  "installer_sha256": "e15ca467bcd561c23c438883f2eb5bb15986a93e3a9cdfa26c347a23f02c7457",
+  "source_pr_independent_approval_pending": true,
+  "ssh_checks": {
+    "artifact_kind": "native-installed-boundary-ssh-checks",
+    "checked_cases": 8,
+    "checks": [
+      {
+        "case": "fresh-administrator-recovery",
+        "verified": true
+      },
+      {
+        "case": "malformed-deploy",
+        "refused": true,
+        "stage": "qa",
+        "verified": true
+      },
+      {
+        "case": "generic-command",
+        "refused": true,
+        "stage": "qa",
+        "verified": true
+      },
+      {
+        "case": "malformed-deploy",
+        "refused": true,
+        "stage": "staging",
+        "verified": true
+      },
+      {
+        "case": "generic-command",
+        "refused": true,
+        "stage": "staging",
+        "verified": true
+      },
+      {
+        "case": "malformed-deploy",
+        "refused": true,
+        "stage": "prod",
+        "verified": true
+      },
+      {
+        "case": "generic-command",
+        "refused": true,
+        "stage": "prod",
+        "verified": true
+      },
+      {
+        "case": "qa-key-to-prod-account",
+        "refused": true,
+        "verified": true
+      }
+    ],
+    "cross_environment_os_isolation_verified": false,
+    "deployment_accepted": false,
+    "fresh_admin_recovery": true,
+    "positive_native_admission": false,
+    "privileges_revoked": false
+  }
+}

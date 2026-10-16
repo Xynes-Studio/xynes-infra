@@ -1,0 +1,31 @@
+[Unit]
+Description=Xynes prod idle auth
+After=docker.service network-online.target systemd-tmpfiles-setup.service
+Requires=docker.service
+ConditionPathExists=/etc/xynes/idle/prod/generation.json
+
+[Service]
+Type=simple
+ExecStart=/usr/local/lib/xynes-idle/xynes-idle -role proxy -config /etc/xynes/idle/prod/auth-proxy.json
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=100s
+KillMode=control-group
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET
+LockPersonality=true
+LimitNOFILE=1024
+User=12004
+Group=12004
+InaccessiblePaths=/var/run/docker.sock
+ReadWritePaths=/run/xynes/idle/prod/auth /var/lib/xynes/idle/prod/auth
+
+[Install]
+WantedBy=multi-user.target

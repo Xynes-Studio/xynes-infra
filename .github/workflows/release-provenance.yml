@@ -1,0 +1,119 @@
+# Generated from xynes-infra scripts/setup/ci-quality-profiles.json.
+name: "Protected release provenance"
+"on":
+  workflow_dispatch: {}
+permissions:
+  contents: "read"
+concurrency:
+  group: "release-${{ github.repository }}"
+  cancel-in-progress: false
+jobs:
+  preflight:
+    name: "Protected release preflight"
+    runs-on: "ubuntu-24.04"
+    timeout-minutes: 10
+    permissions:
+      contents: "read"
+    steps:
+      -
+        uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683"
+        with:
+          persist-credentials: false
+      -
+        uses: "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6"
+        with:
+          bun-version: "1.4.2"
+      -
+        name: "Refuse dispatch outside protected main before using release credentials"
+        run: "bun .github/ci/release-gates.ts --source"
+  policy:
+    name: "Verify protected release checks"
+    needs: "preflight"
+    if: "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected"
+    runs-on: "ubuntu-24.04"
+    timeout-minutes: 10
+    environment: "release"
+    permissions:
+      contents: "read"
+      checks: "read"
+    steps:
+      -
+        uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683"
+        with:
+          persist-credentials: false
+      -
+        uses: "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6"
+        with:
+          bun-version: "1.4.2"
+      -
+        name: "Verify actual protected policy and latest exact-commit gates"
+        run: "bun .github/ci/release-gates.ts"
+        env:
+          GH_TOKEN: "${{ github.token }}"
+          GH_POLICY_READ_TOKEN: "${{ secrets.RELEASE_POLICY_READ_TOKEN }}"
+  build:
+    name: "Build release candidate"
+    needs:
+      - "preflight"
+      - "policy"
+    if: "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected"
+    runs-on: "ubuntu-24.04"
+    timeout-minutes: 45
+    environment: "release"
+    permissions:
+      contents: "read"
+    defaults:
+      run:
+        shell: "bash"
+    outputs:
+      digest: "${{ steps.package.outputs.digest }}"
+    steps:
+      -
+        uses: "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683"
+        with:
+          persist-credentials: false
+      -
+        run: |
+          set -euo pipefail
+          artifact_dir="${RUNNER_TEMP:?}/release-candidate"
+          mkdir -p "$artifact_dir"
+          python3 - <<'PY'
+          import json,os,pathlib
+          record=json.loads('{"artifact_kind": "tracked-operational-source", "linked_source_commits": {}, "runtime_versions": {}}')
+          record.update(repository=os.environ["GITHUB_REPOSITORY"], source_commit=os.environ["GITHUB_SHA"], workflow_run_id=os.environ["GITHUB_RUN_ID"], workflow_run_attempt=os.environ["GITHUB_RUN_ATTEMPT"])
+          pathlib.Path(os.environ["RUNNER_TEMP"],"release-candidate","build-record.json").write_text(json.dumps(record,sort_keys=True,indent=2)+"\n")
+          PY
+          python3 scripts/release/public_bundle.py --commit "$GITHUB_SHA" --output "$artifact_dir/source.tar"
+          tar --exclude=node_modules --exclude=.next/cache --exclude=coverage --exclude="*.tsbuildinfo" --exclude=".env" --exclude=".env.*" --exclude="*/.env" --exclude="*/.env.*" -czf "$artifact_dir/candidate.tar.gz" -C "$artifact_dir" source.tar -C "$artifact_dir" build-record.json
+          printf 'digest=sha256:%s\n' "$(sha256sum "$artifact_dir/candidate.tar.gz" | cut -d' ' -f1)" >> "${GITHUB_OUTPUT:?}"
+        id: "package"
+        name: "Package compiled outputs and source/run record"
+      -
+        uses: "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
+        with:
+          name: "release-candidate-${{ github.sha }}"
+          path: "${{ runner.temp }}/release-candidate/candidate.tar.gz"
+          if-no-files-found: "error"
+          retention-days: 14
+  attest:
+    name: "Attest protected release candidate"
+    needs:
+      - "preflight"
+      - "policy"
+      - "build"
+    if: "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected"
+    runs-on: "ubuntu-24.04"
+    timeout-minutes: 10
+    environment: "release"
+    permissions:
+      contents: "read"
+      id-token: "write"
+      attestations: "write"
+    steps:
+      -
+        uses: "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6"
+        with:
+          subject-name: "candidate.tar.gz"
+          subject-digest: "${{ needs.build.outputs.digest }}"
+          push-to-registry: false
+          create-storage-record: false

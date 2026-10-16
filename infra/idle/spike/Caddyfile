@@ -1,0 +1,32 @@
+{
+  auto_https off
+  admin off
+}
+:8080 {
+  @probe path /health /metrics
+  route {
+    respond @probe "ingress healthy; workload state is separate" 200
+    route /broken* {
+      sablier http://sablier:10000 {
+        names apex-unhealthy
+        session_duration 10s
+        blocking {
+          timeout 3s
+        }
+      }
+      reverse_proxy daemon:8081
+    }
+    route {
+      sablier http://sablier:10000 {
+        names apex-fixture
+        session_duration 10s
+        blocking {
+          timeout 5s
+        }
+      }
+      reverse_proxy daemon:8080 {
+        flush_interval -1
+      }
+    }
+  }
+}

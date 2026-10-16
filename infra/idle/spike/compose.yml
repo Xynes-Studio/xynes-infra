@@ -1,0 +1,49 @@
+# Disposable DinD only: no host Docker socket, bind mounts, secrets or real workload.
+# Never use this privileged fixture architecture on a hosted stack.
+services:
+  daemon:
+    image: docker:28.1.1-dind
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ''
+    command: ["dockerd", "--host=tcp://0.0.0.0:2375", "--host=unix:///var/run/docker.sock", "--tls=false"]
+    labels:
+      com.xynes.apex.spike: disposable
+    volumes:
+      - fixture-data:/var/lib/docker
+  sablier:
+    image: sablierapp/sablier:1.18.0
+    environment:
+      DOCKER_HOST: tcp://daemon:2375
+    command:
+      - start
+      - --provider.name=docker
+      - --provider.auto-stop-on-startup=false
+      - --provider.reject-unlabeled-requests=true
+      - --provider.verify-enabled-on-expiration=true
+      - --sessions.default-duration=10s
+      - --sessions.expiration-interval=1s
+      - --strategy.blocking.default-refresh-frequency=100ms
+    ports:
+      - "127.0.0.1::10000"
+    labels:
+      com.xynes.apex.spike: disposable
+  caddy:
+    build:
+      context: .
+      dockerfile: caddy.Dockerfile
+    ports:
+      - "127.0.0.1::8080"
+    labels:
+      com.xynes.apex.spike: disposable
+  caller:
+    image: python:3.13.7-alpine3.22
+    user: '65534:65534'
+    command: ["sleep", "infinity"]
+    labels:
+      com.xynes.apex.spike: disposable
+
+volumes:
+  fixture-data:
+    labels:
+      com.xynes.apex.spike: disposable

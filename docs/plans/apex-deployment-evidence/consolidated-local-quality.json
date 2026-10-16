@@ -1,0 +1,13 @@
+{
+  "artifact_kind": "consolidated-local-quality-results",
+  "commands": 76,
+  "passed_without_socket_escalation": 73,
+  "local_socket_permission_refusals": 3,
+  "socket_suites_revalidated_pass": 3,
+  "unresolved_failures": 0,
+  "individual_skips": 0,
+  "separate_native_runtime_commands": 5,
+  "workflow_sha256": "07a4fbd119dca16b8ef2e87156be5b5bb644143729fb574f7e4c30d6368e05e4",
+  "protected_workflow": false,
+  "hosted_acceptance": false
+}

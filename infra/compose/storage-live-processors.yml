@@ -1,97 +1,11 @@
-# STORAGE-FU-5-FU-E — Live processors overlay (LibreOffice + clamav sidecars).
-#
-# This overlay is OPT-IN. The dev stack defaults to
-# STORAGE_PROCESSOR_MODE=stub (per `.env.example`); the in-process Tier-1
-# processors (sharp + ffmpeg) are bundled into the storage-service image
-# directly. The sidecars below are needed ONLY when an operator flips
-# STORAGE_PROCESSOR_MODE=live AND wants document-preview / malware-scan
-# functionality.
-#
-# Usage:
-#   # Clamav-only (default — what most operators want for malware scanning):
-#   docker compose --env-file .env.dev.local \
-#     -f docker-compose.dev.yml \
-#     -f infra/compose/storage-live-processors.yml \
-#     up -d storage-service clamav-clamd clamav-freshclam
-#
-#   # Clamav + LibreOffice (once the FU-G sidecar image is published):
-#   docker compose --env-file .env.dev.local \
-#     -f docker-compose.dev.yml \
-#     -f infra/compose/storage-live-processors.yml \
-#     --profile libreoffice \
-#     up -d
-#
-# STORAGE-FU-E-FIX-1 (2026-06-02) — bring-up notes:
-#   - clamav images pinned at `1.5.2-debian` (the prior `1.3` pin was
-#     retagged off Docker Hub). Tracking still-published patch tags
-#     keeps drift visible and lets us reason about CVE backports.
-#   - ClamAV 1.5.x ships `clamd.conf` with `TCPSocket 3310` enabled
-#     but `TCPAddr` commented out — so the daemon only binds to
-#     localhost by default. The upstream entrypoint processes
-#     `CLAMD_CONF_<key>=<value>` envs to rewrite `/etc/clamav/clamd.conf`
-#     at startup, so we set `CLAMD_CONF_TCPAddr=0.0.0.0` (alongside
-#     `CLAMD_CONF_TCPSocket=3310` for explicitness) to enable
-#     cross-container access from storage-service.
-#   - Both clamav containers run AS ROOT (the image has no USER
-#     directive). We narrowly re-add the five caps the upstream
-#     entrypoint and clamd actually need (CHOWN, FOWNER,
-#     DAC_OVERRIDE, SETUID, SETGID) and drop ALL other caps. An
-#     earlier draft of this overlay tried `user: "1000:1000"` to
-#     avoid running as root, but the entrypoint's `sed -i` on
-#     `/etc/clamav/clamd.conf` requires write permission in the
-#     root-owned `/etc/clamav/` directory — non-root users can't
-#     create the temp file there. With the narrow cap_add posture,
-#     `no-new-privileges:true` still prevents any capability
-#     escalation, and the dangerous caps for container escape
-#     (SYS_ADMIN, NET_ADMIN, NET_RAW, SYS_PTRACE, MKNOD, etc.) all
-#     remain dropped. See the per-service `cap_add` comments for
-#     the specific reason each cap is required.
-#   - Both containers have writable rootfs because the upstream
-#     entrypoint runs `sed -i` against `/etc/clamav/clamd.conf` and
-#     `/etc/clamav/freshclam.conf` at startup (to apply `CLAMD_CONF_*`
-#     / `FRESHCLAM_CONF_*` envs). Tmpfs-mounting `/etc/clamav` hides
-#     the original config files, so writable rootfs is the simplest
-#     working posture. Defense in depth is preserved by
-#     `cap_drop: [ALL]` + narrow `cap_add: [CHOWN, FOWNER, DAC_OVERRIDE,
-#     SETUID, SETGID]` + `no-new-privileges`.
-#   - `libreoffice-sidecar` is gated behind the `libreoffice` Compose
-#     profile because the FU-G image is not yet published to a
-#     pull-able registry. Compose v2 tries to resolve every service
-#     in every `-f` file before starting any, so a dangling image
-#     here would block the whole stack. Operators bring up the
-#     LibreOffice leg explicitly with `--profile libreoffice`.
-#
-# See:
-#   - xynes/xynes-storage-service/docs/deployment-posture.md
-#   - xynes/xynes-infra/docs/plans/archive/2026-05-27-storage-followups-combined.md §6
-#   - xynes/xynes-infra/docs/plans/archive/2026-06-02-storage-fu-e-fix-1.md
-#
-# Security posture (matches the K8s draft manifests under
-# xynes/xynes-infra/infra/release/deployment-posture/k8s/):
-#   - Both clamav sidecars run AS ROOT (no `user:` directive — the
-#     upstream image has no USER instruction and its entrypoint's
-#     `sed -i` on the root-owned `/etc/clamav/*.conf` requires it).
-#     Defense in depth is `cap_drop: [ALL]` + narrow `cap_add:
-#     [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]` +
-#     `no-new-privileges:true`. The five caps are the minimum the
-#     upstream entrypoint and clamd's internal privilege-drop to
-#     uid 1000 actually need (see the per-service `cap_add` block
-#     for the line-by-line rationale). Rootfs is writable because
-#     the entrypoint's config-rewrite step requires it; the binary
-#     never writes anywhere outside the explicitly mounted tmpfs /
-#     named-volume paths. An earlier draft of this overlay tried
-#     `user: "1000:1000"` to avoid root, but the entrypoint's
-#     `sed -i` on root-owned `/etc/clamav/` cannot create temp
-#     files under a non-root user — see the header notes above.
-#   - libreoffice-sidecar keeps `read_only: true` rootfs (its image
-#     does not need the upstream-entrypoint-style config rewriting).
-#   - No host ports exposed — pod-local network only. Caddy (the only
-#     host-bound process per RELEASE-STRATEGY.md §3.2) does NOT proxy
-#     to these sidecars.
-#   - clamav-freshclam is the ONLY sidecar with external egress (to
-#     database.clamav.net for definition refresh). NetworkPolicy /
-#     docker network rules are documented in the K8s manifests; for
-#     dev compose the default bridge network is acceptable.
+# Live storage processors overlay (opt-in, STORAGE_PROCESSOR_MODE=live).
+# Use with docker-compose.dev.yml and canonical .env.dev.
+# SEC-002: clamav-clamd is now a non-root, read-only scanner supervisor.
+# It builds the pinned ClamAV engine plus strict bounded archive validation;
+# its private daemon port (3311) is never exposed. Freshclam retains the upstream
+# entrypoint and its separate writable definition volume. No host ports are added.
+# See ../xynes-storage-service/docs/XYN-SEC-002-archive-policy.md.
+# LibreOffice remains opt-in via --profile libreoffice.
 
 services:
   # LibreOffice sidecar — first-page document preview generation.
@@ -151,82 +65,38 @@ services:
       retries: 3
       start_period: 45s
 
-  # ClamAV scanning daemon — listens on TCP 3310 for INSTREAM scan
-  # requests. Reads virus definitions from the clamav-defs named volume
-  # (written by clamav-freshclam below).
-  #
-  # STORAGE-FU-E-FIX-1 (2026-06-02): repinned to 1.5.2-debian (the
-  # prior 1.3 tag is no longer published). `CLAMD_CONF_TCPAddr=0.0.0.0`
-  # is mandatory in 1.5.x — the default clamd.conf binds to localhost
-  # only, which silently breaks cross-container access.
+  # SEC-002: the supervisor owns a private clamd listener on 127.0.0.1:3311.
+  # It validates bounded ZIP/TAR/GZIP input and kills/reaps unfinished work.
+  # See ../xynes-storage-service/sidecars/archive-scanner/README.md.
   clamav-clamd:
-    image: clamav/clamav:1.5.2-debian
+    image: xynes/archive-scanner:0.1.0
+    build:
+      context: ../xynes-storage-service/sidecars/archive-scanner
     container_name: clamav-clamd
     restart: unless-stopped
-    # Pod-local network only.
     expose:
       - "3310"
     environment:
-      - CLAMAV_NO_FRESHCLAMD=true # freshclam runs in a separate sidecar
-      - CLAMAV_NO_CLAMD=false
-      # STORAGE-FU-E-FIX-1: the upstream entrypoint rewrites
-      # /etc/clamav/clamd.conf at startup for any `CLAMD_CONF_<key>=<value>`
-      # env it sees. The default image enables `TCPSocket 3310` but
-      # comments out `TCPAddr`, so clamd binds to 127.0.0.1 only — no
-      # cross-container access. The two lines below pin the listener
-      # to 0.0.0.0:3310 so storage-service can reach it via the
-      # `clamav-clamd` Compose DNS name.
-      - CLAMD_CONF_TCPSocket=3310
-      - CLAMD_CONF_TCPAddr=0.0.0.0
-    # STORAGE-FU-E-FIX-1 (2026-06-02, live-run discovery): rootfs is
-    # NOT readonly. The upstream entrypoint runs `sed -i` against
-    # `/etc/clamav/clamd.conf` to apply the `CLAMD_CONF_*` envs above;
-    # that fails on a readonly rootfs. Tmpfs-mounting `/etc/clamav`
-    # hides the original config files (the entrypoint then can't read
-    # them either) so the rootfs must remain writable. Security
-    # posture is preserved via `cap_drop: [ALL]` + narrow `cap_add:
-    # [CHOWN, FOWNER, DAC_OVERRIDE, SETUID, SETGID]` +
-    # `no-new-privileges:true` (see the `cap_add` block below for
-    # the specific reason each cap is required). clamd never writes
-    # outside `/run/clamav` (tmpfs) and `/var/lib/clamav` (:rw), and
-    # the binary is hardened against arbitrary file writes by design.
+      - CLAMD_CONF_StreamMaxLength=67108864
+      - CLAMD_CONF_MaxScanSize=134217728
+      - CLAMD_CONF_MaxFileSize=67108864
+      - CLAMD_CONF_MaxRecursion=5
+      - CLAMD_CONF_MaxFiles=512
+      - CLAMD_CONF_MaxScanTime=5000
+      - CLAMD_CONF_WallTime=10000
+      - CLAMD_CONF_ScanArchive=yes
+      - CLAMD_CONF_AlertExceedsMax=yes
+      - CLAMD_CONF_AlertEncrypted=yes
+    user: "1000:1000"
+    read_only: true
     tmpfs:
-      - /tmp:size=128m,mode=1777
-      - /var/lock:size=16m,mode=1777
-      - /run/clamav:size=16m,mode=1777
+      - /tmp:size=256m,mode=1777
     volumes:
-      # Definitions written by freshclam; mounted read-write so the entrypoint chown succeeds (clamd never writes, see header notes).
-      - clamav-defs:/var/lib/clamav:rw
+      - clamav-defs:/var/lib/clamav:ro
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    # STORAGE-FU-E-FIX-1 (2026-06-02, live-run discovery): the
-    # upstream entrypoint runs `chown -R`, `sed -i` /etc/clamav/*.conf,
-    # and clamd startup AS ROOT (the image has no USER directive).
-    # We drop ALL caps for defense in depth, then narrowly re-add the
-    # five caps the entrypoint and clamd actually need:
-    #   - CHOWN: `chown -R clamav:clamav /var/lib/clamav` step
-    #     (line 18 of `/init`).
-    #   - FOWNER: chmod operations on virus-definition files.
-    #   - DAC_OVERRIDE: clamd needs to write its log file at
-    #     /var/log/clamav/clamd.log (root-owned) and read 0700-owned
-    #     definition files after it drops to uid 1000 internally.
-    #   - SETUID + SETGID: clamd's User directive in clamd.conf drops
-    #     the daemon from root to the `clamav` user (uid 1000) after
-    #     bind(). Without these caps, `initgroups()`/`setgroups()`
-    #     fail and clamd never accepts TCP connections (verified live
-    #     2026-06-02 — clamd boots but TCP never opens).
-    # `no-new-privileges:true` (above) prevents further capability
-    # escalation. The dangerous caps for container escape (SYS_ADMIN,
-    # NET_ADMIN, NET_RAW, SYS_PTRACE, MKNOD, SYS_MODULE,
-    # SYS_RAWIO, SYS_BOOT, etc.) all remain dropped.
-    cap_add:
-      - CHOWN
-      - FOWNER
-      - DAC_OVERRIDE
-      - SETUID
-      - SETGID
     deploy:
       resources:
         limits:
@@ -235,17 +105,12 @@ services:
         reservations:
           memory: 1g
     healthcheck:
-      # STORAGE-FU-E-FIX-1: the upstream image ships `netcat-openbsd`
-      # which uses `-w` for the I/O timeout. We send PING (clamd's
-      # protocol greeting) and expect PONG. `printf 'PING\n'` avoids
-      # the brittle `echo 'PING'` quoting from the original overlay.
-      test:
-        - CMD-SHELL
-        - "printf 'PING\\n' | nc -w 5 127.0.0.1 3310 | grep -q PONG"
+      # Private daemon PING; public port is opened only after initial readiness.
+      test: ["CMD-SHELL", "printf 'PING\\n' | nc -w 5 127.0.0.1 3311 | grep -q PONG"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s # definition load takes ~10 s
+      start_period: 120s
     depends_on:
       clamav-freshclam:
         condition: service_started
@@ -352,14 +217,13 @@ services:
       - LIBREOFFICE_SERVICE_URL=http://libreoffice-sidecar:8100
       - CLAMD_HOST=clamav-clamd
       - CLAMD_PORT=3310
-      # Optional unix-socket alternative; takes precedence over TCP when set.
-      # - CLAMD_SOCKET=/run/clamav/clamd.sock
+      # The archive supervisor listens on TCP; leave CLAMD_SOCKET unset.
       # Per-job timeouts (FU-B / FU-C will read these).
       - STORAGE_FFMPEG_TIMEOUT_MS=${STORAGE_FFMPEG_TIMEOUT_MS:-300000}
       - STORAGE_SOFFICE_TIMEOUT_MS=${STORAGE_SOFFICE_TIMEOUT_MS:-60000}
     depends_on:
       clamav-clamd:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   # Shared between clamav-clamd (ro) and clamav-freshclam (rw).

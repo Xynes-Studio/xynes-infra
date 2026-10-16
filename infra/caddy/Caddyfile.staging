@@ -1,0 +1,195 @@
+# Staging Caddyfile — story F-3 (first boot only).
+#
+# Identical to ./Caddyfile EXCEPT the global block sets `acme_ca` to Let's
+# Encrypt's STAGING directory. Issued certs are signed by LE staging's
+# `Pretend Pear` / `Fake LE` intermediate, so browsers will mark them
+# UNTRUSTED — that is fine for the first-boot smoke. The goal is to prove
+# DNS + ports 80/443 + ACME HTTP-01 / TLS-ALPN-01 challenges work end-to-end
+# without burning Let's Encrypt prod rate limits (5 duplicate certs / week,
+# 50 certs / week / registered domain).
+#
+# Why a sibling file instead of an env-toggle in Caddyfile:
+#   1. `acme_ca` must live in the global block; it is not a snippet.
+#   2. A sibling file makes the prod-CA swap an atomic file replacement,
+#      not a live-edit of the canonical Caddyfile. Easier to audit; easier
+#      to roll back.
+#
+# Rollout sequence (matches README.md §"Rollout sequence"):
+#   1. Bring Caddy up with this file:
+#        docker exec caddy caddy reload --config /etc/caddy/Caddyfile.staging
+#   2. Verify cert issuance from staging (untrusted, that's expected).
+#   3. Swap to prod CA:
+#        docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+#   4. Caddy will re-request the same names from the prod LE endpoint and
+#      replace the staging certs in /data/caddy/certificates.
+#
+# Source of truth for the site blocks: xynes/xynes-infra/infra/release/CADDY.md §3.
+
+{
+    email security@xynes.com
+    admin localhost:2019       # admin API not exposed beyond loopback
+    # F-3 STAGING — first-boot only. Swap to ./Caddyfile (no acme_ca line) for prod CA.
+    acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+# ====================================================
+# Global snippets (security headers, rate limit, etc.)
+# ====================================================
+
+(security_headers_prod) {
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "DENY"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+        Permissions-Policy        "geolocation=(), camera=(), microphone=(), payment=()"
+        Content-Security-Policy   "default-src 'self' https: data:; img-src 'self' https: data:; script-src 'self' https: 'unsafe-inline' 'unsafe-eval'; style-src 'self' https: 'unsafe-inline'; connect-src 'self' https: wss:; frame-ancestors 'none'"
+        -Server
+    }
+}
+
+(security_headers_nonprod) {
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy        "strict-origin-when-cross-origin"
+        -Server
+    }
+}
+
+(common_proxy_opts) {
+    transport http {
+        dial_timeout 5s
+        response_header_timeout 30s
+        read_timeout 60s
+        write_timeout 60s
+    }
+}
+
+(deny_admin_paths) {
+    @admin path /admin* /internal/* /metrics /.well-known/security.txt
+    handle @admin {
+        respond 404
+    }
+}
+
+# ====================================================
+# Prod (xynes.com) — see CADDY.md §3 for rationale.
+# ====================================================
+
+api.erp.xynes.com {
+    import security_headers_prod
+    import deny_admin_paths
+
+    @health path /health
+    handle @health {
+        reverse_proxy gateway_prod:4100 {
+            import common_proxy_opts
+        }
+    }
+
+    reverse_proxy gateway_prod:4100 {
+        import common_proxy_opts
+        header_up X-Forwarded-For {client_ip}
+        header_up X-Forwarded-Proto https
+        header_up X-Forwarded-Host {host}
+    }
+
+    log {
+        output file /var/log/caddy/prod-api.access.log {
+            roll_size 100mb
+            roll_keep 14
+        }
+        format json
+    }
+}
+
+auth.erp.xynes.com {
+    import security_headers_prod
+    reverse_proxy auth_app_prod:3100 {
+        import common_proxy_opts
+    }
+}
+
+cms.erp.xynes.com {
+    import security_headers_prod
+    reverse_proxy cms_console_web_prod:3000 {
+        import common_proxy_opts
+    }
+}
+
+# ====================================================
+# QA
+# ====================================================
+
+qa-api.erp.xynes.com {
+    import security_headers_nonprod
+    import deny_admin_paths
+    basicauth /* {
+        qa $2a$14$EXAMPLEHASHREPLACEME
+    }
+    reverse_proxy gateway_qa:4100 {
+        import common_proxy_opts
+    }
+}
+
+qa-auth.erp.xynes.com {
+    import security_headers_nonprod
+    reverse_proxy auth_app_qa:3100 {
+        import common_proxy_opts
+    }
+}
+
+qa-cms.erp.xynes.com {
+    import security_headers_nonprod
+    reverse_proxy cms_console_web_qa:3000 {
+        import common_proxy_opts
+    }
+}
+
+# ====================================================
+# Dev
+# ====================================================
+
+dev-api.erp.xynes.com {
+    import security_headers_nonprod
+    import deny_admin_paths
+    reverse_proxy gateway_dev:4100 {
+        import common_proxy_opts
+    }
+}
+
+dev-auth.erp.xynes.com {
+    import security_headers_nonprod
+    reverse_proxy auth_app_dev:3100 {
+        import common_proxy_opts
+    }
+}
+
+dev-cms.erp.xynes.com {
+    import security_headers_nonprod
+    reverse_proxy cms_console_web_dev:3000 {
+        import common_proxy_opts
+    }
+}
+
+# ====================================================
+# Status (Uptime Kuma)
+# ====================================================
+
+status.erp.xynes.com {
+    import security_headers_prod
+    reverse_proxy uptime_kuma:3001 {
+        import common_proxy_opts
+    }
+}
+
+# ====================================================
+# xynes.in short-link redirect — ENUMERATED (F-1-FU-1, 2026-06-12)
+# See ./Caddyfile for the full rationale (Option A: enumerate the 10 hosts
+# so HTTP-01 / TLS-ALPN-01 challenges can satisfy every cert request without
+# the wildcard-LE-retry-loop trap surfaced during F-3 live VPS bring-up).
+# ====================================================
+
+api.erp.xynes.in, auth.erp.xynes.in, cms.erp.xynes.in, qa-api.erp.xynes.in, qa-auth.erp.xynes.in, qa-cms.erp.xynes.in, dev-api.erp.xynes.in, dev-auth.erp.xynes.in, dev-cms.erp.xynes.in, status.erp.xynes.in {
+    redir https://{labels.3}.erp.xynes.com{uri} permanent
+}

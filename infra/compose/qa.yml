@@ -1,0 +1,17 @@
+# Stage-owned secret references only; no filled values belong in git.
+{
+  "services": {
+    "accounts-service": {
+      "environment": {
+        "MAIL_CREDENTIAL_XYNES__MAIL__RESEND_QA_API_KEY": "${MAIL_API_KEY:?Set stage-owned mail credential}",
+        "MAIL_CREDENTIAL_XYNES__MAIL__RESEND_QA_FROM_ADDRESS": "${MAIL_FROM_ADDRESS:?Set stage mail sender}"
+      }
+    },
+    "storage-service": {
+      "environment": {
+        "STORAGE_CREDENTIAL_XYNES__STORAGE__R2_QA_ACCESS_KEY_ID": "${STORAGE_ACCESS_KEY_ID:?Set stage-owned storage credential}",
+        "STORAGE_CREDENTIAL_XYNES__STORAGE__R2_QA_SECRET_ACCESS_KEY": "${STORAGE_SECRET_ACCESS_KEY:?Set stage-owned storage credential}"
+      }
+    }
+  }
+}

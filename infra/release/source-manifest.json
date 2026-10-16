@@ -1,0 +1,312 @@
+{
+  "schema_version": 1,
+  "status": "planning",
+  "approval_reference": null,
+  "sources": {
+    "xynes-gateway": {
+      "repository": "Xynes-Studio/xynes-gateway",
+      "commit": "866a3c4c699a78cc907ceb65d4bfd5be9ddc8cc1"
+    },
+    "xynes-accounts-service": {
+      "repository": "Xynes-Studio/xynes-accounts-service",
+      "commit": "650239bd7c0ffa59c53c44a01d8ab121b86635ab"
+    },
+    "xynes-authz-service": {
+      "repository": "Xynes-Studio/xynes-authz-service",
+      "commit": "2962bf88c53ba79efe5696ed3072b792b222e41c"
+    },
+    "xynes-cms-core": {
+      "repository": "Xynes-Studio/xynes-cms-core",
+      "commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    "xynes-doc-service": {
+      "repository": "Xynes-Studio/xynes-doc-service",
+      "commit": "a0144b8a9d85ff12eb53b126a15fabe62aa5b2f2"
+    },
+    "xynes-telemetry-service": {
+      "repository": "Xynes-Studio/xynes-telemetry-service",
+      "commit": "b8025424bfe41723f23f9609942ec070fff75c0e"
+    },
+    "xynes-storage-service": {
+      "repository": "Xynes-Studio/xynes-storage-service",
+      "commit": "12791e9d609abea0546573a54e385b9ffe323b1c"
+    },
+    "xynes-auth-app": {
+      "repository": "Xynes-Studio/xynes-auth-app",
+      "commit": "8dde7e0bc726d475bb19c3a1a5b4f704202c3134"
+    },
+    "xynes-cms-console-web": {
+      "repository": "Xynes-Studio/xynes-cms-console-web",
+      "commit": "aea94f6cf194480110746810c662bb2ab81f65e0"
+    },
+    "xynes-auth-sdk": {
+      "repository": "Xynes-Studio/xynes-auth-sdk",
+      "commit": "a1e025b882b6ba8ce6525d67425863fddffa9354"
+    },
+    "xynes-i18n": {
+      "repository": "Xynes-Studio/xynes-i18n",
+      "commit": "16c31d264e1065c443f57311fc96768022c1605b"
+    },
+    "lumia-ds": {
+      "repository": "Xynes-Studio/lumia-ds",
+      "commit": "8f79ade90feb966e7aca0ca56dfb33ced79cfe87"
+    }
+  },
+  "recipes": {
+    "xynes-gateway": {
+      "source": "xynes-infra",
+      "path": "infra/images/xynes-gateway.Dockerfile",
+      "sha256": "7dc0b27858de506a9e549553ba9e1152e6b38c2dc6e3b0d3d646c88858d15343",
+      "target": "prod"
+    },
+    "xynes-accounts-service": {
+      "source": "xynes-infra",
+      "path": "infra/images/xynes-accounts-service.Dockerfile",
+      "sha256": "b377ef4a5518f08fcdb599be4937d6cce82cfe8379b83d30687177f2d3529c36",
+      "target": "prod"
+    },
+    "xynes-authz-service": {
+      "source": "xynes-infra",
+      "path": "infra/images/xynes-authz-service.Dockerfile",
+      "sha256": "e563405be35a486409b81c51daa7bae9a32e1ea9400a069d4a42220e9b45f212",
+      "target": "prod"
+    },
+    "xynes-cms-core": {
+      "source": "xynes-infra",
+      "path": "infra/images/xynes-cms-core.Dockerfile",
+      "sha256": "2eb024173b951ec60cc34a47decc5786f5eff2e7c1f4968e297c53ebe50776b1",
+      "target": "prod"
+    },
+    "xynes-doc-service": {
+      "source": "xynes-infra",
+      "path": "infra/images/xynes-doc-service.Dockerfile",
+      "sha256": "8eb20050ab0846bf6094e07ac98717c5c4fd0936a1d0c9f3df974f3c3140700f",
+      "target": "prod"
+    },
+    "xynes-telemetry-service": {
+      "source": "xynes-infra",
+      "path": "infra/images/xynes-telemetry-service.Dockerfile",
+      "sha256": "2760697a76d4b18f390976892e06d402a24b36542656f73ab8435650a510aec5",
+      "target": "prod"
+    },
+    "xynes-storage-service": {
+      "source": "xynes-storage-service",
+      "path": "Dockerfile",
+      "sha256": "232b526bd17da8848169e954e565c694f41bbf170b623bbed86e30e724a94132",
+      "target": "prod"
+    },
+    "xynes-auth-app": {
+      "source": "xynes-infra",
+      "path": "infra/images/auth-app.Dockerfile",
+      "sha256": "2b9050af4d321d9edf877eb709019438a5f1677d30d3b695b3ddbc0ff43a56e3",
+      "target": "prod"
+    },
+    "xynes-cms-console-web": {
+      "source": "xynes-infra",
+      "path": "infra/images/cms-console-web.Dockerfile",
+      "sha256": "8179d53e7e9fe084c54a1371c29f34fa62fd343e9dc68a8de756881167aab4e8",
+      "target": "prod"
+    }
+  },
+  "base_images": [
+    "oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895",
+    "node:22.23.1-alpine3.23@sha256:8516dce0483394d5708d4b2ee6cacb79fb1d617ea4e2787c2120bcca92ce372e",
+    "golang:1.27.2-bookworm@sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61",
+    "debian:12-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587",
+    "clamav/clamav:1.5.2-debian@sha256:12a74204d5723b39de2dcb20ab679752ca5d30b1a1539646b2cd9f58a873e8c6",
+    "oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f"
+  ],
+  "tools": {
+    "pnpm": "10.33.0",
+    "lumia_pnpm": "10.23.0"
+  },
+  "processors": {
+    "archive-scanner": {
+      "source": "xynes-storage-service",
+      "context_prefix": "sidecars/archive-scanner",
+      "recipe": "infra/images/archive-scanner.Dockerfile",
+      "sha256": "557eb36b470ddbb030662ce120c3c4df1aa0815281ad7cc63e2a7a87071002dd",
+      "target": "prod",
+      "platform": "linux/amd64",
+      "files": [
+        {
+          "path": "archive.go",
+          "mode": "100644",
+          "sha256": "c1dff935edc7e876df34f6aea4fdac32a19c438e8dd78c9df951b4680144d4a4"
+        },
+        {
+          "path": "archive_test.go",
+          "mode": "100644",
+          "sha256": "ba4f94fcfe7982830a296c1169a61e639936761180580ab04edb3ac546cf1497"
+        },
+        {
+          "path": "coverage-gate.py",
+          "mode": "100644",
+          "sha256": "bfd387c3e8be439e9d27ec2228003ec00ae0d4a579997d3afb1bbebb842ac2c2"
+        },
+        {
+          "path": "gateway_test.go",
+          "mode": "100644",
+          "sha256": "1fe1a8aafc37fdbb91be29af53ce09809bcb9c1413eec89b2ac43a27f422084b"
+        },
+        {
+          "path": "go.mod",
+          "mode": "100644",
+          "sha256": "4171990e5936b1766bc44fe034565dfe8c6013204861827a61b1f0901a12756e"
+        },
+        {
+          "path": "more_test.go",
+          "mode": "100644",
+          "sha256": "6f571076dcd8e3a64180d7901923ab5d95dfa87169a1e24514beed9319e15113"
+        },
+        {
+          "path": "server.go",
+          "mode": "100644",
+          "sha256": "513f02adad1c720576235761c8c8fdceef8952b63d1e6a27af6c328e4fa72681"
+        },
+        {
+          "path": "server_test.go",
+          "mode": "100644",
+          "sha256": "cb1db61446210edc953b1e7775dead9c8ebd1147577a960115f66dc6177c0348"
+        }
+      ],
+      "base_images": [
+        "clamav/clamav:1.5.2-debian@sha256:12a74204d5723b39de2dcb20ab679752ca5d30b1a1539646b2cd9f58a873e8c6",
+        "golang:1.27.2-bookworm@sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61"
+      ]
+    },
+    "libreoffice": {
+      "source": "xynes-storage-service",
+      "context_prefix": "sidecars/libreoffice",
+      "recipe": "infra/images/libreoffice.Dockerfile",
+      "sha256": "e1aa221995abae4e447e51b29442a02dd06b1d0d9861e34ec98149b8c4ded921",
+      "target": "prod",
+      "platform": "linux/amd64",
+      "files": [
+        {
+          "path": ".eslintrc.cjs",
+          "mode": "100644",
+          "sha256": "196a9d75b2ca8c208d3535ce505be81cd23039e3e2fb90e532a6bc605b8ccdc4"
+        },
+        {
+          "path": "bun.lock",
+          "mode": "100644",
+          "sha256": "c9cba87dbbdd925d0668d83a49fae18e2a3a5977065e00e640062aefb7bcc9db"
+        },
+        {
+          "path": "package.json",
+          "mode": "100644",
+          "sha256": "033a037d7f0f225b995d8bc916f4c2db3682ea381eebccd0e4eecee8377bd5c4"
+        },
+        {
+          "path": "src/convert.ts",
+          "mode": "100644",
+          "sha256": "d0788ca0df80f8f665f8dc13dcfc8d2f99ff1d8a61c0429af4557a0e143d786e"
+        },
+        {
+          "path": "src/errors.ts",
+          "mode": "100644",
+          "sha256": "5b7ce1c88a1464de2a81650f83baef3682f3c26b4e2c286e53489f147ad3a83c"
+        },
+        {
+          "path": "src/health.ts",
+          "mode": "100644",
+          "sha256": "040a25cefcc1e48c3ace698058e5b540b47c710758acc5e0cfc24dbbb5ef8083"
+        },
+        {
+          "path": "src/parse-request.ts",
+          "mode": "100644",
+          "sha256": "5dc33e7248d1cd51a9cc0c6cf26d580fb68891138d63a454311eecba4945cdfa"
+        },
+        {
+          "path": "src/safe-mime.ts",
+          "mode": "100644",
+          "sha256": "d69d95a8ef31535c7aa967d4935a1b9af9e815fd19312917c473a08a045696fd"
+        },
+        {
+          "path": "src/shim.ts",
+          "mode": "100644",
+          "sha256": "4f569e11ffc72afc5ad13cc401a5464db610b434fb5cd30bc3d2a191f1efcbf8"
+        },
+        {
+          "path": "src/soffice-runner.ts",
+          "mode": "100644",
+          "sha256": "b20ed53fd792203ab5b4000cf17e5c5e1e2d8a2d9c5e67f45a9731938aba59f5"
+        },
+        {
+          "path": "tests/_test-helpers.ts",
+          "mode": "100644",
+          "sha256": "3a19bec771ee58e0255166ffdbf16a825c42ff031d7e7f40bccb59016d423d60"
+        },
+        {
+          "path": "tests/config.test.ts",
+          "mode": "100644",
+          "sha256": "fc514c767923dc1aa533094bf40e1051ae69a15473a59ff33ae6a367567a9765"
+        },
+        {
+          "path": "tests/convert.test.ts",
+          "mode": "100644",
+          "sha256": "3d450c0e4a93037a4a0446ebcd2e8fbea378c482a792dc4071d4668e78a9933d"
+        },
+        {
+          "path": "tests/errors.test.ts",
+          "mode": "100644",
+          "sha256": "d5705a699039bf4bf3c69bf104ef5d0968eb8ded99cd4a2d4389d47e012a016e"
+        },
+        {
+          "path": "tests/health.test.ts",
+          "mode": "100644",
+          "sha256": "be5661b14a94ac03ba91411aca61b12f607a6c9b860d0f8a7a09357d3399b3e7"
+        },
+        {
+          "path": "tests/parse-request.test.ts",
+          "mode": "100644",
+          "sha256": "846b2ed647092aaf5dbacbe5daeb0d35dff67ec632b3fdfce6d6475d87b00109"
+        },
+        {
+          "path": "tests/safe-mime.test.ts",
+          "mode": "100644",
+          "sha256": "68d4dfea8ff407d78a11e48f760972219ad732609b9dc28c6fa5546b73615384"
+        },
+        {
+          "path": "tests/shim-boot.test.ts",
+          "mode": "100644",
+          "sha256": "5d16188e69c4f7cfa1f24fc8e304279aeb7659c37283f7b570c46c5de0503023"
+        },
+        {
+          "path": "tests/shim.test.ts",
+          "mode": "100644",
+          "sha256": "6dee34f4494f37a631374b4c4c0941b597a36815918cdba32a8034dec6ec6914"
+        },
+        {
+          "path": "tests/soffice-runner.test.ts",
+          "mode": "100644",
+          "sha256": "0731a587b93a31eb55ff47a1d0a1eea76bece0762345a8eb36bc58932551c307"
+        },
+        {
+          "path": "tsconfig.json",
+          "mode": "100644",
+          "sha256": "823161ee76cc8a59481d9ca6b4baf19625a08f409b635324599e270010f4bf9b"
+        }
+      ],
+      "base_images": [
+        "debian:12-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587",
+        "oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895"
+      ]
+    }
+  },
+  "external_images": {
+    "clamav-freshclam": {
+      "image": "clamav/clamav:1.5.2-debian@sha256:12a74204d5723b39de2dcb20ab679752ca5d30b1a1539646b2cd9f58a873e8c6",
+      "platform": "linux/amd64"
+    },
+    "supabase-db": {
+      "image": "postgres:17-alpine@sha256:5a6fcbc5d93831991d2386fa634509b3c49a1ac5ffb70c13c2322840f821d7e7",
+      "platform": "linux/amd64"
+    },
+    "supabase-auth": {
+      "image": "supabase/gotrue:v2.196.0@sha256:7e813221b93fbf54b515036438550e483bfaf057b9db52fe9bc1ce91c47e817e",
+      "platform": "linux/amd64"
+    }
+  }
+}

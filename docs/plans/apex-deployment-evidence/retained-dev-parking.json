@@ -1,0 +1,150 @@
+{
+  "apply": {
+    "exit": 0,
+    "proofs": [
+      {
+        "exit": 0,
+        "fresh_recovery_ssh": true,
+        "ordinal": 1,
+        "plan_sha256": "cf06ff181f80b8556e133dcc6789cfdccdcf82c3b7fdd2d75d14dd66779fb36d",
+        "sshd_config_sha256": "c2858f26aa1828582f16bd8e5fec38700cb403a8677480fe790cc779de3b7b53"
+      },
+      {
+        "exit": 0,
+        "fresh_recovery_ssh": true,
+        "ordinal": 2,
+        "plan_sha256": "cf06ff181f80b8556e133dcc6789cfdccdcf82c3b7fdd2d75d14dd66779fb36d",
+        "sshd_config_sha256": "1bfbdfeb70c3d99cb24d818e1a18b77bccde3afe2d1650abc92897d76bdbcdd1"
+      },
+      {
+        "exit": 0,
+        "fresh_recovery_ssh": true,
+        "ordinal": 3,
+        "plan_sha256": "cf06ff181f80b8556e133dcc6789cfdccdcf82c3b7fdd2d75d14dd66779fb36d",
+        "sshd_config_sha256": "1bfbdfeb70c3d99cb24d818e1a18b77bccde3afe2d1650abc92897d76bdbcdd1"
+      }
+    ],
+    "receipt": {
+      "app_services_changed": false,
+      "artifact_kind": "apex-retained-dev-live-parking",
+      "dev_preservation_sha256": "15d2e81aba52fde1adecc6cf0acde658ee4087effbaf8e9edd782b5f78dd2b28",
+      "dns_changed": false,
+      "execution_scope": "live-host",
+      "fresh_recovery_proofs": 3,
+      "isolation_ready": false,
+      "parked": true,
+      "plan_sha256": "cf06ff181f80b8556e133dcc6789cfdccdcf82c3b7fdd2d75d14dd66779fb36d",
+      "source_hashes": {
+        "host_boundary": "c4b2538609f9f0cfd5566d292c161928fbb57a10d7cfda60ccc25b839f158509",
+        "host_retained_dev": "e935c5d678df1c1a759c2daecb28e9af69e55158bb1ca87bf158c48bb37d9c73"
+      }
+    }
+  },
+  "artifact_kind": "apex-retained-dev-parking-evidence",
+  "deployment_accepted": false,
+  "independent_post_checks": {
+    "artifact_kind": "apex-retained-dev-post-parking",
+    "audit": {
+      "active_uid_processes": 0,
+      "active_uid_sessions": 0,
+      "artifact_kind": "apex-retained-dev-readonly-audit",
+      "gid": 1004,
+      "inventory_bytes": 12117,
+      "inventory_entries": 14,
+      "no_other_sudo_authority": true,
+      "preservation_sha256": "15d2e81aba52fde1adecc6cf0acde658ee4087effbaf8e9edd782b5f78dd2b28",
+      "protected_stage_paths": 12,
+      "resources_changed": false,
+      "shell": "/usr/sbin/nologin",
+      "sshd_config_sha256": "1bfbdfeb70c3d99cb24d818e1a18b77bccde3afe2d1650abc92897d76bdbcdd1",
+      "sudo_check_exit": 0,
+      "uid": 1004
+    },
+    "isolation_ready": false,
+    "native_access_checks": [
+      {
+        "access": "-r",
+        "denied": true,
+        "path": "/var/run/docker.sock"
+      },
+      {
+        "access": "-w",
+        "denied": true,
+        "path": "/var/run/docker.sock"
+      },
+      {
+        "access": "-r",
+        "denied": true,
+        "path": "/srv/xynes/qa/env"
+      },
+      {
+        "access": "-x",
+        "denied": true,
+        "path": "/srv/xynes/qa/env"
+      },
+      {
+        "access": "-r",
+        "denied": true,
+        "path": "/srv/xynes/staging/env"
+      },
+      {
+        "access": "-x",
+        "denied": true,
+        "path": "/srv/xynes/staging/env"
+      },
+      {
+        "access": "-r",
+        "denied": true,
+        "path": "/srv/xynes/prod/env"
+      },
+      {
+        "access": "-x",
+        "denied": true,
+        "path": "/srv/xynes/prod/env"
+      },
+      {
+        "access": "-r",
+        "denied": true,
+        "path": "/srv/xynes/qa/compose"
+      },
+      {
+        "access": "-x",
+        "denied": true,
+        "path": "/srv/xynes/qa/compose"
+      },
+      {
+        "access": "-r",
+        "denied": true,
+        "path": "/srv/xynes/staging/compose"
+      },
+      {
+        "access": "-x",
+        "denied": true,
+        "path": "/srv/xynes/staging/compose"
+      },
+      {
+        "access": "-r",
+        "denied": true,
+        "path": "/srv/xynes/prod/compose"
+      },
+      {
+        "access": "-x",
+        "denied": true,
+        "path": "/srv/xynes/prod/compose"
+      },
+      {
+        "access": "-r",
+        "denied": true,
+        "path": "/etc/xynes/deploy"
+      },
+      {
+        "access": "-x",
+        "denied": true,
+        "path": "/etc/xynes/deploy"
+      }
+    ],
+    "native_ssh_user_denied": true,
+    "only_primary_group": true,
+    "shell": "/usr/sbin/nologin"
+  }
+}

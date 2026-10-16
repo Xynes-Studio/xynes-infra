@@ -1,0 +1,99 @@
+{
+  "artifact_kind": "local-native-processor-reproducibility",
+  "cases": [
+    {
+      "archive_sizes": [
+        193027584,
+        193027584
+      ],
+      "build_inputs_sha256": [
+        "5e632a7894e66a6ee88bd887a337e3dc4a128af1cf9318f4b67e0fe391e9571c",
+        "a14e2b598c6f9cda6816fd4616775f08ab88cf93de95d166f192acc71884e5ae"
+      ],
+      "component_identity_sha256": "3021c6e1a09cd962182ed34974a968252801277fcbf192276fac1822461ddc2b",
+      "config_digest": "sha256:0ae187b85d48ad21311fb6bd5be043d48965245f815534564818ed837495bf72",
+      "distinct_local_contexts": true,
+      "fresh_builds": 2,
+      "manifest_digest": "sha256:5da2af5d38c85d9273dde9ecd2b4342571639c2b093058ded4870d7ab6e12136",
+      "no_cache": true,
+      "owned_builder_cache_cleared_between": true,
+      "recipe_sha256": "557eb36b470ddbb030662ce120c3c4df1aa0815281ad7cc63e2a7a87071002dd",
+      "source_date_epoch": "1123484769",
+      "workload": "archive-scanner"
+    },
+    {
+      "archive_sizes": [
+        249617408,
+        249617408
+      ],
+      "build_inputs_sha256": [
+        "79f6ec73b3288ad1681947b5f3ff9eadd60d6fbe7e89a2e9b10af1760d1e5e6c",
+        "46aae9581d6a6d7f48051834618572d9b17cc5fb40d08e886319867078a96f7a"
+      ],
+      "component_identity_sha256": "0b2ec2097ec46e89266e2030b552ad0e7a0acce741219b91d7262dd22b02a4b4",
+      "config_digest": "sha256:53ab9b31974cc4cc23469b4887e2b681d7467e97c253b5143460d99891d21c41",
+      "distinct_local_contexts": true,
+      "fresh_builds": 2,
+      "manifest_digest": "sha256:c067bba1478c7089cb2e9e632ac3e6b9fd6a5fc0aeccf4a41de03445110fecb7",
+      "no_cache": true,
+      "owned_builder_cache_cleared_between": true,
+      "recipe_sha256": "e1aa221995abae4e447e51b29442a02dd06b1d0d9861e34ec98149b8c4ded921",
+      "source_date_epoch": "1134298505",
+      "workload": "libreoffice"
+    }
+  ],
+  "corrected_nondeterminism": {
+    "files": "Six generated fontconfig caches and ldconfig auxiliary cache",
+    "runtime_files": {
+      "aux_cache_present": false,
+      "font_cache_count": 0,
+      "font_files": 23,
+      "package_database_present": true,
+      "package_inventory_present": true,
+      "runtime_linker_cache_present": true
+    }
+  },
+  "deployable": false,
+  "full_release_provenance_preserved": true,
+  "hosted_acceptance": false,
+  "modules": {
+    "image_build.py": "74bd33ea68492bab7b4bc7ca9fe2a0c0d5822be14e94792243e6d6c629840f70",
+    "release_manifest.py": "e807207c21caabe8cfa8f127627248a3cd49ce09c04d833ebdd17190e9b8360d",
+    "source_context.py": "e04c5712ec1b29b99b9cc883cc77123f19af386d5a792cdc8d57990429be95ab"
+  },
+  "native_attestation_verified": false,
+  "planning_controller_stand_ins": true,
+  "protected_workflow_run": false,
+  "published": false,
+  "publisher_inspector_revalidation": {
+    "all_four_passing_native_archives_reinspected": true,
+    "modules": {
+      "image_build.py": "adc85907082520cb5725463c350609e106a34848abb023cac733f11877fe85a5",
+      "registry_io.py": "ba0865271c41d3da12ca3cb2c64ea1439f1a2558257ea207c02d4d507469b7ab",
+      "release_manifest.py": "e807207c21caabe8cfa8f127627248a3cd49ce09c04d833ebdd17190e9b8360d",
+      "source_context.py": "e04c5712ec1b29b99b9cc883cc77123f19af386d5a792cdc8d57990429be95ab"
+    },
+    "native_processor_build_tasks_unchanged": true,
+    "tests": {
+      "image_build": 28,
+      "publish_images": 9,
+      "registry_io": 37,
+      "registry_namespace": 10
+    }
+  },
+  "schema_version": 1,
+  "source_commit": "12791e9d609abea0546573a54e385b9ffe323b1c",
+  "status": "passed",
+  "tests": {
+    "build_pipeline": 13,
+    "deployment_candidate": 13,
+    "failures": 0,
+    "image_build": 27,
+    "libreoffice_recipe": 2,
+    "publication_record": 6,
+    "publish_batch": 7,
+    "release_manifest": 23,
+    "source_context": 33,
+    "total": 124
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "artifact_kind": "native-idle-upgrade-ssh-checks",
+  "bundle_sha256": "750f624278bcec519d62783b2cca951a24cb3f2d2be1c6e5ab620da0f097b2d4",
+  "checked_cases": 8,
+  "checks": [
+    {
+      "case": "fresh-admin-sudo",
+      "verified": true
+    },
+    {
+      "case": "malformed-deploy",
+      "stage": "qa",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "generic-command",
+      "stage": "qa",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "malformed-deploy",
+      "stage": "staging",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "generic-command",
+      "stage": "staging",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "malformed-deploy",
+      "stage": "prod",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "generic-command",
+      "stage": "prod",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "cross-environment-key",
+      "stage": "prod",
+      "verified": true,
+      "refused": true
+    }
+  ],
+  "observed_at": 1792097780,
+  "deployment_accepted": false
+}

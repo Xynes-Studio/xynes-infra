@@ -1,0 +1,154 @@
+# F-3 — Caddy reverse proxy compose file.
+#
+# Lives on VPS at: /srv/xynes/caddy/docker-compose.caddy.yml
+#
+# Why a standalone compose file (not part of the per-env app compose):
+#   - Caddy is the ONLY host-bound process. Per ENVIRONMENTS.md §3 it is
+#     connected to each `xynes_<env>_net` via `docker network connect`
+#     AFTER bring-up — so we cannot list those networks in `networks:`
+#     here (the per-env nets are created by `vps-bootstrap.sh
+#     section_2_11_networks` and live OUTSIDE this compose file).
+#   - Bringing Caddy up before any env stack lets operators prove TLS
+#     issuance (with staging LE first, see Caddyfile.staging) before
+#     pointing real traffic at it.
+#
+# Bring-up sequence (matches infra/caddy/README.md §"Rollout sequence"
+# and VPS-SETUP.md §2.13):
+#   1. Place this file at /srv/xynes/caddy/docker-compose.caddy.yml.
+#   2. Place Caddyfile + Caddyfile.staging at /srv/xynes/caddy/.
+#   3. `docker compose -f docker-compose.caddy.yml up -d` — boots with
+#      ./Caddyfile.staging by default (CADDY_CONFIG_FILE env var).
+#      Caddy auto-joins all 4 networks (caddy_net + xynes_{dev,qa,prod}_net)
+#      because they are declared in `services.caddy.networks` AND in the
+#      top-level `networks:` block as `external: true`. This is the
+#      F-4 + F-4-FU-2 fix: previously the env nets were only attached
+#      via `docker network connect` AFTER bring-up, which meant a future
+#      `docker compose up -d --force-recreate` would silently drop those
+#      attachments and revert every dev/qa/prod upstream to 502. Compose
+#      v2 networking docs explicitly support this `external: true` shape
+#      for pre-existing networks owned by another tool (here:
+#      `vps-bootstrap.sh section_2_11_networks` creates them all).
+#   4. After successful staging cert issuance, flip CADDY_CONFIG_FILE to
+#      `/etc/caddy/Caddyfile` and `docker exec caddy caddy reload --config
+#      /etc/caddy/Caddyfile` (or restart the container).
+#   5. (Removed — was the imperative `docker network connect` step. It
+#      is now declarative via the compose file. See F-4-FU-2.)
+#
+# Security posture (mirrors infra/compose/storage-live-processors.yml):
+#   - `cap_drop: [ALL]` + narrow `cap_add: [NET_BIND_SERVICE]` so Caddy
+#     can bind to 80/443 without root.
+#   - `security_opt: [no-new-privileges:true]` — defense in depth.
+#   - `read_only: true` rootfs. `/data` (ACME certificates) and `/config`
+#     (Caddy's own runtime config snapshot) are explicit writable volume
+#     mounts; everything else is read-only.
+#   - `/var/log/caddy` mounted from host so logs survive restarts and
+#     can be rotated by `caddy log` directives in the Caddyfile.
+#   - No `ports:` on the host other than 80 + 443 + 443/udp (HTTP/3).
+#     The admin API is bound to `localhost:2019` INSIDE the container
+#     by the Caddyfile global block; nothing maps it to the host.
+#   - Resource limits from ENVIRONMENTS.md §6 (Caddy: 256m / 0.5 cpus).
+#
+# Network attachments: Caddy joins ALL FOUR Docker networks declaratively
+# via this compose file:
+#   - `caddy_net`        — Caddy + Uptime Kuma (F-5) only.
+#   - `xynes_dev_net`    — for `gateway_dev` / `auth_app_dev` /
+#                          `cms_console_web_dev` per-env aliases (F-3-FU-3).
+#   - `xynes_qa_net`     — for `gateway_qa` / `auth_app_qa` /
+#                          `cms_console_web_qa`.
+#   - `xynes_prod_net`   — for `gateway_prod` / `auth_app_prod` /
+#                          `cms_console_web_prod`.
+# All four are declared `external: true` because they are created by
+# `vps-bootstrap.sh section_2_11_networks` BEFORE Caddy comes up.
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: caddy
+    restart: unless-stopped
+    networks:
+      - caddy_net
+      - xynes_dev_net
+      - xynes_qa_net
+      - xynes_prod_net
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3 (QUIC)
+    environment:
+      # Default to staging on first boot — operator swaps to ./Caddyfile
+      # once staging cert issuance is verified.
+      CADDY_CONFIG_FILE: "/etc/caddy/Caddyfile.staging"
+    command:
+      - caddy
+      - run
+      - --config
+      - "/etc/caddy/Caddyfile.staging"
+      - --adapter
+      - caddyfile
+    volumes:
+      # Caddyfiles (RO — operator edits on host and reloads the container).
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.staging:/etc/caddy/Caddyfile.staging:ro
+      # ACME certificates and account keys — MUST be persistent and 0700
+      # root:root (mandated by E-4 §2.10). The directory itself lives at
+      # /srv/xynes/caddy/data on the host (E-4 spec).
+      - ./data:/data
+      # Caddy's runtime config snapshot. Writable; non-sensitive.
+      - ./config:/config
+      # Access logs. The directory exists per E-4 §2.10 at /srv/xynes/caddy/log.
+      - ./log:/var/log/caddy
+    cap_drop:
+      - ALL
+    cap_add:
+      # Caddy runs as non-root inside the official image but still needs
+      # NET_BIND_SERVICE to bind ports 80/443 (privileged ports).
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      # Caddy writes to /tmp under load (TLS handshake state, ACME
+      # challenge scratch). Keep it bounded.
+      - /tmp:size=64m,mode=1777
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+          cpus: "0.25"
+    healthcheck:
+      # Caddy's admin API is bound to 127.0.0.1:2019 (Caddyfile global block
+      # says `admin localhost:2019` but Caddy resolves that to the IPv4
+      # loopback only; BusyBox wget inside this image resolves the literal
+      # string "localhost" to `::1` first, which causes the probe to hit
+      # ECONNREFUSED. Using the literal `127.0.0.1` avoids the dual-stack
+      # resolver footgun. See F-3-FU-2 (2026-06-11) for the live-bring-up
+      # diagnosis that surfaced this. Hitting /config/ confirms the daemon
+      # is up and the config parsed cleanly. wget ships in caddy:alpine.
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:2019/config/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  # All four networks are pre-existing, owned by `vps-bootstrap.sh
+  # section_2_11_networks` (story E-5). They are declared `external: true`
+  # here so Caddy auto-joins them on every `docker compose up -d`,
+  # including `--force-recreate` (e.g. on Caddyfile edits or healthcheck
+  # tweaks). This survives F-4-FU-2 — the original F-4 implementation
+  # used imperative `docker network connect` which was lost on recreate.
+  caddy_net:
+    external: true
+    name: caddy_net
+  xynes_dev_net:
+    external: true
+    name: xynes_dev_net
+  xynes_qa_net:
+    external: true
+    name: xynes_qa_net
+  xynes_prod_net:
+    external: true
+    name: xynes_prod_net

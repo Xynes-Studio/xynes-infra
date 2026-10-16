@@ -1,0 +1,42 @@
+{
+  "artifact_kind": "backup-binding-retention-local-verification",
+  "deployable": false,
+  "execution_scope": "offline-fixture",
+  "failures": 0,
+  "files": {
+    "infra/release/host-boundary.md": "9bc36c4f7b97f5c293b7dda81a77d8324b3451a020d82d2e5c2ba985755a273c",
+    "scripts/lib/backup_recovery.py": "c419c630bba977d8cc371584b8718a340a01adcd9bcc8b9ebd738ddff19a700a",
+    "scripts/release/host_backup.py": "9dc9ebe0aa22d0fb517a49fde93072d43b101d2171cc3c390c3e8650f61bf874",
+    "scripts/release/host_boundary.py": "0b16f15cba41926a61415d5845fb2f9229739d840f51f46420f8d5d111fe2c2a",
+    "scripts/test/backup_recovery_test.py": "92c3ae31ff34070ebc57a3e5f715c877e5410f61c02746eaff49630c311b2717",
+    "scripts/test/host-backup-schedule.test.py": "6c63fbdde2ecef74dccc21c998067359ad505e8ebb4b0d78d5c761c39259cf1d",
+    "scripts/test/host-backup.test.py": "180e4ac6b5cf66398c3cc9317322b6c7ab98354e872675f71d078355d5d4d372"
+  },
+  "hosted_acceptance": false,
+  "limits": [
+    "Docker and B2 executable fixtures are inert",
+    "No VPS files, backup jobs, offsite objects or timer state changed",
+    "Follow-up sealed library upgrade required before enabling hosted timers"
+  ],
+  "local_retention_days": 7,
+  "native_age_version": "1.3.2",
+  "observed_at": "2026-10-15T07:33:25.634534+00:00",
+  "proofs": [
+    "closed optional accepted release binding in saved and actually uploaded receipt",
+    "same binding inside actual native-age encrypted/decrypted manifest",
+    "legacy version1 receipts without release binding remain valid",
+    "invalid binding keys and values refuse before external command",
+    "seven-day local ciphertext retention runs after successful scheduled offsite backup and monitor",
+    "newest healthy offsite backup and unuploaded backups preserved",
+    "unknown files inside deletion candidates refuse and unrelated paths preserved",
+    "corrupt newest offsite copy prevents pruning",
+    "accepted ledger remains byte-identical"
+  ],
+  "schema_version": 1,
+  "skips": 0,
+  "tests": {
+    "backup_recovery_test.py": 25,
+    "host-backup-schedule.test.py": 15,
+    "host-backup.test.py": 10
+  }
+}

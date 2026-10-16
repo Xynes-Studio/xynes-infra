@@ -35,3 +35,7 @@ node_modules/
 *.pem
 *.age
 *.log
+
+# Generated Python interpreter caches
+__pycache__/
+*.py[cod]

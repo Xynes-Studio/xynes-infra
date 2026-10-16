@@ -1,0 +1,23 @@
+{
+  "artifact_kind": "native-github-deployment-configuration",
+  "selected_account": "archan96",
+  "changes": [
+    "repo:variable:APEX_PUBLIC_QA",
+    "repo:variable:APEX_PUBLIC_STAGING",
+    "repo:variable:APEX_PUBLIC_PROD",
+    "release:secret:RELEASE_POLICY_READ_TOKEN",
+    "qa:secret:APEX_SSH_PRIVATE_KEY",
+    "qa:variable:APEX_SSH_KNOWN_HOSTS",
+    "staging:secret:APEX_SSH_PRIVATE_KEY",
+    "staging:variable:APEX_SSH_KNOWN_HOSTS",
+    "prod:secret:APEX_SSH_PRIVATE_KEY",
+    "prod:variable:APEX_SSH_KNOWN_HOSTS"
+  ],
+  "main_only_environment_policies_verified": true,
+  "independent_release_prod_reviewer": "Aman9804",
+  "readback_verified": true,
+  "secret_values_printed": false,
+  "ghcr_pat_uploaded_to_actions": false,
+  "workflow_dispatched": false,
+  "deployment_accepted": false
+}

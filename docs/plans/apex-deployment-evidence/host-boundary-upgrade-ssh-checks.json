@@ -1,0 +1,55 @@
+{
+  "artifact_kind": "native-postupgrade-ssh-checks",
+  "bundle_sha256": "5083e193a11016cf672022ba4c650dfaf94de0d23a1f28e70637a921aa724e37",
+  "checked_cases": 8,
+  "checks": [
+    {
+      "case": "fresh-admin-sudo",
+      "verified": true
+    },
+    {
+      "case": "malformed-deploy",
+      "stage": "qa",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "generic-command",
+      "stage": "qa",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "malformed-deploy",
+      "stage": "staging",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "generic-command",
+      "stage": "staging",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "malformed-deploy",
+      "stage": "prod",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "generic-command",
+      "stage": "prod",
+      "verified": true,
+      "refused": true
+    },
+    {
+      "case": "cross-environment-key",
+      "stage": "prod",
+      "verified": true,
+      "refused": true
+    }
+  ],
+  "observed_at": 1792049328,
+  "deployment_accepted": false
+}

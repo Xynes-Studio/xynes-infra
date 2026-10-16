@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "final-review-regression-fixtures",
+  "hosted_acceptance": false,
+  "live_source_pr_approval_verified": false,
+  "tests": [
+    {
+      "script": "scripts/test/admission.test.py",
+      "passed": 16,
+      "skipped": 0
+    },
+    {
+      "script": "scripts/test/deploy-admission.test.py",
+      "passed": 13,
+      "skipped": 0
+    },
+    {
+      "script": "scripts/test/host-idle.test.py",
+      "passed": 16,
+      "skipped": 0
+    },
+    {
+      "script": "scripts/test/secret-gate.test.py",
+      "passed": 9,
+      "skipped": 0,
+      "native_scanner_version": "8.30.1"
+    }
+  ],
+  "source_sha256": [
+    {
+      "path": "scripts/release/admission.py",
+      "sha256": "97e6b2e8583d3ca27e03780b1a8b2a50f052f7fb4bbe3e9589bdb2cb0ffe1900"
+    },
+    {
+      "path": "scripts/release/deploy_admission.py",
+      "sha256": "264b4155c73223956b902bb190f4bd7d91ed128f1b5d88862aaf45bd15499193"
+    },
+    {
+      "path": "scripts/release/host_idle.py",
+      "sha256": "5e98fea639b6b73441aab96da0eb2bb238aab077bda57779915f3385090c1309"
+    },
+    {
+      "path": "scripts/security/secret_gate.py",
+      "sha256": "a36404f709ad6871003fa0d6a1f432b9147df714105062eba688e498b1574dc4"
+    }
+  ],
+  "security_exceptions_changed": false,
+  "application_services_activated": false
+}

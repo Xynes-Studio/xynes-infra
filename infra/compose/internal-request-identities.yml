@@ -1,0 +1,104 @@
+# Bound internal identities for all stages. Apply last; no shared credentials.
+services:
+  gateway:
+    environment:
+      INTERNAL_SERVICE_TOKEN: ""
+      INTERNAL_JWT_SIGNING_KEY: ""
+      INTERNAL_REQUEST_PRIVATE_KEY_FILE: /run/secrets/internal-request-private.pem
+      INTERNAL_REQUEST_KEY_ID: ${GATEWAY_INTERNAL_REQUEST_KEY_ID:-g1}
+    secrets:
+      - source: gateway-internal-request-private
+        target: internal-request-private.pem
+  accounts-service:
+    environment:
+      INTERNAL_SERVICE_TOKEN: ""
+      INTERNAL_JWT_SIGNING_KEY: ""
+      INTERNAL_REQUEST_PRIVATE_KEY_FILE: /run/secrets/internal-request-private.pem
+      INTERNAL_REQUEST_KEY_ID: ${ACCOUNTS_INTERNAL_REQUEST_KEY_ID:-a1}
+      INTERNAL_REQUEST_TRUST_FILE: /run/secrets/internal-request-trust.json
+    secrets:
+      - source: accounts-internal-request-private
+        target: internal-request-private.pem
+      - source: accounts-internal-request-trust
+        target: internal-request-trust.json
+  authz-service:
+    environment:
+      INTERNAL_SERVICE_TOKEN: ""
+      INTERNAL_JWT_SIGNING_KEY: ""
+      INTERNAL_REQUEST_TRUST_FILE: /run/secrets/internal-request-trust.json
+    secrets:
+      - source: authz-internal-request-trust
+        target: internal-request-trust.json
+  cms-core:
+    environment:
+      INTERNAL_SERVICE_TOKEN: ""
+      INTERNAL_JWT_SIGNING_KEY: ""
+      INTERNAL_REQUEST_PRIVATE_KEY_FILE: /run/secrets/internal-request-private.pem
+      INTERNAL_REQUEST_KEY_ID: ${CMS_INTERNAL_REQUEST_KEY_ID:-c1}
+      INTERNAL_REQUEST_TRUST_FILE: /run/secrets/internal-request-trust.json
+    secrets:
+      - source: cms-internal-request-private
+        target: internal-request-private.pem
+      - source: cms-internal-request-trust
+        target: internal-request-trust.json
+  doc-service:
+    environment:
+      INTERNAL_SERVICE_TOKEN: ""
+      INTERNAL_JWT_SIGNING_KEY: ""
+      INTERNAL_REQUEST_PRIVATE_KEY_FILE: /run/secrets/internal-request-private.pem
+      INTERNAL_REQUEST_KEY_ID: ${DOCS_INTERNAL_REQUEST_KEY_ID:-d1}
+      INTERNAL_REQUEST_TRUST_FILE: /run/secrets/internal-request-trust.json
+    secrets:
+      - source: docs-internal-request-private
+        target: internal-request-private.pem
+      - source: docs-internal-request-trust
+        target: internal-request-trust.json
+  storage-service:
+    environment:
+      INTERNAL_SERVICE_TOKEN: ""
+      INTERNAL_JWT_SIGNING_KEY: ""
+      INTERNAL_REQUEST_PRIVATE_KEY_FILE: /run/secrets/internal-request-private.pem
+      INTERNAL_REQUEST_KEY_ID: ${STORAGE_INTERNAL_REQUEST_KEY_ID:-s1}
+      INTERNAL_REQUEST_TRUST_FILE: /run/secrets/internal-request-trust.json
+    secrets:
+      - source: storage-internal-request-private
+        target: internal-request-private.pem
+      - source: storage-internal-request-trust
+        target: internal-request-trust.json
+  telemetry-service:
+    environment:
+      INTERNAL_SERVICE_TOKEN: ""
+      INTERNAL_JWT_SIGNING_KEY: ""
+      INTERNAL_REQUEST_PRIVATE_KEY_FILE: /run/secrets/internal-request-private.pem
+      INTERNAL_REQUEST_KEY_ID: ${TELEMETRY_INTERNAL_REQUEST_KEY_ID:-t1}
+      INTERNAL_REQUEST_TRUST_FILE: /run/secrets/internal-request-trust.json
+    secrets:
+      - source: telemetry-internal-request-private
+        target: internal-request-private.pem
+      - source: telemetry-internal-request-trust
+        target: internal-request-trust.json
+secrets:
+  gateway-internal-request-private:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/gateway-private.pem
+  accounts-internal-request-private:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/accounts-private.pem
+  accounts-internal-request-trust:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/accounts-trust.json
+  authz-internal-request-trust:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/authz-trust.json
+  cms-internal-request-private:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/cms-private.pem
+  cms-internal-request-trust:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/cms-trust.json
+  docs-internal-request-private:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/docs-private.pem
+  docs-internal-request-trust:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/docs-trust.json
+  storage-internal-request-private:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/storage-private.pem
+  storage-internal-request-trust:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/storage-trust.json
+  telemetry-internal-request-private:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/telemetry-private.pem
+  telemetry-internal-request-trust:
+    file: ${XYNES_INTERNAL_IDENTITIES_DIR:-./.internal-identities}/telemetry-trust.json

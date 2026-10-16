@@ -1,0 +1,726 @@
+# Hosted image-only stacks; filled secrets never belong in this file.
+{
+  "name": "xynes-${XYNES_ENV:?Set XYNES_ENV}",
+  "services": {
+    "gateway": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=256m,mode=1777"
+      ],
+      "networks": {
+        "environment": {
+          "aliases": [
+            "gateway_${XYNES_ENV}"
+          ]
+        }
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "application"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "384m",
+      "cpus": 0.5,
+      "image": "${IMAGE_GATEWAY:?Set immutable GATEWAY image digest}",
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "4100",
+        "DATABASE_URL": "${DATABASE_URL:?Set DB URL}",
+        "INTERNAL_SERVICE_TOKEN": "",
+        "INTERNAL_JWT_SIGNING_KEY": "",
+        "JWT_SECRET": "${JWT_SECRET:?Set matching Supabase JWT secret}",
+        "JWT_ISSUER": "${JWT_ISSUER:?Set exact Supabase Auth issuer}",
+        "JWT_AUDIENCE": "authenticated",
+        "JWT_REQUIRE_ISS_AUD_IN_PROD": "true",
+        "JWT_MAX_TOKEN_LIFETIME_SECONDS": "3600",
+        "TELEMETRY_IP_HASH_SALT": "${TELEMETRY_IP_HASH_SALT:?Set privacy salt}",
+        "GATEWAY_CORS_ALLOWED_ORIGINS": "${GATEWAY_CORS_ALLOWED_ORIGINS:?Set exact browser origins}",
+        "POSTHOG_API_KEY": "${POSTHOG_API_KEY:?Set environment PostHog project token}",
+        "POSTHOG_HOST": "${POSTHOG_HOST:?Set environment PostHog API host}",
+        "FEATURE_FLAGS_DEBUG": "false",
+        "ACCOUNTS_SERVICE_URL": "http://accounts-service:4203",
+        "AUTHZ_SERVICE_URL": "http://authz-service:4300",
+        "CMS_CORE_URL": "http://cms-core:4202",
+        "DOC_SERVICE_URL": "http://doc-service:4201",
+        "TELEMETRY_SERVICE_URL": "http://telemetry-service:4400",
+        "STORAGE_SERVICE_URL": "http://storage-service:4204"
+      }
+    },
+    "accounts-service": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=256m,mode=1777"
+      ],
+      "networks": {
+        "environment": {}
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "application"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "384m",
+      "cpus": 0.5,
+      "image": "${IMAGE_ACCOUNTS:?Set immutable ACCOUNTS image digest}",
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "4203",
+        "DATABASE_URL": "${ACCOUNTS_DATABASE_URL:?Set accounts DB URL}",
+        "INTERNAL_SERVICE_TOKEN": "",
+        "INTERNAL_JWT_SIGNING_KEY": "",
+        "AUTHZ_SERVICE_URL": "http://authz-service:4300",
+        "MAIL_PROVIDER": "resend",
+        "MAIL_RESEND_SECRET_REF": "${MAIL_RESEND_SECRET_REF:?Set mail reference}",
+        "INVITE_BASE_URL": "${INVITE_BASE_URL:?Set invite URL}"
+      }
+    },
+    "authz-service": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=256m,mode=1777"
+      ],
+      "networks": {
+        "environment": {}
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "application"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "384m",
+      "cpus": 0.5,
+      "image": "${IMAGE_AUTHZ:?Set immutable AUTHZ image digest}",
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "4300",
+        "DATABASE_URL": "${DATABASE_URL:?Set DB URL}",
+        "INTERNAL_SERVICE_TOKEN": "",
+        "INTERNAL_JWT_SIGNING_KEY": "",
+        "AUTHZ_AUTO_SEED": "0"
+      }
+    },
+    "cms-core": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=256m,mode=1777"
+      ],
+      "networks": {
+        "environment": {}
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "application"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "384m",
+      "cpus": 0.5,
+      "image": "${IMAGE_CMS:?Set immutable CMS image digest}",
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "4202",
+        "DATABASE_URL": "${DATABASE_URL:?Set DB URL}",
+        "INTERNAL_SERVICE_TOKEN": "",
+        "INTERNAL_JWT_SIGNING_KEY": "",
+        "AUTHZ_SERVICE_URL": "http://authz-service:4300"
+      }
+    },
+    "doc-service": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=256m,mode=1777"
+      ],
+      "networks": {
+        "environment": {}
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "application"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "384m",
+      "cpus": 0.5,
+      "image": "${IMAGE_DOC:?Set immutable DOC image digest}",
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "4201",
+        "DATABASE_URL": "${DATABASE_URL:?Set DB URL}",
+        "INTERNAL_SERVICE_TOKEN": "",
+        "INTERNAL_JWT_SIGNING_KEY": "",
+        "AUTHZ_SERVICE_URL": "http://authz-service:4300"
+      }
+    },
+    "storage-service": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=256m,mode=1777"
+      ],
+      "networks": {
+        "environment": {},
+        "processors": {}
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "application",
+        "com.xynes.idle": "never",
+        "com.xynes.storage-generation": "${STORAGE_CONTROL_GENERATION:?Set root-provisioned Storage generation}"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "1g",
+      "cpus": 1.0,
+      "image": "${IMAGE_STORAGE:?Set immutable STORAGE image digest}",
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "4204",
+        "DATABASE_URL": "${DATABASE_URL:?Set DB URL}",
+        "INTERNAL_SERVICE_TOKEN": "",
+        "INTERNAL_JWT_SIGNING_KEY": "",
+        "STORAGE_PROCESSOR_MODE": "live",
+        "CLAMD_HOST": "clamav-clamd",
+        "CLAMD_PORT": "3310",
+        "LIBREOFFICE_SERVICE_URL": "http://libreoffice-sidecar:8100",
+        "STORAGE_QUIESCENCE_ENABLED": "1"
+      },
+      "depends_on": {
+        "clamav-clamd": {
+          "condition": "service_healthy"
+        },
+        "libreoffice-sidecar": {
+          "condition": "service_healthy"
+        }
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "bun",
+          "-e",
+          "try { const r = await fetch(\"http://127.0.0.1:4204/health\", {signal: AbortSignal.timeout(2000)}); process.exit(r.ok ? 0 : 1); } catch { process.exit(1); }"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 6,
+        "start_period": "30s"
+      },
+      "user": "1001:1001",
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${STORAGE_CONTROL_DIRECTORY:?Set root-provisioned Storage directory}",
+          "target": "/run/xynes/storage-control",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/etc/xynes/storage-control/${XYNES_ENV:?Set XYNES_ENV}/control.token",
+          "target": "/run/secrets/storage-quiesce-token",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ]
+    },
+    "telemetry-service": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=256m,mode=1777"
+      ],
+      "networks": {
+        "environment": {}
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "application"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "384m",
+      "cpus": 0.5,
+      "image": "${IMAGE_TELEMETRY:?Set immutable TELEMETRY image digest}",
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "4400",
+        "DATABASE_URL": "${DATABASE_URL:?Set DB URL}",
+        "INTERNAL_SERVICE_TOKEN": "",
+        "INTERNAL_JWT_SIGNING_KEY": ""
+      }
+    },
+    "auth-app": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=256m,mode=1777"
+      ],
+      "networks": {
+        "environment": {
+          "aliases": [
+            "auth_app_${XYNES_ENV}"
+          ]
+        }
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "application"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "512m",
+      "cpus": 0.75,
+      "image": "${IMAGE_AUTH_APP:?Set immutable AUTH_APP image digest}",
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "3100",
+        "HOSTNAME": "0.0.0.0",
+        "NEXT_TELEMETRY_DISABLED": "1",
+        "NEXT_API_URL": "http://gateway_${XYNES_ENV}:4100",
+        "NEXT_PUBLIC_API_URL": "${NEXT_PUBLIC_API_URL:?Set public API URL}",
+        "NEXT_PUBLIC_AUTH_APP_URL": "${NEXT_PUBLIC_AUTH_APP_URL:?Set public Auth URL}",
+        "NEXT_PUBLIC_APP_URL": "${NEXT_PUBLIC_AUTH_APP_URL}",
+        "NEXT_PUBLIC_SUPABASE_URL": "${NEXT_PUBLIC_SUPABASE_URL:?Set public Supabase URL}",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY": "${NEXT_PUBLIC_SUPABASE_ANON_KEY:?Set publishable anon key}",
+        "NEXT_PUBLIC_ALLOWED_REDIRECT_DOMAINS": "${NEXT_PUBLIC_ALLOWED_REDIRECT_DOMAINS:?Set allowed app hosts}"
+      }
+    },
+    "cms-console-web": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=256m,mode=1777"
+      ],
+      "networks": {
+        "environment": {
+          "aliases": [
+            "cms_console_web_${XYNES_ENV}"
+          ]
+        }
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "application"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "512m",
+      "cpus": 0.75,
+      "image": "${IMAGE_CMS_APP:?Set immutable CMS_APP image digest}",
+      "environment": {
+        "NODE_ENV": "production",
+        "PORT": "3000",
+        "HOSTNAME": "0.0.0.0",
+        "NEXT_TELEMETRY_DISABLED": "1",
+        "NEXT_API_URL": "http://gateway_${XYNES_ENV}:4100",
+        "NEXT_PUBLIC_API_URL": "${NEXT_PUBLIC_API_URL:?Set public API URL}",
+        "NEXT_PUBLIC_AUTH_APP_URL": "${NEXT_PUBLIC_AUTH_APP_URL:?Set public Auth URL}",
+        "NEXT_PUBLIC_APP_URL": "${NEXT_PUBLIC_CMS_APP_URL:?Set public CMS URL}",
+        "NEXT_PUBLIC_SUPABASE_URL": "${NEXT_PUBLIC_SUPABASE_URL:?Set public Supabase URL}",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY": "${NEXT_PUBLIC_SUPABASE_ANON_KEY:?Set publishable anon key}",
+        "NEXT_PUBLIC_ALLOWED_REDIRECT_DOMAINS": "${NEXT_PUBLIC_ALLOWED_REDIRECT_DOMAINS:?Set allowed app hosts}"
+      }
+    },
+    "clamav-clamd": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=256m,mode=1777"
+      ],
+      "networks": {
+        "processors": {}
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "processor",
+        "com.xynes.idle": "never"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "2g",
+      "cpus": 1.0,
+      "image": "${IMAGE_ARCHIVE_SCANNER:?Set immutable ARCHIVE_SCANNER image digest}",
+      "user": "1000:1000",
+      "volumes": [
+        "clamav-defs:/var/lib/clamav:ro"
+      ],
+      "depends_on": {
+        "clamav-freshclam": {
+          "condition": "service_healthy"
+        }
+      },
+      "environment": {
+        "CLAMD_CONF_StreamMaxLength": "67108864",
+        "CLAMD_CONF_MaxScanSize": "134217728",
+        "CLAMD_CONF_MaxFileSize": "67108864",
+        "CLAMD_CONF_MaxRecursion": "5",
+        "CLAMD_CONF_MaxFiles": "512",
+        "CLAMD_CONF_MaxScanTime": "5000",
+        "CLAMD_CONF_WallTime": "10000",
+        "CLAMD_CONF_ScanArchive": "yes",
+        "CLAMD_CONF_AlertExceedsMax": "yes",
+        "CLAMD_CONF_AlertEncrypted": "yes"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "/bin/sh",
+          "/opt/xynes/processors/scanner-health.sh"
+        ],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "120s"
+      },
+      "configs": [
+        {
+          "source": "definitions-ready",
+          "target": "/opt/xynes/processors/definitions-ready.sh",
+          "mode": 292
+        },
+        {
+          "source": "scanner-start",
+          "target": "/opt/xynes/processors/scanner-start.sh",
+          "mode": 292
+        },
+        {
+          "source": "scanner-health",
+          "target": "/opt/xynes/processors/scanner-health.sh",
+          "mode": 292
+        }
+      ],
+      "entrypoint": [
+        "/bin/sh",
+        "/opt/xynes/processors/scanner-start.sh"
+      ]
+    },
+    "clamav-freshclam": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=64m,mode=1777",
+        "/var/lock:size=16m,mode=1777",
+        "/run/clamav:size=16m,mode=1777"
+      ],
+      "networks": {
+        "updates": {}
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "processor",
+        "com.xynes.idle": "never"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "256m",
+      "cpus": 0.25,
+      "image": "${IMAGE_FRESHCLAM:?Set immutable FRESHCLAM image digest}",
+      "volumes": [
+        "clamav-defs:/var/lib/clamav:rw"
+      ],
+      "cap_add": [
+        "CHOWN",
+        "FOWNER",
+        "DAC_OVERRIDE",
+        "SETUID",
+        "SETGID"
+      ],
+      "environment": {},
+      "configs": [
+        {
+          "source": "definitions-ready",
+          "target": "/opt/xynes/processors/definitions-ready.sh",
+          "mode": 292
+        },
+        {
+          "source": "freshclam-updater",
+          "target": "/opt/xynes/processors/freshclam-updater.sh",
+          "mode": 292
+        },
+        {
+          "source": "freshclam-health",
+          "target": "/opt/xynes/processors/freshclam-health.sh",
+          "mode": 292
+        }
+      ],
+      "entrypoint": [
+        "/bin/sh",
+        "/opt/xynes/processors/freshclam-updater.sh"
+      ],
+      "user": "0:0",
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "/bin/sh",
+          "/opt/xynes/processors/freshclam-health.sh"
+        ],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "180s"
+      }
+    },
+    "libreoffice-sidecar": {
+      "restart": "unless-stopped",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "init": true,
+      "stop_grace_period": "60s",
+      "tmpfs": [
+        "/tmp:size=512m,mode=1777"
+      ],
+      "networks": {
+        "processors": {}
+      },
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?Set XYNES_ENV}",
+        "com.xynes.role": "processor",
+        "com.xynes.idle": "never"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "5"
+        }
+      },
+      "mem_limit": "768m",
+      "cpus": 0.5,
+      "image": "${IMAGE_LIBREOFFICE:?Set immutable LIBREOFFICE image digest}",
+      "user": "10001:10001",
+      "environment": {
+        "SAL_DISABLE_MACROS": "1",
+        "JAVA_TOOL_OPTIONS": "-Xmx256m"
+      },
+      "healthcheck": {
+        "test": [
+          "CMD-SHELL",
+          "bun -e \"const r=await fetch('http://127.0.0.1:8100/health');if(!r.ok)process.exit(1)\""
+        ],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "45s"
+      }
+    }
+  },
+  "networks": {
+    "environment": {
+      "external": true,
+      "name": "xynes_${XYNES_ENV}_net"
+    },
+    "processors": {
+      "name": "xynes_${XYNES_ENV}_processors_net",
+      "driver": "bridge",
+      "internal": true,
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV}"
+      }
+    },
+    "updates": {
+      "name": "xynes_${XYNES_ENV}_updates_net",
+      "driver": "bridge",
+      "internal": false,
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV}"
+      }
+    }
+  },
+  "volumes": {
+    "clamav-defs": {
+      "labels": {
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV}"
+      }
+    }
+  },
+  "configs": {
+    "definitions-ready": {
+      "file": "/srv/xynes/${XYNES_ENV}/compose/processors/definitions-ready.sh"
+    },
+    "freshclam-updater": {
+      "file": "/srv/xynes/${XYNES_ENV}/compose/processors/freshclam-updater.sh"
+    },
+    "freshclam-health": {
+      "file": "/srv/xynes/${XYNES_ENV}/compose/processors/freshclam-health.sh"
+    },
+    "scanner-start": {
+      "file": "/srv/xynes/${XYNES_ENV}/compose/processors/scanner-start.sh"
+    },
+    "scanner-health": {
+      "file": "/srv/xynes/${XYNES_ENV}/compose/processors/scanner-health.sh"
+    }
+  }
+}

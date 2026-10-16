@@ -1,0 +1,16 @@
+{
+  "archive-scanner": {
+    "config_digest": "sha256:0ae187b85d48ad21311fb6bd5be043d48965245f815534564818ed837495bf72",
+    "fresh_no_cache_builds": 2,
+    "manifest_digest": "sha256:5da2af5d38c85d9273dde9ecd2b4342571639c2b093058ded4870d7ab6e12136",
+    "unrelated_source_and_controller_change_preserves_digest": true
+  },
+  "artifact_kind": "native-processor-upgrade-checkpoint",
+  "deployable": false,
+  "libreoffice": {
+    "differing_file_contents": 7,
+    "finding": "Generated fontconfig caches and ldconfig auxiliary cache differ. Exact cache removal and fresh proof pending.",
+    "first_two_builds_equal": false
+  },
+  "published": false
+}

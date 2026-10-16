@@ -1,0 +1,100 @@
+{
+  "artifact_kind": "apex-storage-pr-checkpoint",
+  "base": "develop",
+  "base_sha": "59e9386dad55245b2f4239e0c5f251790add2eee",
+  "commit_changes_after_user_readonly_request": false,
+  "committer_email_matches_key_identity": true,
+  "deployed": false,
+  "deployment_source_commit": "12791e9d609abea0546573a54e385b9ffe323b1c",
+  "github_signature_reason": "valid",
+  "github_signature_verified": true,
+  "independent_human_approval": false,
+  "independent_review_recorded": false,
+  "local_checks": {
+    "all_passed": true,
+    "artifact_kind": "apex-storage-prepr-checks",
+    "checks": [
+      {
+        "counts": [
+          "\n 1738 pass",
+          " 50 skip",
+          " 0 fail"
+        ],
+        "coverage": {
+          "floor_80_met": true,
+          "functions": 92.46,
+          "lines": 94.46
+        },
+        "exit": 0,
+        "gate": "coverage"
+      },
+      {
+        "exit": 0,
+        "gate": "lint"
+      },
+      {
+        "exit": 0,
+        "gate": "typecheck"
+      }
+    ],
+    "db_integration_verified": false,
+    "existing_db_used": false,
+    "hosted_acceptance": false
+  },
+  "local_signature_verified": true,
+  "matching_key_identity_added": true,
+  "merge_commit": "12791e9d609abea0546573a54e385b9ffe323b1c",
+  "merged": true,
+  "merged_develop_native_ci_all_passed": true,
+  "merged_develop_native_ci_checks": 11,
+  "native_ci_all_passed": true,
+  "native_ci_checks": 11,
+  "native_fixture": {
+    "artifact_default_uid": 1000,
+    "bad_control_credential_denied": true,
+    "default_command": [
+      "bun",
+      "run",
+      "src/index.ts"
+    ],
+    "diff_sha256": "c09fb22393a7d908932eea26aba5284763477aea3aeda083d68cb43b9d4e151b",
+    "executed_tests": 219,
+    "file_sha256": {
+      "scripts/verify-release-image.sh": "d8e0273b67c9e3fc01de27a56b181426ff247e20b247159c7b210469b37cad50",
+      "tests/security/release-image.test.ts": "f5704fe24eec1e392a6a46b169f1fa64fa2c7437147b1a71048dc2611b73df40"
+    },
+    "fixture_only": true,
+    "hosted_entrypoint_fixture_uid": 1001,
+    "log_sha256": "a9f27ce20a01c328ab531a735792fd019eb52eb6788bf5b1371afabf0ac42422",
+    "native_exit_code": 0,
+    "native_platform": "linux/amd64",
+    "native_processing_mode": "live",
+    "new_entrypoint_tests": 3,
+    "node_environment": "production",
+    "private_status_verified": true,
+    "provider_access": false,
+    "unqualified_sigterm_refusal_verified": true,
+    "unreachable_inert_database": true
+  },
+  "overlay_native_log_sha256": "e0cde9dac93d04bf0ff865476734897af56048dadf563455bc764dddb0680de0",
+  "overlay_native_tests": 219,
+  "pr_url": "https://github.com/Xynes-Studio/xynes-storage-service/pull/36",
+  "previous_source_commit": "63adeb13b748bf9d754b9e093440d4cc153c4ccc",
+  "production_overlay_corrected": true,
+  "public_gpg_export_nonempty_verified": true,
+  "public_gpg_sha256": "8c72bc4dbe4633f22304aa357e4eed42d70905b51d19f277c4dcec7873f8efa1",
+  "registered_key_email_verified": true,
+  "registered_signing_key_id": "713BC5E1A6B66855",
+  "review_requested": true,
+  "reviewer": "Aman9804",
+  "reviewer_permission": "write",
+  "signature_observed_at": "2026-10-14T09:17:10.534283+00:00",
+  "signature_recheck_pending": false,
+  "signature_verified_commits": [
+    "63adeb13b748bf9d754b9e093440d4cc153c4ccc",
+    "0b869c8eaec2a1792eb1d2b7421dbf8eee8465fc"
+  ],
+  "source_commit": "0b869c8eaec2a1792eb1d2b7421dbf8eee8465fc",
+  "source_pin_updated": true,
+  "source_repository": "Xynes-Studio/xynes-storage-service"
+}
