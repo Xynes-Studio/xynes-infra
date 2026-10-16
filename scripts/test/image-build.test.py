@@ -183,7 +183,9 @@ class ImageBuildTests(unittest.TestCase):
         auth=[t for t in tasks if t['workload']=='xynes-auth-app']
         self.assertEqual(len({t['build_inputs_sha256'] for t in auth}),3)
     def test_planning_and_invalid_inputs_cannot_become_release_authorization(self):
-        with self.assertRaises(ValueError):tool().build_tasks(self.manifest,self.public,self.controller,'release')
+        planning=copy.deepcopy(self.manifest)
+        planning.update(status='planning',approval_reference=None)
+        with self.assertRaises(ValueError):tool().build_tasks(planning,self.public,self.controller,'release')
         for mutate in [lambda m:m['sources']['xynes-gateway'].update(commit='develop'),lambda m:m['recipes']['xynes-auth-app'].update(target='dev')]:
             m=copy.deepcopy(self.manifest);mutate(m)
             with self.assertRaises(ValueError):tool().build_tasks(m,self.public,self.controller,'planning')

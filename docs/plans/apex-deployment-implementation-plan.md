@@ -11,20 +11,21 @@ protection and independent review. Original internal reports/history stay privat
 |---|---|---|
 | APEX-01 | Reconcile fresh source refs, target ownership, dependencies and one-PR boundary. | Product scope confirmed; selected prerequisite bytes imported. Final release qualification remains. |
 | APEX-02 | Prove safe idle/wake, bounded cold starts, drain and exactly-once forwarding. | Local adapter fixtures exist; actual app/OAuth/host acceptance remains. |
-| APEX-03 | Converge compatible host/runtime versions and owned paths/networks; protect SSH and retained data. | Isolated paths/networks and reviewed forced-command boundary installed; idle runtime integration remains. |
+| APEX-03 | Converge compatible host/runtime versions and owned paths/networks; protect SSH and retained data. | Isolated paths/networks, final reviewed forced-command controller and inert signed-source idle runtime installed. Real OS/SSH isolation checks passed; app activation remains. |
 | APEX-04 | Configure isolated DB/Auth, service identities, providers and public inputs for all three stacks. | Three private stage configurations and identities installed after native isolation checks. Local Auth runtime passes; hosted bootstrap/product acceptance remain. |
 | APEX-05 | Build fifteen Linux amd64 OCI candidates, verify native processors and image/source bindings. | All fifteen amd64 planning OCI images built and inspected. Hosted runtime qualification remains. |
-| APEX-06 | Wire protected source admission, private GHCR publication and isolated artifact signing. | Workflow variables/environment keys installed behind reviewed main-only approval gates. Approved snapshot, real publication and attestations remain. |
+| APEX-06 | Wire protected source admission, private GHCR publication and isolated artifact signing. | Workflow variables/environment keys and concrete PR source reference installed behind main-only independent approval gates. Native final-head review/merge, real publication and attestations remain. |
 | APEX-07 | Deploy QA, verify migrations/seeds and real product flows, force failed-smoke rollback. | Source-bound SQL planning/ledger fixtures pass; no hosted acceptance. |
 | APEX-08 | Promote staging, enable proven idle groups, measure resources and run 24-hour soak. | Pending QA acceptance. |
 | APEX-09 | Prove encrypted offsite backup, independent isolated restore and configured alert delivery. | Native configured-channel TEST delivered; timer templates inert. Actual offsite backup, isolated restore and scheduler acceptance remain. |
-| APEX-10 | Consolidate the final PR, obtain independent review/merge authorization and complete protected production acceptance. | No deployment PR opened. |
+| APEX-10 | Consolidate the final PR, obtain independent review/merge authorization and complete protected production acceptance. | Single final infra [PR #1](https://github.com/Xynes-Studio/xynes-infra/pull/1) is open; final-head CI and Aman9804 review/merge authorization are pending. |
 
 ## Environment isolation
 
-Production keeps the ERP namespace. Proposed QA and staging namespaces sit outside
-that production cookie domain; actual DNS and OAuth redirects must be validated
-before deployment. Provider handoff comments name the intended callback URLs.
+Production keeps the ERP namespace. QA and staging namespaces sit outside
+that production cookie domain. All twelve DNS names currently resolve to the
+deployment VPS; HTTPS and actual OAuth redirect flows remain deployment acceptance
+gates. Provider handoff comments name the intended callback URLs.
 Database/Auth keys and internal signing identities are generated separately.
 Storage buckets/credentials are stage-specific. Filled files and keys live in
 protected storage; public templates contain placeholders only.
