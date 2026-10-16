@@ -1,0 +1,113 @@
+{
+  "app_production_source_modified": false,
+  "files": [
+    {
+      "byte_identical": true,
+      "bytes": 939,
+      "path": "scripts/test/cms-content-delivery-routes.test.sh",
+      "reason": "CMS route prerequisite guard and its closed explicitly disposable smoke support.",
+      "source_sha256": "b418f9a79938db7be47bf62c94e26bdc90eaba0bccfd2dea1b9addd5a9eb79b3"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 407,
+      "path": "scripts/test/cms-delivery-contract-parity.test.sh",
+      "reason": "Existing pinned contract parity guard and its exact immutable-input/schema helper dependencies.",
+      "source_sha256": "b74c6dea5f920837fe812b17e54dd7ee4884d19406ce8fb3ff5410e60eaa0544"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 2692,
+      "path": "scripts/test/fixtures/cms-delivery/routes-prerequisites.test.py",
+      "reason": "CMS route prerequisite guard and its closed explicitly disposable smoke support.",
+      "source_sha256": "41619593e410cb7e89c31b6c58812c952a1f672b5846963404d821223fbb9952"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 2151,
+      "path": "scripts/test/fixtures/cms-delivery/routes-contract.py",
+      "reason": "CMS route prerequisite guard and its closed explicitly disposable smoke support.",
+      "source_sha256": "254d5fc97fcde721a29c5ec8ce577a72455d7dfa9df8eac029ed18751dae5262"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 3674,
+      "path": "scripts/test/fixtures/cms-delivery/access-smoke.py",
+      "reason": "CMS route prerequisite guard and its closed explicitly disposable smoke support.",
+      "source_sha256": "bb897a95df79523287a1d1d97534d08c5f20c26a748ba85cd12a1a06b47a0867"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 4958,
+      "path": "scripts/test/fixtures/cms-content-integrations/pinned-inputs.test.py",
+      "reason": "Existing pinned contract parity guard and its exact immutable-input/schema helper dependencies.",
+      "source_sha256": "062ae94794a9cea96aa8b9f5d5627b06e8f5d47b9f540d5f0381d021275d7c10"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 2193,
+      "path": "scripts/test/fixtures/cms-content-integrations/pinned_inputs.py",
+      "reason": "Existing pinned contract parity guard and its exact immutable-input/schema helper dependencies.",
+      "source_sha256": "fbbb82a654c4e2683d6109e7f710960254f968c29e3d014a685914294112855f"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 4691,
+      "path": "scripts/test/fixtures/cms-content-integrations/smoke-safety.test.py",
+      "reason": "Existing CMS copied-request safety guard dependencies; real-service execution remains explicitly provisioned.",
+      "source_sha256": "3e790e0aecfd70892352ae5b285ce895c5c06b8841214c3ff1f2e16154a1e389"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 4378,
+      "path": "scripts/test/fixtures/cms-content-integrations/smoke.py",
+      "reason": "Existing CMS copied-request safety guard dependencies; real-service execution remains explicitly provisioned.",
+      "source_sha256": "b971411a33eb6cbc23c6b7f3639ba1e6ff647b976600ec2280e6bbe736fcdc47"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 5532,
+      "path": "scripts/test/fixtures/cms-content-integrations/parity.py",
+      "reason": "Existing pinned contract parity guard and its exact immutable-input/schema helper dependencies.",
+      "source_sha256": "c43fb9f7e5762a0464c226210be9bba059876d846ac54738533185fef56ffd97"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 2052,
+      "path": "scripts/test/fixtures/cms-content-integrations/schema-probe.ts",
+      "reason": "Existing pinned contract parity guard and its exact immutable-input/schema helper dependencies.",
+      "source_sha256": "f6c8de5cf0f225a98c7cd47a6171b454b7f503bbf990946c9b25e13a19c08a87"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 3559,
+      "path": "scripts/test/fixtures/cms-content-integrations/copied-request.ts",
+      "reason": "Existing CMS copied-request safety guard dependencies; real-service execution remains explicitly provisioned.",
+      "source_sha256": "cc09f6199360bd93cba7678ab314d2164bd0add0036c1f06cca7866b3197e7c5"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 13215,
+      "path": "scripts/test/fixtures/cms-content-integrations/copied-request-hooks.ts",
+      "reason": "Existing CMS copied-request safety guard dependencies; real-service execution remains explicitly provisioned.",
+      "source_sha256": "ee5dd2f884628acffb852c7bd010d04cc82aaea0882f7ca468ce8f685fdf66b7"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 3060,
+      "path": "scripts/test/fixtures/cms-content-integrations/copied-request-unit.test.ts",
+      "reason": "Existing CMS copied-request safety guard dependencies; real-service execution remains explicitly provisioned.",
+      "source_sha256": "33cd44d027cb2a093a5a27a2455d65e5ead7c6a984409ce4318ec6cc4219634f"
+    },
+    {
+      "byte_identical": true,
+      "bytes": 195,
+      "path": "scripts/setup/vps-reconcile.sh",
+      "reason": "Required read-only CLI entrypoint for the existing 15 reconciliation unit tests.",
+      "source_sha256": "39d4c3cc8c751483af582ec3dd5cbf1e7a027a877b21be7e86c3db468e1e1e79"
+    }
+  ],
+  "paths_are_exact_allowlist_entries": true,
+  "reason": "Required closed support graph of three existing offline CMS CI guards; production code unchanged",
+  "secrets_or_private_reports_included": false
+}

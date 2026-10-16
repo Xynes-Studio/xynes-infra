@@ -1,0 +1,129 @@
+{
+  "name": "Apex protected deployment dispatch",
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "stage": {
+          "description": "Target environment",
+          "required": true,
+          "type": "choice",
+          "options": [
+            "qa",
+            "staging",
+            "prod"
+          ]
+        },
+        "build_run_id": {
+          "description": "Successful first-attempt Apex build run ID",
+          "required": true,
+          "type": "string"
+        }
+      }
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "apex-host-84-247-176-134",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "deploy-qa": {
+      "name": "deploy-qa",
+      "if": "${{ github.repository == 'Xynes-Studio/xynes-infra' && github.ref == 'refs/heads/main' && github.ref_protected && github.event_name == 'workflow_dispatch' && github.run_attempt == 1 && inputs.stage == 'qa' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 60,
+      "environment": "qa",
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false,
+            "sparse-checkout": "/scripts/release/\n/scripts/lib/\n/infra/release/",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "run": "python3 scripts/release/deploy_dispatch.py",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "APEX_STAGE": "qa",
+            "APEX_BUILD_RUN_ID": "${{ inputs.build_run_id }}",
+            "APEX_SSH_PRIVATE_KEY": "${{ secrets.APEX_SSH_PRIVATE_KEY }}",
+            "APEX_SSH_KNOWN_HOSTS": "${{ vars.APEX_SSH_KNOWN_HOSTS }}"
+          }
+        }
+      ]
+    },
+    "deploy-staging": {
+      "name": "deploy-staging",
+      "if": "${{ github.repository == 'Xynes-Studio/xynes-infra' && github.ref == 'refs/heads/main' && github.ref_protected && github.event_name == 'workflow_dispatch' && github.run_attempt == 1 && inputs.stage == 'staging' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 60,
+      "environment": "staging",
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false,
+            "sparse-checkout": "/scripts/release/\n/scripts/lib/\n/infra/release/",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "run": "python3 scripts/release/deploy_dispatch.py",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "APEX_STAGE": "staging",
+            "APEX_BUILD_RUN_ID": "${{ inputs.build_run_id }}",
+            "APEX_SSH_PRIVATE_KEY": "${{ secrets.APEX_SSH_PRIVATE_KEY }}",
+            "APEX_SSH_KNOWN_HOSTS": "${{ vars.APEX_SSH_KNOWN_HOSTS }}"
+          }
+        }
+      ]
+    },
+    "deploy-prod": {
+      "name": "deploy-prod",
+      "if": "${{ github.repository == 'Xynes-Studio/xynes-infra' && github.ref == 'refs/heads/main' && github.ref_protected && github.event_name == 'workflow_dispatch' && github.run_attempt == 1 && inputs.stage == 'prod' }}",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 60,
+      "environment": "prod",
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false,
+            "sparse-checkout": "/scripts/release/\n/scripts/lib/\n/infra/release/",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "run": "python3 scripts/release/deploy_dispatch.py",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "APEX_STAGE": "prod",
+            "APEX_BUILD_RUN_ID": "${{ inputs.build_run_id }}",
+            "APEX_SSH_PRIVATE_KEY": "${{ secrets.APEX_SSH_PRIVATE_KEY }}",
+            "APEX_SSH_KNOWN_HOSTS": "${{ vars.APEX_SSH_KNOWN_HOSTS }}"
+          }
+        }
+      ]
+    }
+  }
+}

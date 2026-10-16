@@ -16,8 +16,8 @@ MAX_REPORT = 4 * 1024 * 1024
 MAX_BLOB = 8 * 1024 * 1024
 FIELDS = {'Description', 'StartLine', 'EndLine', 'StartColumn', 'EndColumn', 'Match',
           'Secret', 'File', 'SymlinkFile', 'Commit', 'Entropy', 'Author', 'Email',
-          'Date', 'Message', 'Tags', 'RuleID', 'Fingerprint'}
-EXCEPTION_FIELDS = {'rule', 'file', 'blob_sha256', 'secret_sha256', 'reason'}
+          'Date', 'Message', 'Tags', 'RuleID', 'Fingerprint', 'Link'}
+EXCEPTION_FIELDS = {'rule', 'file', 'blob_sha256', 'candidate_sha256', 'reason'}
 
 def require(condition):
     if not condition:
@@ -63,9 +63,9 @@ def load_exceptions(path):
         require(isinstance(row, dict) and set(row) == EXCEPTION_FIELDS)
         require(all(isinstance(value, str) for value in row.values()))
         require(re.fullmatch(r'[a-z0-9][a-z0-9-]{0,127}', row['rule']) and path_ok(row['file']))
-        require(all(re.fullmatch(r'[a-f0-9]{64}', row[key]) for key in ('blob_sha256', 'secret_sha256')))
+        require(all(re.fullmatch(r'[a-f0-9]{64}', row[key]) for key in ('blob_sha256', 'candidate_sha256')))
         require(0 < len(row['reason'].strip()) <= 2000)
-        key = tuple(row[k] for k in ('rule', 'file', 'blob_sha256', 'secret_sha256'))
+        key = tuple(row[k] for k in ('rule', 'file', 'blob_sha256', 'candidate_sha256'))
         require(key not in allowed)
         allowed.add(key)
     return allowed
@@ -119,6 +119,10 @@ def scan(repo, scanner, exceptions=None):
         blocked = 0
         for row in rows:
             require(isinstance(row, dict) and set(row) <= FIELDS)
+            # Optional scanner navigation metadata is never exception authority.
+            if 'Link' in row:
+                require(isinstance(row['Link'], str) and len(row['Link']) <= 8192
+                        and not any(ord(c) < 32 or ord(c) == 127 for c in row['Link']))
             require(all(isinstance(row.get(k), str) and row[k] for k in ('RuleID', 'File', 'Commit', 'Secret')))
             require(re.fullmatch(r'[a-z0-9][a-z0-9-]{0,127}', row['RuleID']))
             require(path_ok(row['File']) and re.fullmatch(r'[a-f0-9]{40}', row['Commit']))

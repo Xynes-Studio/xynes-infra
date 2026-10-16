@@ -1,0 +1,11 @@
+{
+  "activated": false,
+  "artifact_kind": "inert-public-host-assets",
+  "created_entries_count": 67,
+  "deployment_accepted": false,
+  "independent_review": "no-actionable-P1-P2",
+  "native_exit": 0,
+  "plan_sha256": "35991793190331b9e6b593d1a70561d374fcf87cc45710ef3554888ae51dfbaf",
+  "private_material": false,
+  "verified_files": 54
+}

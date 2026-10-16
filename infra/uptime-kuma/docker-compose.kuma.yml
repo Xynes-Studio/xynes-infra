@@ -1,0 +1,199 @@
+# F-5 — Uptime Kuma reverse-proxied status + monitor stack.
+#
+# Lives on VPS at: /srv/xynes/uptime-kuma/docker-compose.kuma.yml
+#
+# Why a standalone compose file (not part of any env stack):
+#   - Uptime Kuma is a SINGLE GLOBAL instance per ENVIRONMENTS.md §7.
+#     It is NOT env-scoped. One Uptime Kuma watches Dev + QA + Prod and
+#     posts a single public status page at `https://status.erp.xynes.com`.
+#   - It sits on `caddy_net` only — same network as Caddy itself — so the
+#     `status.erp.xynes.com` site block in `infra/caddy/Caddyfile` can
+#     resolve the `uptime_kuma:3001` upstream alias (F-3-FU-3 contract).
+#   - Bringing Uptime Kuma up AFTER Caddy + DNS but BEFORE the env stacks
+#     means the first 9 monitors come up red (no upstreams yet) — that's
+#     the F-5 acceptance criterion and proves the alert channel works.
+#
+# Bring-up sequence (matches infra/uptime-kuma/README.md §"Rollout
+# sequence" and VPS-SETUP.md §2.14):
+#   1. Place this file at /srv/xynes/uptime-kuma/docker-compose.kuma.yml.
+#   2. Ensure /srv/xynes/uptime-kuma/data/ exists per E-4 §2.10 (0755
+#      root:root — the official Uptime Kuma image runs as the `node` user
+#      uid 1000 and will chown its SQLite + upload dirs at first boot).
+#   3. `docker compose -f docker-compose.kuma.yml up -d`.
+#   4. Open `https://status.erp.xynes.com` (via Caddy) and complete the
+#      first-run wizard (admin user + password — NEVER set via env per
+#      Uptime Kuma's official posture: the bootstrap secret lives in
+#      `/app/data` only).
+#   5. Add the 9 monitors documented in `infra/uptime-kuma/README.md` §3.
+#   6. Configure the alert channel (Discord webhook OR email) — see
+#      `infra/release/INCIDENT-RUNBOOK.md` §0.1 for the chosen channel.
+#
+# Security posture (mirrors infra/caddy/docker-compose.caddy.yml and
+# infra/compose/storage-live-processors.yml):
+#   - Image PINNED to a specific minor version (`louislam/uptime-kuma:1`
+#     is the canonical maintained v1 line; we pin the exact tag
+#     `1.23.16-alpine` to avoid `:latest` policy violations and to make
+#     image-tag drift a deliberate operator action). Bumping the tag
+#     requires editing this file and re-applying via the operator
+#     rollout sequence — there is no auto-update.
+#   - `cap_drop: [ALL]` + narrow `cap_add` (SETGID / SETUID / CHOWN /
+#     DAC_OVERRIDE — see "Capability rationale" below). Uptime Kuma's
+#     official entrypoint at `/usr/bin/entry.sh` invokes
+#     `setpriv --reuid <PUID> --regid <PGID> --clear-groups` before
+#     exec'ing the Node process. With `cap_drop: [ALL]` + a tightened
+#     posture, `setpriv` fails with `setgroups failed: Operation not
+#     permitted` and the container crash-loops every ~2 seconds. The
+#     narrow `cap_add` set lets the entrypoint do its uid/gid
+#     bookkeeping AND chown the bind-mounted data dir at first boot
+#     (otherwise SQLite can't write `/app/data/kuma.db`), while still
+#     dropping NET_RAW / NET_ADMIN / SYS_* / and every other dangerous
+#     cap. F-3 used a similar narrow `cap_add` (NET_BIND_SERVICE only)
+#     for Caddy on ports 80/443. NO NET_BIND_SERVICE for Uptime Kuma —
+#     it binds to port 3001 (>1024) so the kernel doesn't gate it.
+#
+# Capability rationale (the four caps in `cap_add` below):
+#   - SETGID + SETUID: the entrypoint runs as root then drops privs via
+#     `setpriv --reuid --regid --clear-groups`. Without these caps the
+#     setpriv call fails immediately with "setgroups failed: Operation
+#     not permitted" and the container crash-loops. Surfaced live during
+#     F-5 first VPS apply on 2026-06-11; see story F-5-FU-2 below.
+#   - CHOWN + DAC_OVERRIDE: the entrypoint's first-boot bookkeeping
+#     chowns `/app/data` to the runtime UID (PUID, default 0 / root)
+#     and writes the initial SQLite schema. Without these caps the
+#     chown fails silently and Uptime Kuma falls back to a different
+#     code path that can race with the SQLite write, producing
+#     intermittent "database is locked" errors at first boot. Granting
+#     them up-front avoids the race entirely. Both are scoped to the
+#     single bind-mounted `./data` directory in practice; the rootfs
+#     under `/app/` is still immutable per the pinned image.
+#   - `security_opt: [no-new-privileges:true]` — defense in depth.
+#   - NOT `read_only: true` — Uptime Kuma writes to `/app/db` (SQLite),
+#     `/app/uploads`, and various Node.js runtime paths under `/app/`.
+#     Restricting the rootfs to read-only would break monitor execution
+#     in subtle ways. We instead scope writable surfaces to:
+#       * `/app/data` (bind-mounted from `./data` — persistent SQLite +
+#         uploads + push-monitor state).
+#       * `/tmp` (tmpfs, bounded 64m).
+#     Everything else is the image's own rootfs and is recreated on
+#     restart from the image, which is itself immutable + pinned.
+#   - No `ports:` on the host. Caddy fronts the status page at
+#     `https://status.erp.xynes.com` per the F-3 Caddyfile + F-3-FU-3
+#     per-env alias contract. The container is reachable ONLY from
+#     `caddy_net` (no other env net is attached) so Uptime Kuma cannot
+#     be probed directly from the host or the public internet.
+#   - Resource limits from ENVIRONMENTS.md §6 (Uptime Kuma: 128m /
+#     0.25 cpus). Modest because v1 with the 9 documented HTTP monitors
+#     at 60s interval is light on CPU + memory; Chromium-backed monitors
+#     are NOT used by F-5.
+#
+# Network attachments: Uptime Kuma joins `caddy_net` ONLY (declared
+# `external: true` because it is created by `vps-bootstrap.sh
+# section_2_11_networks` in story E-5). This is the SECURITY BOUNDARY:
+# Uptime Kuma can probe public URLs over the operator's egress (every
+# monitor in F-5 §3 is an `https://` URL, not a Docker-internal alias),
+# but it CANNOT reach into `xynes_dev_net` / `xynes_qa_net` /
+# `xynes_prod_net` from inside the cluster. Internal probes are
+# deliberately NOT in F-5 scope — they require multi-net attachment and
+# different blast-radius reasoning that belongs in a follow-up story
+# alongside the QA push-monitors mentioned in VPS-SETUP.md §2.17.
+#
+# The network alias `uptime_kuma` (underscore, NOT kebab-case) is
+# REQUIRED — it matches the canonical `reverse_proxy uptime_kuma:3001`
+# directive in `infra/caddy/Caddyfile` (F-3-FU-3). Caddyfile + this
+# alias are kept in sync by `scripts/test/f-3-caddy-staging-to-prod.test.sh`
+# (forbids `uptime-kuma:3001`) AND by `scripts/test/f-5-uptime-kuma-compose.test.sh`
+# (requires the `uptime_kuma` alias here).
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1.23.16-alpine
+    container_name: uptime-kuma
+    restart: unless-stopped
+    networks:
+      caddy_net:
+        aliases:
+          # MUST match `reverse_proxy uptime_kuma:3001` in
+          # infra/caddy/Caddyfile + CADDY.md §3 (F-3-FU-3). The
+          # container_name above (`uptime-kuma`, kebab-case) is the
+          # Docker convention; the network ALIAS (`uptime_kuma`,
+          # underscore) is what Caddy resolves.
+          - uptime_kuma
+    # No `ports:` block. Caddy fronts the status page. The official
+    # image listens on container port 3001 — Caddy reaches it via the
+    # `uptime_kuma:3001` upstream alias above.
+    volumes:
+      # SQLite database + uploads + push-monitor state. The host path
+      # `/srv/xynes/uptime-kuma/data` is created by E-4 §2.10 at
+      # `0755 root:root`. Uptime Kuma's official entrypoint runs as
+      # root by default (PUID=0 / PGID=0) and writes the SQLite DB +
+      # `kuma.db-shm` + `kuma.db-wal` files into this path directly.
+      # If a future operator decides to run as a non-root UID via the
+      # PUID / PGID env vars, the entrypoint will chown this directory
+      # at first boot — that path needs the CHOWN + DAC_OVERRIDE caps
+      # documented in the "Capability rationale" comment block above.
+      - ./data:/app/data
+    cap_drop:
+      - ALL
+    cap_add:
+      # NARROW set — see "Capability rationale" comment block above for
+      # the live-VPS evidence that uncovered each one.
+      - SETGID         # entrypoint's setpriv --regid
+      - SETUID         # entrypoint's setpriv --reuid
+      - CHOWN          # first-boot chown of /app/data
+      - DAC_OVERRIDE   # first-boot SQLite write to /app/data
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      # Uptime Kuma writes a small amount of scratch to /tmp during
+      # HTTP probes (no SSL session ticket cache by default, but
+      # Node.js stdlib uses /tmp opportunistically). Keep it bounded.
+      - /tmp:size=64m,mode=1777
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: "0.25"
+        reservations:
+          memory: 64M
+          cpus: "0.1"
+    healthcheck:
+      # The official image ships a Node-based healthcheck script at
+      # `/app/extra/healthcheck.js` that hits the in-process HTTP server
+      # at `http://127.0.0.1:3001` and returns non-zero on probe failure.
+      # The official image's own `HEALTHCHECK` directive uses:
+      #   CMD-SHELL "node extra/healthcheck.js"
+      # with a 180s start_period and 5 retries — those defaults have been
+      # battle-tested through several thousand container starts on the
+      # upstream demo server. We mirror them here verbatim (rather than
+      # hand-rolling a `wget` probe) so that:
+      #   1. Future Uptime Kuma releases that change the internal probe
+      #      contract still hook into the same healthcheck command.
+      #   2. The 180s start_period covers the SQLite migration sequence
+      #      on first boot (~75 migrations in v1.23.16; on a small VPS
+      #      this can take 60-90s before the HTTP server binds).
+      #   3. No BusyBox-wget IPv6-first footgun (F-3-FU-2 on Caddy) —
+      #      the Node script uses Node's resolver which respects the
+      #      `host` argument literally.
+      # F-5-FU-3 (2026-06-11): the first AI attempt used
+      # `["CMD", "extra/healthcheck"]` (no `.js` extension, no `node`
+      # prefix). That file does NOT exist in the v1.23.16-alpine image
+      # (only `extra/healthcheck.js` and `extra/healthcheck.go` ship);
+      # the live healthcheck returned `OCI runtime exec failed: exec:
+      # "extra/healthcheck": stat extra/healthcheck: no such file or
+      # directory`. Surfaced during F-5 first VPS apply. The CMD-SHELL
+      # variant below mirrors the official metadata exactly.
+      test: ["CMD-SHELL", "node /app/extra/healthcheck.js"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 180s
+
+networks:
+  # caddy_net is pre-existing, owned by `vps-bootstrap.sh
+  # section_2_11_networks` (story E-5). It is declared `external: true`
+  # here so Uptime Kuma auto-joins it on every `docker compose up -d`,
+  # including `--force-recreate`. This is the same declarative-attachment
+  # pattern as the Caddy compose file (F-4-FU-2).
+  caddy_net:
+    external: true
+    name: caddy_net

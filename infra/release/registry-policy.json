@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "registry_prefix": "ghcr.io/xynes-studio/apex",
+  "package_repository": "Xynes-Studio/xynes-infra",
+  "visibility": "private",
+  "publish_authentication": "github-actions-token",
+  "server_pull_authentication": {
+    "kind": "github-classic-pat",
+    "scopes": [
+      "read:packages"
+    ]
+  }
+}

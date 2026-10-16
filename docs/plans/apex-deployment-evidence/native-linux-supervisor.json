@@ -1,0 +1,26 @@
+{
+  "application_services_changed": false,
+  "artifact_kind": "native-linux-supervisor-fixture",
+  "deployable": false,
+  "source_sha256": "800394f59492be70fe028fcfca058b0668a3d964dc6569f74c87c65421b3c03a",
+  "tests": [
+    {
+      "actual_pidfd_watchdog": true,
+      "deployable": false,
+      "mode": "binding",
+      "native_binding": true,
+      "runtime_limit_seconds": 2700,
+      "verified": true,
+      "worker_and_child_stopped": true
+    },
+    {
+      "actual_pidfd_watchdog": true,
+      "deployable": false,
+      "mode": "parent-death",
+      "native_binding": true,
+      "runtime_limit_seconds": 2700,
+      "verified": true,
+      "worker_and_child_stopped": true
+    }
+  ]
+}

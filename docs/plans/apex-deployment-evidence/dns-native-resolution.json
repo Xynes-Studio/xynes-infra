@@ -1,0 +1,92 @@
+{
+  "artifact_kind": "native-public-dns-resolution-check",
+  "observed_at": 1792050121,
+  "records": [
+    {
+      "fqdn": "auth.qa.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "cms.qa.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "api.qa.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "supabase.qa.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "auth.staging.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "cms.staging.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "api.staging.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "supabase.staging.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "auth.erp.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "cms.erp.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "api.erp.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    },
+    {
+      "fqdn": "supabase.erp.xynes.com",
+      "values": [
+        "84.247.176.134"
+      ],
+      "matches_deployment_vps": true
+    }
+  ],
+  "dns_changed": false,
+  "all_expected": true
+}

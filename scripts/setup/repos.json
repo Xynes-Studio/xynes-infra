@@ -1,0 +1,27 @@
+{
+  "$schema": "./repos.schema.json",
+  "owner": "Xynes-Studio",
+  "comment": "Canonical 16-repo list for the MVP release rollout. Consumed by B-1 (configure-branch-protection.sh) and B-2 (bootstrap-gitflow-branches.sh). The order mirrors C-1..C-15 in xynes/xynes-infra/docs/plans/2026-05-13-mvp-release-stories/group-C-per-repo-templates.md. `xynes-i18n` is a standalone release entry (own repo at `Xynes-Studio/xynes-i18n`, own package, own version tags) — added 2026-06-04 after the B-2 audit confirmed it as an active standalone repo and C-14 was split into separate `C-14 — lumia-ds` and `C-15 — xynes-i18n` entries.",
+  "remoteSlugOverrides": {
+    "comment": "Local folder name → GitHub repo slug. Only list a repo here when its on-disk folder name differs from its GitHub slug. The Phase 3 audit pass MUST 404-friendly-error if any slug listed below cannot be resolved via `gh api /repos/{owner}/{slug}`. Slug `xynes-frontend-infra` (no hyphen between front/end) confirmed 2026-06-04 via the local folder's git remote.",
+    "xynes-front-end/infra": "xynes-frontend-infra"
+  },
+  "repos": [
+    "xynes-infra",
+    "xynes-gateway",
+    "xynes-accounts-service",
+    "xynes-authz-service",
+    "xynes-cms-core",
+    "xynes-doc-service",
+    "xynes-telemetry-service",
+    "xynes-storage-service",
+    "xynes-platform-config",
+    "xynes-platform-contracts",
+    "xynes-frontend-infra",
+    "xynes-auth-app",
+    "xynes-cms-console-web",
+    "xynes-auth-sdk",
+    "xynes-i18n",
+    "lumia-ds"
+  ]
+}

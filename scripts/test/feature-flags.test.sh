@@ -1,6 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${RUN_FEATURE_FLAGS_LIVE_TESTS:-false}" != true ]]; then
+  echo 'SKIP: feature flag live checks require explicit provisioning and opt-in'
+  exit 0
+fi
+GATEWAY_URL="${XYNES_FEATURE_FLAGS_GATEWAY_URL:-${1:-}}"
+JWT_TOKEN="${XYNES_FEATURE_FLAGS_JWT:-${2:-}}"
+if [[ -z "$GATEWAY_URL" || -z "$JWT_TOKEN" || "$JWT_TOKEN" == *$'\r'* || "$JWT_TOKEN" == *$'\n'* ]]; then
+  echo 'Explicit gateway URL and JWT are required' >&2
+  exit 1
+fi
+if ! python3 - "$GATEWAY_URL" <<'PY'
+import sys
+from urllib.parse import urlsplit
+try:
+    value = sys.argv[1]
+    url = urlsplit(value)
+    valid = (not any(c.isspace() or ord(c) < 32 for c in value)
+             and url.scheme in ('http', 'https') and bool(url.hostname)
+             and url.username is None and url.password is None
+             and not url.query and not url.fragment and (url.port is None or 0 < url.port <= 65535))
+except ValueError:
+    valid = False
+sys.exit(0 if valid else 1)
+PY
+then
+  echo 'Expected an http/https gateway base without credentials or query' >&2
+  exit 1
+fi
+GATEWAY_URL="${GATEWAY_URL%/}"
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # INFRA-BE-1: Feature Flags Manual Verification Script
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -10,14 +40,15 @@ set -euo pipefail
 # Prerequisites:
 # 1. SSH tunnel to database: ssh -N -L 5432:172.18.0.4:5432 xynes@84.247.176.134
 # 2. Gateway running (docker or local)
-# 3. Valid JWT token (use supabase-token.sh to get one)
+# 3. An explicitly supplied short-lived JWT token
 #
 # Usage:
-#   ./feature-flags.test.sh [GATEWAY_URL] [JWT_TOKEN]
+#   RUN_FEATURE_FLAGS_LIVE_TESTS=true ./feature-flags.test.sh GATEWAY_URL JWT_TOKEN
 #
 # Examples:
-#   ./feature-flags.test.sh                                    # Uses defaults
-#   ./feature-flags.test.sh http://localhost:4100 eyJhbG...    # Custom URL & token
+#   RUN_FEATURE_FLAGS_LIVE_TESTS=true \
+#     XYNES_FEATURE_FLAGS_GATEWAY_URL=http://localhost:4100 \
+#     XYNES_FEATURE_FLAGS_JWT="$SHORT_LIVED_TEST_JWT" ./feature-flags.test.sh
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -37,22 +68,7 @@ source ./scripts/lib/colors.sh 2>/dev/null || {
 # Configuration
 # ─────────────────────────────────────────────────────────────────────────────
 
-GATEWAY_URL="${1:-http://localhost:4100}"
-JWT_TOKEN="${2:-}"
-
-# If no token provided, try to get one from supabase-token.sh
-if [ -z "$JWT_TOKEN" ]; then
-  if [ -f "./scripts/supabase-token.sh" ]; then
-    echo "No JWT token provided, attempting to get one from supabase-token.sh..."
-    JWT_TOKEN=$(./scripts/supabase-token.sh 2>/dev/null | tail -1) || true
-  fi
-fi
-
-if [ -z "$JWT_TOKEN" ]; then
-  echo -e "${YELLOW}WARNING: No JWT token provided. Auth tests will fail.${NC}"
-  echo "Usage: $0 [GATEWAY_URL] [JWT_TOKEN]"
-  echo ""
-fi
+# Live targets and credentials were checked before loading any helpers.
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Test Counters
@@ -201,9 +217,7 @@ else
   HTTP_CODE=$(echo "$RESPONSE" | tail -1)
   
   if [ "$HTTP_CODE" != "200" ]; then
-    warn "JWT token is invalid or expired (GET /me returned $HTTP_CODE)"
-    warn "Skipping authenticated tests - generate a fresh token with:"
-    echo "  ./scripts/supabase-token.sh --env-file .env.dev --base-url <SUPABASE_URL>"
+    fail "JWT token is invalid or expired (GET /me returned $HTTP_CODE)"
     echo ""
   else
     pass "JWT token is valid"

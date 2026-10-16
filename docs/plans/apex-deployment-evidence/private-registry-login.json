@@ -1,0 +1,10 @@
+{
+  "artifact_kind": "native-private-registry-login",
+  "authenticated": true,
+  "credential_namespace": "ghcr.io",
+  "images_published": false,
+  "images_pulled": false,
+  "root_only": true,
+  "scope_follow_up": "Replace the registry PAT with read:packages-only; user explicitly accepted current repo scope temporarily.",
+  "user_accepted_temporary_repo_scope": true
+}

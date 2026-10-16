@@ -1,0 +1,27 @@
+{
+  "accounts_and_groups_preserved": true,
+  "application_services_activated": false,
+  "artifact_kind": "apex-reviewed-boundary-upgrade",
+  "audit": {
+    "boundary_ready": false,
+    "bundle_sha256": "750f624278bcec519d62783b2cca951a24cb3f2d2be1c6e5ab620da0f097b2d4",
+    "execution_scope": "live-host",
+    "owned_assets_verified": true,
+    "plan_sha256": "067aa2fa3cd109040c61becd1d84970db2d97150e8b5e060355d803db47dd8fb"
+  },
+  "code_upgrade_only": true,
+  "deployment_accepted": false,
+  "input_cleanup_verified": true,
+  "installation": {
+    "boundary_ready": false,
+    "bundle_sha256": "750f624278bcec519d62783b2cca951a24cb3f2d2be1c6e5ab620da0f097b2d4",
+    "execution_scope": "live-host",
+    "installed": true,
+    "plan_sha256": "067aa2fa3cd109040c61becd1d84970db2d97150e8b5e060355d803db47dd8fb",
+    "privileges_revoked": false
+  },
+  "original_recovery_copy_preserved": true,
+  "positive_native_admission": false,
+  "predecessor_bundle_retained": true,
+  "ssh_profiles_preserved": true
+}

@@ -1,0 +1,16 @@
+[Unit]
+Description=Configured Xynes backup failure notification (%i)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/local/libexec/xynes-backup alert %i
+TimeoutStartSec=30s
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full

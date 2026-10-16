@@ -1,0 +1,208 @@
+{
+  "name": "Apex protected image release",
+  "on": {
+    "workflow_dispatch": {}
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "apex-images-${{ github.repository }}",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "admission": {
+      "name": "admission",
+      "if": "github.repository == 'Xynes-Studio/xynes-infra' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "read",
+        "actions": "read",
+        "checks": "read"
+      },
+      "outputs": {
+        "receipt": "{\"id\":${{ steps.bundle.outputs.artifact-id }},\"digest\":\"sha256:${{ steps.bundle.outputs.artifact-digest }}\"}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false,
+            "fetch-depth": 0
+          }
+        },
+        {
+          "uses": "oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6",
+          "with": {
+            "bun-version": "1.4.2"
+          }
+        },
+        {
+          "run": "python3 scripts/release/build_pipeline.py admission",
+          "env": {
+            "APEX_REGISTRY_PREFIX": "ghcr.io/xynes-studio/apex",
+            "GH_TOKEN": "${{ github.token }}",
+            "APEX_PUBLIC_QA": "${{ vars.APEX_PUBLIC_QA }}",
+            "APEX_PUBLIC_STAGING": "${{ vars.APEX_PUBLIC_STAGING }}",
+            "APEX_PUBLIC_PROD": "${{ vars.APEX_PUBLIC_PROD }}"
+          }
+        },
+        {
+          "id": "bundle",
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "with": {
+            "name": "apex-admission-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "${{ runner.temp }}/apex-admission/*.json",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 0
+          }
+        }
+      ]
+    },
+    "build-images": {
+      "name": "build-images",
+      "if": "github.repository == 'Xynes-Studio/xynes-infra' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected",
+      "needs": [
+        "admission"
+      ],
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 60,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "outputs": {
+        "receipt": "{\"id\":${{ steps.bundle.outputs.artifact-id }},\"digest\":\"sha256:${{ steps.bundle.outputs.artifact-digest }}\"}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false,
+            "fetch-depth": 0
+          }
+        },
+        {
+          "run": "python3 scripts/release/build_pipeline.py build",
+          "env": {
+            "APEX_REGISTRY_PREFIX": "ghcr.io/xynes-studio/apex",
+            "GH_TOKEN": "${{ github.token }}",
+            "APEX_ADMISSION_RECEIPT": "${{ needs.admission.outputs.receipt }}"
+          }
+        },
+        {
+          "id": "bundle",
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "with": {
+            "name": "apex-build-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "${{ runner.temp }}/apex-images/image-receipts.json\n${{ runner.temp }}/apex-images/archives/*.oci.tar",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 0
+          }
+        },
+        {
+          "id": "migrations",
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "with": {
+            "name": "apex-migration-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "${{ runner.temp }}/apex-migrations/migration-bundle.tar",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 0
+          }
+        }
+      ]
+    },
+    "publish-images": {
+      "name": "publish-images",
+      "if": "github.repository == 'Xynes-Studio/xynes-infra' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected",
+      "needs": [
+        "admission",
+        "build-images"
+      ],
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 60,
+      "environment": "release",
+      "permissions": {
+        "contents": "read",
+        "actions": "read",
+        "packages": "write"
+      },
+      "outputs": {
+        "subjects": "${{ steps.publish.outputs.subjects }}",
+        "receipt": "{\"id\":${{ steps.publication.outputs.artifact-id }},\"digest\":\"sha256:${{ steps.publication.outputs.artifact-digest }}\"}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false,
+            "sparse-checkout": "/scripts/release/\n/scripts/lib/\n/infra/release/",
+            "sparse-checkout-cone-mode": false
+          }
+        },
+        {
+          "id": "publish",
+          "run": "python3 scripts/release/publish_images.py",
+          "env": {
+            "APEX_REGISTRY_PREFIX": "ghcr.io/xynes-studio/apex",
+            "GH_TOKEN": "${{ github.token }}",
+            "GH_POLICY_READ_TOKEN": "${{ secrets.RELEASE_POLICY_READ_TOKEN }}",
+            "APEX_ADMISSION_RECEIPT": "${{ needs.admission.outputs.receipt }}",
+            "APEX_BUILD_RECEIPT": "${{ needs.build-images.outputs.receipt }}"
+          }
+        },
+        {
+          "id": "publication",
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "with": {
+            "name": "apex-publication-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "${{ runner.temp }}/apex-publications/published-receipt.json",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 0
+          }
+        }
+      ]
+    },
+    "attest-images": {
+      "name": "Attest verified image ${{ matrix.subject.name }}",
+      "if": "github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected",
+      "needs": [
+        "publish-images"
+      ],
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "environment": "release",
+      "permissions": {
+        "contents": "read",
+        "id-token": "write",
+        "attestations": "write"
+      },
+      "strategy": {
+        "fail-fast": false,
+        "max-parallel": 2,
+        "matrix": {
+          "subject": "${{ fromJSON(needs.publish-images.outputs.subjects) }}"
+        }
+      },
+      "steps": [
+        {
+          "uses": "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6",
+          "with": {
+            "subject-name": "${{ matrix.subject.name }}",
+            "subject-digest": "${{ matrix.subject.digest }}",
+            "push-to-registry": false,
+            "create-storage-record": false
+          }
+        }
+      ]
+    }
+  }
+}

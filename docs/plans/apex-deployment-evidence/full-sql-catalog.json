@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "purpose": "Local exact-source full SQL catalog qualification; no release admission or hosted acceptance",
+  "provider_credentials_used": false,
+  "emails_sent": 0,
+  "hosted_acceptance": false,
+  "source_manifest_sha256": "45f7536a2bbe1c953c12c8a8ca1cba9d4b296b93b60fe4cc03d31922b5a8fbdc",
+  "inventory_sha256": "6a7ee744ce5edd8d87a3cceb3ac30b6d70ec06b2ac43473612e44561e6069264",
+  "plan_sha256": "64e8aa9d351a04c3d02398c98ea91820f042aacd1a609d53b11467f16634342e",
+  "postgres_image_id": "sha256:cc4c61127125de9f69aa50f7d78b54686576d5d3d835de03128b064d12b97154",
+  "gotrue_image_id": "sha256:688edbb786f6d736edaa478438f23c7044a22a6a5f19502a7138d38caca6c2f6",
+  "auth_migrations": 70,
+  "batch_sha256": "090f5d9f4826cddd06c9b826600dab0b0a9e9f1d0f065e0f1ce043d16d6db8a9",
+  "batch_size": 187871,
+  "apply_exit_code": 0,
+  "postconditions": {
+    "server_version": "17.10",
+    "migration_count": 40,
+    "bootstrap_completed": true,
+    "route_count": 53,
+    "enabled_routes": 53,
+    "public_routes": 7,
+    "application_tables": 33,
+    "critical_tables": {
+      "platform.routes": true,
+      "platform.route_rate_limits": true,
+      "platform.workspaces": true,
+      "platform.workspace_domains": true,
+      "platform.workspace_api_keys": true,
+      "platform.storage_objects": true,
+      "platform.storage_processing_jobs": true,
+      "cms.content_entries": true,
+      "docs.documents": true,
+      "authz.permissions": true,
+      "telemetry.gateway_request_logs": true
+    },
+    "auth_functions": 4,
+    "dev_provider_rows": 0
+  },
+  "replay_exit_code": 0,
+  "qualification_passed": true,
+  "cleanup": [
+    "owned-gotrue-removed",
+    "owned-postgres-removed"
+  ],
+  "applied_units": 40,
+  "current_infra_and_pinned_sibling_blob_parity_verified": true
+}

@@ -1,0 +1,15 @@
+{
+  "application_services_changed": false,
+  "artifact_kind": "native-linux-staging-snapshot-regression",
+  "deployable": false,
+  "failures": 0,
+  "skips": 0,
+  "source_cleanup_verified": true,
+  "source_sha256": {
+    "scripts/lib/staging_substrate.py": "8ae40ac0c1b7b71127a1de48893fc9cc7d83022a0bfaadbc9e27b74df167e71a",
+    "scripts/test/staging-substrate.test.py": "d3e1a43bddd3c900340f9f3d7de0612a0c128efead031a5561771e4191be612c"
+  },
+  "tests": 29,
+  "hosted_acceptance": false,
+  "docker_calls": "injected fixtures; no native Docker operations"
+}

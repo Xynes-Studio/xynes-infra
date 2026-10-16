@@ -1,0 +1,11 @@
+{
+  "name": "xynes-infra-ci-type-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Public CI compiler tools; no private application source or lifecycle scripts.",
+  "devDependencies": {
+    "@types/node": "22.15.30",
+    "typescript": "5.9.3"
+  },
+  "packageManager": "pnpm@10.33.0"
+}

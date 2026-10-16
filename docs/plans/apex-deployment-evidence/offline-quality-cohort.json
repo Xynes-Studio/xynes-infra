@@ -1,0 +1,814 @@
+{
+  "actual_GitHub_checks_verified": false,
+  "artifact_kind": "local-offline-quality-cohort",
+  "commands": [
+    {
+      "command": "bun scripts/lib/apex-ci-policy.ts",
+      "exit_code": 0,
+      "gate": "lint",
+      "index": 1,
+      "log_sha256": "d5f4929b99b77cbaff4eb742d4cc51fd71b01f54285fd7685489f3d03b7e3604",
+      "seconds": 0.136,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "python3 -c \"import ast,pathlib,subprocess; [subprocess.run(['bash','-n',str(p)],check=True) for p in pathlib.Path('scripts').rglob('*.sh')]; [ast.parse(p.read_text()) for p in pathlib.Path('scripts').rglob('*.py')]\"",
+      "exit_code": 0,
+      "gate": "lint",
+      "index": 2,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "seconds": 0.848,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bun test scripts/test/ci-policy.test.ts scripts/test/ci-coverage.test.ts scripts/test/ci-release-gates.test.ts scripts/test/source-checks.test.ts scripts/test/apex-ci-policy.test.ts",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 3,
+      "log_sha256": "1e259602e795af6b684f0507c293b397b3e5c19f5d443d51140c85299fef687e",
+      "seconds": 3.123,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/branch-protection-script.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 4,
+      "log_sha256": "6c863cfd3e4ba491e4625941d6baf8966a8a43395bfacdfced64bc200a305670",
+      "seconds": 2.101,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/vps-deploy-users-boundary.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 5,
+      "log_sha256": "c3da3498d570d6c8c115092e274d46062c1a61a88661ceaba6306685a84e4c20",
+      "seconds": 0.405,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "python3 scripts/test/branch-protection-security.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 6,
+      "log_sha256": "d3b24d991e4b97ff69a09bc6d82266e141f8ce9e137aef17f89e184c7a2a0949",
+      "seconds": 7.276,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/env-templates-no-secrets.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 7,
+      "log_sha256": "05fa544357111660befba500b4d4a163c02ff9a0a4541719a44aef72186d379d",
+      "seconds": 2.967,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/env-secret-diagnostics.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 8,
+      "log_sha256": "50800041c82833490febccf60530080ab61db810776890c01c8737a919ed69b9",
+      "seconds": 14.865,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/public-bundle.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 9,
+      "log_sha256": "a9aa39221bbcc9427ba82b290c562c69de33d552e072789c50b53a32eb92adc4",
+      "seconds": 0.886,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/secret-gate.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 10,
+      "log_sha256": "0a6a3036cc92cf0440726c7ff282e598ae09c3c7fae023b73529cf9baaeab1e5",
+      "seconds": 8.649,
+      "skipped": 1,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/cms-content-delivery-prerequisites.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 11,
+      "log_sha256": "b623fbf0a59cd818607a4b0a03a31c2b1977374cbbc8fce638eca7146c4ba9f2",
+      "seconds": 0.148,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "python3 scripts/test/backup_recovery_test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 12,
+      "log_sha256": "1072c97f2e9011aaea8aec9822a6b115a626a167f4e110feb3a3eb123211c51e",
+      "seconds": 15.4,
+      "skipped": 1,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/cms-delivery-contract-parity-safety.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 13,
+      "log_sha256": "6650224d9eb1c184b186d3760a188dc4f7273ff27bce865e0653f207de6bd833",
+      "seconds": 0.486,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/cms-content-integrations-safety.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 14,
+      "log_sha256": "10660430e2479cbe707ce2a109722543de52f15075595b540ba6958461a5e0bd",
+      "seconds": 0.279,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/feature-flags-live-guard.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 15,
+      "log_sha256": "9f59844970b59c6c9f90fd9dedffea1a56279068ce1be133cd57d1b67f0381d0",
+      "seconds": 0.301,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/domain-constraint-env-guard.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 16,
+      "log_sha256": "edd7fc70e346ba811d3f8014fcb95ad9bfa1c25f4d8c2a6aeb3eace0b6ba840f",
+      "seconds": 0.134,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/source-context.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 17,
+      "log_sha256": "4751f4fb3dcf8196606517139926be1781cd5f944650e8fabb0b23637cd074c7",
+      "seconds": 45.473,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/release-manifest.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 18,
+      "log_sha256": "d15cccc4ad2a767c0e4409c2f9b484cd7ddf39a3cb4f2fe1d8cfbde60fd4b84a",
+      "seconds": 4.591,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/migration-inventory.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 19,
+      "log_sha256": "dd70f9a5a662c884fcbe9dcfdfa3e0d71a4816fdd45871b43ed334f27e7f580d",
+      "seconds": 34.01,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/migration-plan.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 20,
+      "log_sha256": "25e7d71e5e87c822cb540eb6266844372249603057a1a7effe814a68fa657858",
+      "seconds": 1.152,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/migration-sql.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 21,
+      "log_sha256": "91e7b4890ab4a0498335c8aec919273178aae69a01085aca3337f4c4994afd12",
+      "seconds": 0.2,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/image-build.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 22,
+      "log_sha256": "4c9d69621a4ab984183982de05fbb34274c22fca9ea033d562bcbcefbeb75c28",
+      "seconds": 1.903,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/registry-io.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 23,
+      "log_sha256": "2ad39cb9e9d29631a071fd31f28db66add469d9a7a680c4010b4d0152b6bd699",
+      "seconds": 0.361,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/registry-https.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 24,
+      "log_sha256": "8354535a78999845e951fc9b421c1e46811b3dd73e23b12bd352632b16b7e942",
+      "seconds": 0.197,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/registry-policy.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 25,
+      "log_sha256": "d094b1bd2c8318c96097f80c50da282add5b2972970a77046de8db6c8935f6ca",
+      "seconds": 0.085,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/admission.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 26,
+      "log_sha256": "b16c2d37f8720077a281358023a1ae49c385415ecb8a4149a4a55f0a91241625",
+      "seconds": 0.083,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/publish-batch.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 27,
+      "log_sha256": "523af87af7be36e8a99780f4773beddb4b4f00fbc7bb4beb67f2051a8ca61aa7",
+      "seconds": 0.258,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/registry-namespace.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 28,
+      "log_sha256": "a212702e8df4bf9d111bb18e41011ce2cd88af93561ff43571cdaac3ad64b539",
+      "seconds": 0.197,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/github-read.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 29,
+      "log_sha256": "a5159eb4bb48afa13437ef7f48e901211e2a26d551a4ff03ed7467a2fad0d075",
+      "seconds": 0.86,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/provider-inputs.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 30,
+      "log_sha256": "3e2f5ab726a5f106a554894423b13d51ea1eb734beed21855879336f76fdad0b",
+      "seconds": 0.184,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/environment-inputs.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 31,
+      "log_sha256": "612470273ad693e5f60227531b503ceaab297e3de14f73326eb694a090974841",
+      "seconds": 0.139,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/auth-runtime.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 32,
+      "log_sha256": "b29b03a2697317e5be70cdf9183e300a501a69cf666f2c048f47e1af086d26ee",
+      "seconds": 0.079,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/artifact-handoff.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 33,
+      "log_sha256": "7e20bb608d48d5a7329e87e2f013be99e7d4c35e1908e74e1bec2e2d8861db59",
+      "seconds": 0.247,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/artifact-download.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 34,
+      "log_sha256": "b45cbb440fe08cb440a1baa3af38f7bc8d0bce62313eef02c0e7ec1856866c63",
+      "seconds": 0.237,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/publish-images.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 35,
+      "log_sha256": "2b63cd243ad09db43f2e86f4ddb67e78f6ef05bbfc668d0c7bc253002d068022",
+      "seconds": 0.352,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/publication-record.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 36,
+      "log_sha256": "c45669ead7af0790e98d1fded16960fcd8b873d143268123ff2ad73855fd8ec8",
+      "seconds": 0.33,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/attestation-binding.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 37,
+      "log_sha256": "e11bbb630c1a6ea91f4322ac92d7ce2a6c043ad84d3e41ecf0d0f5a73e9c9fd0",
+      "seconds": 0.083,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/native-attestation.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 38,
+      "log_sha256": "967c92d36cebcf36f2f214cac7698609db89c071c595426864067899c8d2dcc7",
+      "seconds": 0.137,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/deploy-request.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 39,
+      "log_sha256": "8f824e654734d27aa0588bcb088b3edc2dc91f15e6e50c5a7b7140b7ac6f5eee",
+      "seconds": 0.549,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/deployment-candidate.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 40,
+      "log_sha256": "14c1d9a223e3d15de8512f9f7a976dfde02032b77236388e6c157d5d7531c905",
+      "seconds": 0.665,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/ssh-entry.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 41,
+      "log_sha256": "25e4a656871a9a10a79e9caba5749c6a22ee516d1906a2fb667ae35b023b46cd",
+      "seconds": 0.359,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/deploy-admission.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 42,
+      "log_sha256": "4a6bd14065c0ae1b465c36f240af588ee8ac91c2a1f54bf67912095f1fe569e3",
+      "seconds": 0.148,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/deploy-dispatch.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 43,
+      "log_sha256": "e6de06692e5881bbabcd8ea9febf8621b8274e988b7e9f1426448b49f88e70ac",
+      "seconds": 0.199,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-release-state.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 44,
+      "log_sha256": "a94476b67565686c12864736f317eb98e6f9475532c3e48415528f82d6c17979",
+      "seconds": 0.415,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-compose.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 45,
+      "log_sha256": "a95ddc5048f2184f7351daf1b9d41e53a73cc2add5a9f8edcd284704f143e02b",
+      "seconds": 2.811,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/migration-transport.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 46,
+      "log_sha256": "448e2b3402e0bb12a5feaa8a1d1c18078adc52aba1ac2113c94e864c56c0d4e6",
+      "seconds": 50.782,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/pg-container-bridge.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 47,
+      "log_sha256": "363b4d24bc8ff51178f2eece9c40fb9dc355ccd468a40f2bb4f070f14779194e",
+      "seconds": 13.148,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/candidate-migration.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 48,
+      "log_sha256": "947b72b616ba57719873d8d36505d4a0e3f990d9c569598f11fe5057cbd6738e",
+      "seconds": 4.884,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-migrate.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 49,
+      "log_sha256": "de1c839978b86bd174eca0e1958348b8f979c0afccbb176fd2c48c253d241bd6",
+      "seconds": 24.562,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-seed.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 50,
+      "log_sha256": "b626ecf86d1cadcf85e056a912e47fc1e5434b35461ed37dadcdc859184d3ba1",
+      "seconds": 1.844,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-backup.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 51,
+      "log_sha256": "0121ede72ccda03d055d590df3be18c1bb8a0e33f584c09286bb1abd3a5a0f9f",
+      "seconds": 0.087,
+      "skipped": 9,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-assets.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 52,
+      "log_sha256": "9b2235674f5bc694dc6ea501290be247661817c17fa89bc835d6d8ff57145cdf",
+      "seconds": 10.526,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-controls.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 53,
+      "log_sha256": "c7004d59808a37bb511f99f48c685039645b741033ffd47d534369202968ee9c",
+      "seconds": 1.85,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-storage-control.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 54,
+      "log_sha256": "a8ea4421f68e83d11a8ff1ef30ba1cca525d147d91640c5daa49262b40cf834c",
+      "seconds": 0.207,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-quiescence.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 55,
+      "log_sha256": "9e65e1a70c02f3f62e3db394ddc5b9d77a3865746cf5eba88bbf9758062fb5e9",
+      "seconds": 0.366,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-smoke.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 56,
+      "log_sha256": "a139a03e1918e2bcdba0aa44df0da99b059bb0dc416e7cc68641829ab550df88",
+      "seconds": 1.333,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-smoke-setup.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 57,
+      "log_sha256": "4738b90579ac34b2db957095a01329fb619d16869d49bd1e8e7a7528779a05cc",
+      "seconds": 0.259,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-runtime.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 58,
+      "log_sha256": "a52b1f6fa7aec7fbc54a95fab4da36535054a993932b6833e329801b98b5fd8d",
+      "seconds": 0.242,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-supervisor.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 59,
+      "log_sha256": "c3703c90485ebeab163832c13c9a60e2ce767db1c97fe5edbd7a2540eb418228",
+      "seconds": 14.968,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/root-executor.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 60,
+      "log_sha256": "06a97261f5dc929375de4dde43d82eddf5c2575d3251195ae8d911b44d8e4fea",
+      "seconds": 5.198,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-boundary.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 61,
+      "log_sha256": "f87f8e6f2ca8303c187f3bf980b1a40be3aa91d59c7c596fe8416d0c5f9aeec7",
+      "seconds": 0.745,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-retained-dev.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 62,
+      "log_sha256": "03281d5ee5e47ee24e9dc0a4e6e7af852abf9db28102f3813c1a1c9e73c0243c",
+      "seconds": 0.137,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/build-pipeline.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 63,
+      "log_sha256": "1e91ad848e8b8d50f3e423f190a0228952a7bac467a8019f77618e41582feaeb",
+      "seconds": 1.38,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/apex-workflow.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 64,
+      "log_sha256": "feabb4add9e2ca3374e538560634d1ec97dc4f4ce89aab12f3d726e36ea9b2f6",
+      "seconds": 0.091,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/hosted-release.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 65,
+      "log_sha256": "1f8663639ed81b8e65b53da828354d9f74e1fad082636bc9aab84ac176bbc6b7",
+      "seconds": 4.571,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/processor-readiness.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 66,
+      "log_sha256": "7638203f655ff46ba767ef6e07ade5c7c0b17e289134b07282b36f3706af72e7",
+      "seconds": 6.96,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/vps-reconcile.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 67,
+      "log_sha256": "2f29de952a27047f8a655a5810a2974d4fff57794760e5723375b6ee9214106f",
+      "seconds": 3.65,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/test/staging-substrate.test.sh",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 68,
+      "log_sha256": "fe9a1cabc15725ec5b5cfbf0f427c84d306c0cc3c36f2f236ec258cb526604f9",
+      "seconds": 0.466,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/ci-apex-quality.test.py",
+      "exit_code": 0,
+      "gate": "test",
+      "index": 69,
+      "log_sha256": "b41fc8eeef9c9b4137b7c3d07475be9c53150375443bcc5fd7797fa18bbccd85",
+      "seconds": 2.052,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bun .github/ci/coverage-gate.ts --policy",
+      "exit_code": 0,
+      "gate": "coverage",
+      "index": 70,
+      "log_sha256": "5260d70f682329aa01293b2ee4b080da7109fef6fbb803bb549cf3431fb5e6f2",
+      "seconds": 0.4,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": "bash scripts/setup/configure-branch-protection.sh --dry-run",
+      "exit_code": 0,
+      "gate": "build",
+      "index": 71,
+      "log_sha256": "b964ce9d7efc73c0b528554c200536ce79ce650a382cca90c549eb50fb9912d1",
+      "seconds": 0.38,
+      "skipped": 0,
+      "timeout": false
+    },
+    {
+      "command": ".github/type-tools/node_modules/.bin/tsc --strict --noEmit --target ES2022 --module ESNext --moduleResolution bundler --types node --typeRoots .github/type-tools/node_modules/@types scripts/lib/ci-policy.ts scripts/lib/apex-ci-policy.ts scripts/lib/ci-coverage.ts scripts/lib/ci-release-gates.ts scripts/release/source_checks.ts",
+      "exit_code": 0,
+      "gate": "typecheck",
+      "index": 72,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "seconds": 1.24,
+      "skipped": 0,
+      "timeout": false
+    }
+  ],
+  "commands_executed": 72,
+  "commands_failed": 0,
+  "deployable": false,
+  "explicit_runtime_exclusions": [
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/migration-sql-runtime.test.py",
+      "gate": "test",
+      "reason": "actual Docker PostgreSQL runtime integration; separate integration owner"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/auth-runtime.integration.py",
+      "gate": "test",
+      "reason": "actual Docker Auth/PostgreSQL runtime integration; separate integration owner"
+    },
+    {
+      "command": "(cd infra/idle/adapter && \"${XYNES_GO_BIN:?Pinned Go required}\" test -race -count=1 ./... && \"$XYNES_GO_BIN\" vet ./...)",
+      "gate": "test",
+      "reason": "actual pinned Go race/vet cohort; excluded during full image build"
+    },
+    {
+      "command": "bash scripts/test/idle-adapter-unix.test.sh --runtime",
+      "gate": "test",
+      "reason": "actual Linux Docker+Go runtime fixture; excluded during full image build"
+    }
+  ],
+  "hosted_acceptance": false,
+  "individual_skips": [
+    {
+      "reason": "Pinned local Gitleaks binary absent",
+      "test": "scripts/test/secret-gate.test.py::Tests.test_real_scanner_ignores_inline_allow_annotation_and_exact_exception"
+    },
+    {
+      "reason": "Verified native age fixture binaries unavailable",
+      "test": "scripts/test/backup_recovery_test.py::BackupRecoveryTests.test_real_age_roundtrip_wrong_key_and_authenticated_tampering"
+    },
+    {
+      "reason": "Verified native age fixture binaries unavailable",
+      "test": "scripts/test/host-backup.test.py::Tests.test_real_age_encryption_actual_helper_upload_and_monitor_bind_pending_release"
+    },
+    {
+      "reason": "Verified native age fixture binaries unavailable",
+      "test": "scripts/test/host-backup.test.py::Tests.test_existing_accepted_release_cannot_downgrade_critical_table_evidence"
+    },
+    {
+      "reason": "Verified native age fixture binaries unavailable",
+      "test": "scripts/test/host-backup.test.py::Tests.test_missing_auth_or_critical_tables_refuse_before_upload"
+    },
+    {
+      "reason": "Verified native age fixture binaries unavailable",
+      "test": "scripts/test/host-backup.test.py::Tests.test_partial_upload_and_checksum_mismatch_never_return_fresh_monitor"
+    },
+    {
+      "reason": "Verified native age fixture binaries unavailable",
+      "test": "scripts/test/host-backup.test.py::Tests.test_private_config_permissions_symlinks_extra_keys_and_tool_tamper_refuse"
+    },
+    {
+      "reason": "Verified native age fixture binaries unavailable",
+      "test": "scripts/test/host-backup.test.py::Tests.test_unhealthy_owned_source_and_closed_pending_state_refuse"
+    },
+    {
+      "reason": "Verified native age fixture binaries unavailable",
+      "test": "scripts/test/host-backup.test.py::Tests.test_native_upload_hashes_ciphertext_without_reading_entire_file"
+    },
+    {
+      "reason": "Verified native age fixture binaries unavailable",
+      "test": "scripts/test/host-backup.test.py::Tests.test_ciphertext_output_streams_into_owned_file_without_memory_capture"
+    },
+    {
+      "reason": "Verified native age fixture binaries unavailable",
+      "test": "scripts/test/host-backup.test.py::Tests.test_public_recipient_refuses_private_identity_and_caller_restore_flags"
+    }
+  ],
+  "protected_CI_execution": false,
+  "tooling": {
+    "bun": "1.4.2",
+    "compose_config_only": true,
+    "credential_free_home": true,
+    "external_cli_denied": [
+      "curl",
+      "wget",
+      "ssh",
+      "psql",
+      "gh"
+    ],
+    "python": "Homebrew Python 3.14.6",
+    "temporary_directory_matches_process_group": true
+  },
+  "workflow_sha256": "2576b265e42fdf357bf49beca1940366336b43136ba913019ab4537eef727825"
+}

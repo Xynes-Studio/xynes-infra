@@ -1,0 +1,180 @@
+{
+  "artifact_kind": "actual-local-frontend-oci-runtime",
+  "images_checked": 6,
+  "owned_containers_cleaned": true,
+  "hosted_acceptance": false,
+  "deployable": false,
+  "private_provider_credentials_used": false,
+  "authenticated_product_flows_verified": false,
+  "cms_health_dependency": "inert loopback /health200; all other paths503; restarted after each container start",
+  "basic_routes_check_scope": "HTTP statuses only; Auth protected-page HTML200 is not authorization proof",
+  "basic_routes_passed": true,
+  "oauth_provider_login_verified": false,
+  "production_cold_start_budget_verified": false,
+  "protected_route_authorization_verified": false,
+  "real_gateway_dependency_verified": false,
+  "checks": [
+    {
+      "task": "qa--xynes-auth-app",
+      "config_digest": "sha256:14c8c8443e33296a3801b2039230f46bc49541449d6af6a711001ac2f8cb6d2e",
+      "cold_start_seconds": [
+        3.369,
+        3.091
+      ],
+      "requests": [
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/dashboard",
+          "status": 404
+        },
+        {
+          "path": "/login",
+          "status": 200
+        },
+        {
+          "path": "/workspaces",
+          "status": 200
+        },
+        {
+          "path": "/dashboard/integrations",
+          "status": 200
+        },
+        {
+          "path": "/callback",
+          "status": 307
+        }
+      ],
+      "oom_killed": false
+    },
+    {
+      "task": "qa--xynes-cms-console-web",
+      "config_digest": "sha256:2c93834438272699ab12ae1e546f6464a2a73925c8863ece51aa513d4fbc4c6a",
+      "cold_start_seconds": [
+        3.07,
+        3.118
+      ],
+      "requests": [
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/dashboard",
+          "status": 307
+        }
+      ],
+      "oom_killed": false
+    },
+    {
+      "task": "staging--xynes-auth-app",
+      "config_digest": "sha256:588df454d7fd6b43f6d889ec9b9a3e3d3fea3b2bbb12267d8b2b4673029611fe",
+      "cold_start_seconds": [
+        3.198,
+        3.069
+      ],
+      "requests": [
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/dashboard",
+          "status": 404
+        },
+        {
+          "path": "/login",
+          "status": 200
+        },
+        {
+          "path": "/workspaces",
+          "status": 200
+        },
+        {
+          "path": "/dashboard/integrations",
+          "status": 200
+        },
+        {
+          "path": "/callback",
+          "status": 307
+        }
+      ],
+      "oom_killed": false
+    },
+    {
+      "task": "staging--xynes-cms-console-web",
+      "config_digest": "sha256:c285df36a2dabeea4366b4d47f9a818ea907b98d48fa4e7de08b5a7656304cbf",
+      "cold_start_seconds": [
+        3.114,
+        3.293
+      ],
+      "requests": [
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/dashboard",
+          "status": 307
+        }
+      ],
+      "oom_killed": false
+    },
+    {
+      "task": "prod--xynes-auth-app",
+      "config_digest": "sha256:934bdbfd9d13767c8fba1fa1e900b53b385baf169f8d858faed7fd5d5691cec7",
+      "cold_start_seconds": [
+        3.277,
+        3.087
+      ],
+      "requests": [
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/dashboard",
+          "status": 404
+        },
+        {
+          "path": "/login",
+          "status": 200
+        },
+        {
+          "path": "/workspaces",
+          "status": 200
+        },
+        {
+          "path": "/dashboard/integrations",
+          "status": 200
+        },
+        {
+          "path": "/callback",
+          "status": 307
+        }
+      ],
+      "oom_killed": false
+    },
+    {
+      "task": "prod--xynes-cms-console-web",
+      "config_digest": "sha256:d269cfc8b4fca4504b639fb4e48ca92f99e697c25bf3230c3daa97f775cfbea5",
+      "cold_start_seconds": [
+        3.275,
+        3.106
+      ],
+      "requests": [
+        {
+          "path": "/",
+          "status": 200
+        },
+        {
+          "path": "/dashboard",
+          "status": 307
+        }
+      ],
+      "oom_killed": false
+    }
+  ]
+}

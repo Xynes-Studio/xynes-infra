@@ -1,0 +1,12 @@
+{
+  "artifact_kind": "native-backup-channel-test",
+  "configured_channel_reused": true,
+  "kuma_config_unchanged": true,
+  "legacy_hostname_normalized": true,
+  "alerts_root_only": true,
+  "unit_templates_installed": 3,
+  "timers_enabled": false,
+  "test_messages_attempted": 1,
+  "delivered": true,
+  "hosted_backup_verified": false
+}

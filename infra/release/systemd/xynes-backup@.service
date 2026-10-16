@@ -1,0 +1,18 @@
+[Unit]
+Description=Encrypted accepted-release Xynes backup (%i)
+After=docker.service network-online.target
+Wants=network-online.target
+OnFailure=xynes-backup-alert@%i.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/local/libexec/xynes-backup run %i
+TimeoutStartSec=30m
+KillMode=control-group
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full

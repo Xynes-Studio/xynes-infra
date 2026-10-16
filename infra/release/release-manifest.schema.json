@@ -1,0 +1,994 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.xynes.com/releases/image-record-v1.json",
+  "title": "Apex image record; structural bindings, never deployment authorization",
+  "description": "Use release_manifest.py with explicit source/public/artifact/registry policy inputs for cross-field binding checks. This schema does not verify approval, provenance, latest checks, registry descriptor existence or deployment readiness.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_kind",
+    "controller",
+    "source_manifest_sha256",
+    "images",
+    "operational",
+    "migrations"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "artifact_kind": {
+      "const": "apex-image-record"
+    },
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "commit",
+        "workflow",
+        "run_id",
+        "run_attempt"
+      ],
+      "properties": {
+        "repository": {
+          "const": "Xynes-Studio/xynes-infra"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40}$"
+        },
+        "workflow": {
+          "const": "apex-build.yml"
+        },
+        "run_id": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "run_attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        }
+      }
+    },
+    "source_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shared",
+        "frontends"
+      ],
+      "properties": {
+        "shared": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "xynes-gateway",
+            "xynes-accounts-service",
+            "xynes-authz-service",
+            "xynes-cms-core",
+            "xynes-doc-service",
+            "xynes-telemetry-service",
+            "xynes-storage-service",
+            "archive-scanner",
+            "libreoffice",
+            "clamav-freshclam",
+            "supabase-db",
+            "supabase-auth"
+          ],
+          "properties": {
+            "xynes-gateway": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256",
+                "source_commit",
+                "recipe_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-gateway@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source_commit": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
+                },
+                "recipe_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "xynes-accounts-service": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256",
+                "source_commit",
+                "recipe_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-accounts-service@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source_commit": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
+                },
+                "recipe_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "xynes-authz-service": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256",
+                "source_commit",
+                "recipe_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-authz-service@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source_commit": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
+                },
+                "recipe_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "xynes-cms-core": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256",
+                "source_commit",
+                "recipe_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-cms-core@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source_commit": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
+                },
+                "recipe_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "xynes-doc-service": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256",
+                "source_commit",
+                "recipe_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-doc-service@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source_commit": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
+                },
+                "recipe_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "xynes-telemetry-service": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256",
+                "source_commit",
+                "recipe_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-telemetry-service@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source_commit": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
+                },
+                "recipe_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "xynes-storage-service": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256",
+                "source_commit",
+                "recipe_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-storage-service@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source_commit": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
+                },
+                "recipe_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "archive-scanner": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256",
+                "source_commit",
+                "recipe_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*archive-scanner@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source_commit": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
+                },
+                "recipe_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "libreoffice": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256",
+                "source_commit",
+                "recipe_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*libreoffice@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "source_commit": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{40}$"
+                },
+                "recipe_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "clamav-freshclam": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^clamav/clamav:[A-Za-z0-9._-]+@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "supabase-db": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^postgres:17-alpine@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            },
+            "supabase-auth": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "image",
+                "platform",
+                "build_inputs_sha256"
+              ],
+              "properties": {
+                "image": {
+                  "type": "string",
+                  "maxLength": 512,
+                  "pattern": "^supabase/gotrue:v2\\.[A-Za-z0-9._-]+@sha256:[a-f0-9]{64}$"
+                },
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "build_inputs_sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            }
+          }
+        },
+        "frontends": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "qa",
+            "staging",
+            "prod"
+          ],
+          "properties": {
+            "qa": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "xynes-auth-app",
+                "xynes-cms-console-web"
+              ],
+              "properties": {
+                "xynes-auth-app": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "image",
+                    "platform",
+                    "build_inputs_sha256",
+                    "source_commit",
+                    "recipe_sha256",
+                    "public_inputs_sha256"
+                  ],
+                  "properties": {
+                    "image": {
+                      "type": "string",
+                      "maxLength": 512,
+                      "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-auth-app@sha256:[a-f0-9]{64}$"
+                    },
+                    "platform": {
+                      "const": "linux/amd64"
+                    },
+                    "build_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "source_commit": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    },
+                    "recipe_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "public_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  }
+                },
+                "xynes-cms-console-web": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "image",
+                    "platform",
+                    "build_inputs_sha256",
+                    "source_commit",
+                    "recipe_sha256",
+                    "public_inputs_sha256"
+                  ],
+                  "properties": {
+                    "image": {
+                      "type": "string",
+                      "maxLength": 512,
+                      "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-cms-console-web@sha256:[a-f0-9]{64}$"
+                    },
+                    "platform": {
+                      "const": "linux/amd64"
+                    },
+                    "build_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "source_commit": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    },
+                    "recipe_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "public_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  }
+                }
+              }
+            },
+            "staging": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "xynes-auth-app",
+                "xynes-cms-console-web"
+              ],
+              "properties": {
+                "xynes-auth-app": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "image",
+                    "platform",
+                    "build_inputs_sha256",
+                    "source_commit",
+                    "recipe_sha256",
+                    "public_inputs_sha256"
+                  ],
+                  "properties": {
+                    "image": {
+                      "type": "string",
+                      "maxLength": 512,
+                      "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-auth-app@sha256:[a-f0-9]{64}$"
+                    },
+                    "platform": {
+                      "const": "linux/amd64"
+                    },
+                    "build_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "source_commit": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    },
+                    "recipe_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "public_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  }
+                },
+                "xynes-cms-console-web": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "image",
+                    "platform",
+                    "build_inputs_sha256",
+                    "source_commit",
+                    "recipe_sha256",
+                    "public_inputs_sha256"
+                  ],
+                  "properties": {
+                    "image": {
+                      "type": "string",
+                      "maxLength": 512,
+                      "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-cms-console-web@sha256:[a-f0-9]{64}$"
+                    },
+                    "platform": {
+                      "const": "linux/amd64"
+                    },
+                    "build_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "source_commit": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    },
+                    "recipe_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "public_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  }
+                }
+              }
+            },
+            "prod": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "xynes-auth-app",
+                "xynes-cms-console-web"
+              ],
+              "properties": {
+                "xynes-auth-app": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "image",
+                    "platform",
+                    "build_inputs_sha256",
+                    "source_commit",
+                    "recipe_sha256",
+                    "public_inputs_sha256"
+                  ],
+                  "properties": {
+                    "image": {
+                      "type": "string",
+                      "maxLength": 512,
+                      "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-auth-app@sha256:[a-f0-9]{64}$"
+                    },
+                    "platform": {
+                      "const": "linux/amd64"
+                    },
+                    "build_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "source_commit": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    },
+                    "recipe_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "public_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  }
+                },
+                "xynes-cms-console-web": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "image",
+                    "platform",
+                    "build_inputs_sha256",
+                    "source_commit",
+                    "recipe_sha256",
+                    "public_inputs_sha256"
+                  ],
+                  "properties": {
+                    "image": {
+                      "type": "string",
+                      "maxLength": 512,
+                      "pattern": "^(?=[^/]*\\.)[a-z0-9]+(?:[.-][a-z0-9]+)*(?::[1-9][0-9]{0,4})?/(?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*xynes-cms-console-web@sha256:[a-f0-9]{64}$"
+                    },
+                    "platform": {
+                      "const": "linux/amd64"
+                    },
+                    "build_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "source_commit": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{40}$"
+                    },
+                    "recipe_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "public_inputs_sha256": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "operational": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bundle_sha256",
+        "binaries"
+      ],
+      "properties": {
+        "bundle_sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "binaries": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "xynes-idle"
+          ],
+          "properties": {
+            "xynes-idle": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "platform",
+                "sha256"
+              ],
+              "properties": {
+                "platform": {
+                  "const": "linux/amd64"
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "migrations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "xynes-infra",
+        "xynes-gateway",
+        "xynes-accounts-service",
+        "xynes-authz-service",
+        "xynes-cms-core",
+        "xynes-doc-service",
+        "xynes-telemetry-service",
+        "xynes-storage-service"
+      ],
+      "properties": {
+        "xynes-infra": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "allOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 255,
+                    "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*(?:^|/)\\.env)[A-Za-z0-9._/-]+\\.(?:sql|json|ts)$"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "path": {
+                    "pattern": "^supabase/migrations/"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "xynes-gateway": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*(?:^|/)\\.env)[A-Za-z0-9._/-]+\\.(?:sql|json|ts)$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "xynes-accounts-service": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*(?:^|/)\\.env)[A-Za-z0-9._/-]+\\.(?:sql|json|ts)$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "xynes-authz-service": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*(?:^|/)\\.env)[A-Za-z0-9._/-]+\\.(?:sql|json|ts)$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "xynes-cms-core": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*(?:^|/)\\.env)[A-Za-z0-9._/-]+\\.(?:sql|json|ts)$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "xynes-doc-service": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*(?:^|/)\\.env)[A-Za-z0-9._/-]+\\.(?:sql|json|ts)$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "xynes-telemetry-service": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*(?:^|/)\\.env)[A-Za-z0-9._/-]+\\.(?:sql|json|ts)$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        },
+        "xynes-storage-service": {
+          "type": "array",
+          "maxItems": 512,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*(?:^|/)\\.env)[A-Za-z0-9._/-]+\\.(?:sql|json|ts)$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

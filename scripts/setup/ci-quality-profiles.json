@@ -1,0 +1,194 @@
+[
+  {
+    "repository": "xynes/xynes-gateway",
+    "kind": "bun",
+    "gates": {
+      "lint": "bun run lint",
+      "test": "bun run test",
+      "coverage": "bun .github/ci/coverage-gate.ts coverage",
+      "typecheck": "bun run typecheck",
+      "build": "bun build --target=bun --outdir dist src/index.ts"
+    }
+  },
+  {
+    "repository": "xynes/xynes-accounts-service",
+    "kind": "bun",
+    "gates": {
+      "lint": "bun run lint",
+      "test": "bun run test",
+      "coverage": "bun .github/ci/coverage-gate.ts test:coverage",
+      "typecheck": "bun run typecheck",
+      "build": "bun build --target=bun --outdir dist src/index.ts"
+    }
+  },
+  {
+    "repository": "xynes/xynes-authz-service",
+    "kind": "bun",
+    "gates": {
+      "lint": "bun run lint",
+      "test": "bun run test",
+      "coverage": "bun .github/ci/coverage-gate.ts test:coverage",
+      "typecheck": "bun run typecheck",
+      "build": "bun build --target=bun --outdir dist index.ts"
+    }
+  },
+  {
+    "repository": "xynes/xynes-cms-core",
+    "kind": "bun",
+    "gates": {
+      "lint": "bun run lint",
+      "test": "bun run test",
+      "coverage": "bun .github/ci/coverage-gate.ts test:coverage",
+      "typecheck": "bun run typecheck",
+      "build": "bun build --target=bun --outdir dist src/index.ts"
+    }
+  },
+  {
+    "repository": "xynes/xynes-doc-service",
+    "kind": "bun",
+    "gates": {
+      "lint": "bun run lint",
+      "test": "bun run test",
+      "coverage": "bun .github/ci/coverage-gate.ts test:coverage",
+      "typecheck": "bun run typecheck",
+      "build": "bun build --target=bun --outdir dist src/index.ts"
+    }
+  },
+  {
+    "repository": "xynes/xynes-storage-service",
+    "kind": "bun",
+    "gates": {
+      "lint": "bun run lint",
+      "test": "bun run test",
+      "coverage": "bun .github/ci/coverage-gate.ts test:coverage",
+      "typecheck": "bun run typecheck",
+      "build": "bun build --target=bun --outdir dist src/index.ts"
+    }
+  },
+  {
+    "repository": "xynes/xynes-platform-config",
+    "kind": "bun-config",
+    "gates": {
+      "lint": "bun run lint",
+      "test": "bun run test",
+      "coverage": "bun .github/ci/coverage-gate.ts --native",
+      "typecheck": "bun run typecheck",
+      "build": "bun build --target=bun --outdir dist src/index.ts"
+    }
+  },
+  {
+    "repository": "xynes/xynes-telemetry-service",
+    "kind": "bun",
+    "gates": {
+      "lint": "bun run lint",
+      "test": "bun run test",
+      "coverage": "bun run test:coverage",
+      "typecheck": "bun run lint",
+      "build": "bun build --target=bun --outdir dist src/index.ts"
+    }
+  },
+  {
+    "repository": "xynes/xynes-platform-contracts",
+    "kind": "pnpm",
+    "gates": {
+      "lint": "pnpm lint",
+      "test": "pnpm test",
+      "coverage": "pnpm test:coverage",
+      "typecheck": "pnpm typecheck",
+      "build": "pnpm build"
+    }
+  },
+  {
+    "repository": "xynes-front-end/xynes-auth-sdk",
+    "kind": "pnpm",
+    "gates": {
+      "lint": "pnpm lint",
+      "test": "pnpm test",
+      "coverage": "pnpm test:coverage",
+      "typecheck": "pnpm typecheck",
+      "build": "pnpm build"
+    }
+  },
+  {
+    "repository": "xynes-front-end/xynes-i18n",
+    "kind": "pnpm",
+    "gates": {
+      "lint": "pnpm lint",
+      "test": "pnpm test",
+      "coverage": "pnpm test:coverage",
+      "typecheck": "pnpm typecheck",
+      "build": "pnpm build"
+    }
+  },
+  {
+    "repository": "xynes-front-end/lumia-ds",
+    "kind": "lumia",
+    "gates": {
+      "lint": "pnpm lint",
+      "coverage": "pnpm coverage:all",
+      "typecheck": "pnpm type-check"
+    }
+  },
+  {
+    "repository": "xynes-front-end/xynes-auth-app",
+    "kind": "app",
+    "gates": {
+      "lint": "pnpm exec next lint",
+      "test": "pnpm exec vitest run",
+      "coverage": "pnpm exec vitest run --coverage",
+      "typecheck": "pnpm exec tsc --noEmit",
+      "build": "NODE_ENV=production pnpm exec next build"
+    }
+  },
+  {
+    "repository": "xynes-front-end/xynes-cms-console-web",
+    "kind": "app",
+    "gates": {
+      "lint": "pnpm exec eslint .",
+      "test": "pnpm exec vitest run",
+      "coverage": "pnpm exec vitest run --coverage",
+      "typecheck": "pnpm exec tsc --noEmit",
+      "build": "NODE_ENV=production pnpm exec next build --webpack"
+    }
+  },
+  {
+    "repository": "xynes-front-end/infra",
+    "kind": "fe-infra",
+    "gates": {
+      "lint": "node --check scripts/with-env.mjs\nbash -n run.sh scripts/start-cms-dev.sh scripts/uxr-7-browser-smoke.sh",
+      "test": "node --test scripts/with-env.test.mjs scripts/docker-compose-dev.test.mjs",
+      "coverage": "node --test --experimental-test-coverage --test-coverage-include=scripts/with-env.mjs --test-coverage-lines=80 --test-coverage-branches=80 scripts/with-env.test.mjs scripts/docker-compose-dev.test.mjs",
+      "build": "docker compose --env-file .env.example -f docker-compose.dev.yml config --quiet"
+    }
+  },
+  {
+    "repository": "xynes/xynes-infra",
+    "kind": "infra",
+    "gates": {
+      "lint": "bun scripts/lib/apex-ci-policy.ts\npython3 -c \"import ast,pathlib,subprocess; [subprocess.run(['bash','-n',str(p)],check=True) for p in pathlib.Path('scripts').rglob('*.sh')]; [ast.parse(p.read_text()) for p in pathlib.Path('scripts').rglob('*.py')]\"",
+      "test": "bun test scripts/test/ci-policy.test.ts scripts/test/ci-coverage.test.ts scripts/test/ci-release-gates.test.ts scripts/test/source-checks.test.ts scripts/test/apex-ci-policy.test.ts\nbash scripts/test/branch-protection-script.test.sh\nbash scripts/test/vps-deploy-users-boundary.test.sh\npython3 scripts/test/branch-protection-security.test.py\nbash scripts/test/env-templates-no-secrets.test.sh\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/env-secret-diagnostics.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/public-bundle.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/secret-gate.test.py\nbash scripts/test/cms-content-delivery-prerequisites.test.sh\npython3 scripts/test/backup_recovery_test.py\nbash scripts/test/cms-delivery-contract-parity-safety.test.sh\nbash scripts/test/cms-content-integrations-safety.test.sh\nbash scripts/test/feature-flags-live-guard.test.sh\nbash scripts/test/domain-constraint-env-guard.test.sh\nbash scripts/test/source-context.test.sh\nbash scripts/test/release-manifest.test.sh\nbash scripts/test/migration-inventory.test.sh\nbash scripts/test/migration-plan.test.sh\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/migration-sql.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/migration-sql-runtime.test.py\nbash scripts/test/image-build.test.sh\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/libreoffice-recipe.test.py\nbash scripts/test/registry-io.test.sh\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/registry-https.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/registry-policy.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/admission.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/publish-batch.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/registry-namespace.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/github-read.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/provider-inputs.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/environment-inputs.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/auth-runtime.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/auth-runtime.integration.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/artifact-handoff.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/artifact-download.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/publish-images.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/publication-record.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/attestation-binding.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/native-attestation.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/deploy-request.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/deployment-candidate.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/ssh-entry.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/deploy-admission.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/deploy-dispatch.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-release-state.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-compose.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/migration-transport.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/pg-container-bridge.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/candidate-migration.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-migrate.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-seed.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-backup.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-backup-schedule.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-idle.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/apex-ingress.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-assets.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-controls.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-storage-control.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-quiescence.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-smoke.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-smoke-setup.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-runtime.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-supervisor.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/root-executor.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-boundary.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-retained-dev.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/build-pipeline.test.py\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/apex-workflow.test.py\nbash scripts/test/hosted-release.test.sh\nbash scripts/test/processor-readiness.test.sh\nbash scripts/test/vps-reconcile.test.sh\nbash scripts/test/staging-substrate.test.sh\nPYTHONDONTWRITEBYTECODE=1 python3 scripts/test/ci-apex-quality.test.py\n(cd infra/idle/adapter && \"${XYNES_GO_BIN:?Pinned Go required}\" test -race -count=1 ./... && \"$XYNES_GO_BIN\" vet ./...)\nbash scripts/test/idle-adapter-unix.test.sh --runtime\nbash scripts/test/idle-adapter-host.test.sh --runtime",
+      "coverage": "bun .github/ci/coverage-gate.ts --policy",
+      "build": "bash scripts/setup/configure-branch-protection.sh --dry-run",
+      "typecheck": ".github/type-tools/node_modules/.bin/tsc --strict --noEmit --target ES2022 --module ESNext --moduleResolution bundler --types node --typeRoots .github/type-tools/node_modules/@types scripts/lib/ci-policy.ts scripts/lib/apex-ci-policy.ts scripts/lib/ci-coverage.ts scripts/lib/ci-release-gates.ts scripts/release/source_checks.ts"
+    },
+    "apex_test_tools": {
+      "go_version": "1.27.2",
+      "go_linux_amd64_sha256": "ecbadb99091a3f46e31f5f934b068b1864eafa7995211b39eaddf76996045fe5",
+      "linux_fixture": "node:22.23.1-alpine3.23@sha256:4848379985144e72c7537574c1a894d4ec096704b21ce45e5eee386be9fab737",
+      "postgres_fixture": "postgres:17-alpine@sha256:979c4379dd698aba0b890599a6104e082035f98ef31d9b9291ec22f2b13059ca",
+      "postgres_auth_fixture": "postgres:17-alpine@sha256:5a6fcbc5d93831991d2386fa634509b3c49a1ac5ffb70c13c2322840f821d7e7",
+      "auth_fixture": "supabase/gotrue:v2.196.0@sha256:7e813221b93fbf54b515036438550e483bfaf057b9db52fe9bc1ce91c47e817e"
+    }
+  },
+  {
+    "repository": "xynes/api-docs",
+    "kind": "docs",
+    "gates": {
+      "lint": "python3 .github/ci/docs-check.py",
+      "test": "PYTHONDONTWRITEBYTECODE=1 python3 .github/ci/docs-check.test.py",
+      "coverage": "PYTHONDONTWRITEBYTECODE=1 python3 .github/ci/docs-check.test.py --coverage",
+      "build": "python3 .github/ci/docs-check.py --manifest > /dev/null",
+      "typecheck": "ci-type-tools/node_modules/.bin/tsc --strict --noEmit --target ES2022 --module ESNext --moduleResolution bundler --types node --typeRoots ci-type-tools/node_modules/@types .github/ci/ci-policy.ts .github/ci/release-gates.ts"
+    }
+  }
+]

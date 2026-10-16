@@ -1,0 +1,213 @@
+{
+  "services": {
+    "supabase-db": {
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "networks": {
+        "environment": {}
+      },
+      "labels": {
+        "xynes.idle.eligible": "false",
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?required}",
+        "com.xynes.idle": "never",
+        "com.xynes.role": "infrastructure"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "image": "postgres:17-alpine@sha256:5a6fcbc5d93831991d2386fa634509b3c49a1ac5ffb70c13c2322840f821d7e7",
+      "environment": {
+        "POSTGRES_USER": "postgres",
+        "POSTGRES_DB": "postgres",
+        "POSTGRES_PASSWORD": "${POSTGRES_PASSWORD:?required}",
+        "POSTGRES_INITDB_ARGS": "--auth-host=scram-sha-256",
+        "AUTH_DATABASE_PASSWORD": "${AUTH_DATABASE_PASSWORD:?required}"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "/srv/xynes/${XYNES_ENV:?required}/supabase/db",
+          "target": "/var/lib/postgresql/data",
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/srv/xynes/${XYNES_ENV:?required}/compose/auth/bootstrap.sh",
+          "target": "/docker-entrypoint-initdb.d/10-apex-auth.sh",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "/srv/xynes/${XYNES_ENV:?required}/compose/auth/bootstrap.sql",
+          "target": "/opt/apex-auth/bootstrap.sql",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "pg_isready",
+          "--host",
+          "127.0.0.1",
+          "--username",
+          "postgres",
+          "--dbname",
+          "postgres"
+        ],
+        "interval": "5s",
+        "timeout": "5s",
+        "retries": 20,
+        "start_period": "30s"
+      },
+      "mem_limit": "512m",
+      "pids_limit": 256,
+      "command": [
+        "postgres",
+        "-c",
+        "shared_buffers=128MB",
+        "-c",
+        "max_connections=100"
+      ],
+      "stop_grace_period": "60s",
+      "init": true,
+      "user": "70:70",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "tmpfs": [
+        "/var/run/postgresql:rw,noexec,nosuid,nodev,size=16m,uid=70,gid=70,mode=0700",
+        "/tmp:rw,noexec,nosuid,nodev,size=16m,uid=70,gid=70,mode=0700"
+      ]
+    },
+    "supabase-auth": {
+      "platform": "linux/amd64",
+      "restart": "unless-stopped",
+      "networks": {
+        "environment": {
+          "aliases": [
+            "supabase_auth_${XYNES_ENV}"
+          ]
+        }
+      },
+      "labels": {
+        "xynes.idle.eligible": "false",
+        "com.xynes.managed": "true",
+        "com.xynes.environment": "${XYNES_ENV:?required}",
+        "com.xynes.idle": "never",
+        "com.xynes.role": "infrastructure"
+      },
+      "logging": {
+        "driver": "json-file",
+        "options": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      },
+      "image": "supabase/gotrue:v2.196.0@sha256:7e813221b93fbf54b515036438550e483bfaf057b9db52fe9bc1ce91c47e817e",
+      "environment": {
+        "GOTRUE_API_HOST": "0.0.0.0",
+        "GOTRUE_API_PORT": "9999",
+        "GOTRUE_DB_DRIVER": "postgres",
+        "GOTRUE_DB_NAMESPACE": "auth",
+        "GOTRUE_DB_DATABASE_URL": "${GOTRUE_DATABASE_URL:?required}",
+        "API_EXTERNAL_URL": "${API_EXTERNAL_URL:?required}",
+        "GOTRUE_SITE_URL": "${SITE_URL:?required}",
+        "GOTRUE_URI_ALLOW_LIST": "${ADDITIONAL_REDIRECT_URLS:?required}",
+        "GOTRUE_JWT_SECRET": "${JWT_SECRET:?required}",
+        "GOTRUE_JWT_ISSUER": "${JWT_ISSUER:?required}",
+        "GOTRUE_JWT_AUD": "authenticated",
+        "GOTRUE_JWT_DEFAULT_GROUP_NAME": "authenticated",
+        "GOTRUE_JWT_ADMIN_ROLES": "service_role",
+        "GOTRUE_JWT_EXP": "3600",
+        "GOTRUE_DISABLE_SIGNUP": "false",
+        "GOTRUE_EXTERNAL_EMAIL_ENABLED": "true",
+        "GOTRUE_EXTERNAL_PHONE_ENABLED": "false",
+        "GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED": "false",
+        "GOTRUE_MAILER_AUTOCONFIRM": "false",
+        "GOTRUE_SMTP_HOST": "smtp.resend.com",
+        "GOTRUE_SMTP_PORT": "465",
+        "GOTRUE_SMTP_USER": "resend",
+        "GOTRUE_SMTP_PASS": "${SMTP_PASS:?required}",
+        "GOTRUE_SMTP_ADMIN_EMAIL": "${SMTP_ADMIN_EMAIL:?required}",
+        "GOTRUE_SMTP_SENDER_NAME": "Xynes",
+        "GOTRUE_SMTP_MAX_FREQUENCY": "60s",
+        "GOTRUE_MAILER_OTP_EXP": "600",
+        "GOTRUE_MAILER_OTP_LENGTH": "6",
+        "GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED": "true",
+        "GOTRUE_SECURITY_REFRESH_TOKEN_REUSE_INTERVAL": "10",
+        "GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED": "true",
+        "GOTRUE_LOG_LEVEL": "warn",
+        "GOTRUE_EXTERNAL_GOOGLE_ENABLED": "${GOTRUE_EXTERNAL_GOOGLE_ENABLED:?required}",
+        "GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID": "${GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID:?required}",
+        "GOTRUE_EXTERNAL_GOOGLE_SECRET": "${GOTRUE_EXTERNAL_GOOGLE_SECRET:?required}",
+        "GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI": "${GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI:?required}",
+        "GOTRUE_MAILER_TEMPLATES_CONFIRMATION": "http://caddy:8090/confirmation.html",
+        "GOTRUE_MAILER_TEMPLATES_MAGIC_LINK": "http://caddy:8090/magic_link.html",
+        "GOTRUE_MAILER_TEMPLATES_RECOVERY": "http://caddy:8090/recovery.html",
+        "GOTRUE_MAILER_TEMPLATES_INVITE": "http://caddy:8090/invite.html",
+        "GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE": "http://caddy:8090/email_change.html",
+        "GOTRUE_MAILER_TEMPLATES_REAUTHENTICATION": "http://caddy:8090/reauthentication.html",
+        "GOTRUE_MAILER_URLPATHS_CONFIRMATION": "/verify",
+        "GOTRUE_MAILER_URLPATHS_RECOVERY": "/verify",
+        "GOTRUE_MAILER_URLPATHS_INVITE": "/verify",
+        "GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE": "/verify"
+      },
+      "depends_on": {
+        "supabase-db": {
+          "condition": "service_healthy"
+        }
+      },
+      "read_only": true,
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,size=16m"
+      ],
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "mem_limit": "256m",
+      "pids_limit": 128,
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:9999/health"
+        ],
+        "interval": "10s",
+        "timeout": "5s",
+        "retries": 6,
+        "start_period": "60s"
+      },
+      "stop_grace_period": "60s",
+      "init": true
+    }
+  },
+  "networks": {
+    "environment": {
+      "external": true,
+      "name": "xynes_${XYNES_ENV:?required}_net"
+    }
+  }
+}

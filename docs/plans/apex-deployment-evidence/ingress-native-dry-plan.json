@@ -1,0 +1,40 @@
+{
+  "artifact_kind": "native-apex-ingress-dry-plan-summary",
+  "native_caddy_validation": true,
+  "plan_sha256": "37d83e119f2338e268b31ff8b9c1393b43a1d6b430be1242e1f8f18b71742cb1",
+  "current_sha256": "cb74ded562569e8c2a953fa3d0348f841108b990918e2c38d93bc3a63c7581c7",
+  "proposed_sha256": "3ade4bd90c1aa4e330c8c0f952a0cbd7923bf7e68b526fca61dcff4b529dde40",
+  "configuration_changed": true,
+  "attach_staging_network": true,
+  "applied": false,
+  "dns_changed": false,
+  "application_services_activated": false,
+  "temporary_cleanup_verified": true,
+  "native_receipt_sha256": "6aa237a57f71b819c6a06f8a84aa4e89aff208dc97c368d139b8de5dc97828f7",
+  "templates": [
+    {
+      "name": "confirmation.html",
+      "sha256": "449beea410a603f679f85d01e921bc792f481a1fef084cb37b407eb21db0632d"
+    },
+    {
+      "name": "magic_link.html",
+      "sha256": "809945bbab9ef124bcb49eca387221b2f01c227b0b62a9c0c45067d79067404f"
+    },
+    {
+      "name": "recovery.html",
+      "sha256": "584574ef751a60017f840cd5319557a28f47a0b27a3789735846c3ce89490a94"
+    },
+    {
+      "name": "invite.html",
+      "sha256": "27d498182ef7d30394d3386dd9c15e7f33567cf508b8dbc70dfa5b644eefa9b8"
+    },
+    {
+      "name": "email_change.html",
+      "sha256": "c3b61499d48912ce7896e07e0f838a74b82e0e9d9408851df3d9d649e35f3a29"
+    },
+    {
+      "name": "reauthentication.html",
+      "sha256": "db7aa2a8b8573493723e078925cdccbde81e1e279b00d1ccf44a86b35f4fc8dd"
+    }
+  ]
+}

@@ -28,7 +28,7 @@ jobs:
         with:
           bun-version: 1.4.2
       - name: Enforce immutable workflow dependencies and trust boundaries
-        run: bun .github/ci/ci-policy.ts
+        run: bun scripts/lib/apex-ci-policy.ts
       - name: Install checksum-verified secret scanner
         run: |
           set -euo pipefail

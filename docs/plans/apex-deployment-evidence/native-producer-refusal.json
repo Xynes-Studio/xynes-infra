@@ -1,0 +1,106 @@
+{
+  "admitted": false,
+  "artifact_kind": "native-admission-refusal",
+  "authenticated_native": true,
+  "deployable": false,
+  "fixture": false,
+  "positive_admission": false,
+  "witnesses": [
+    {
+      "actual_check_run_id": 114759593678,
+      "actual_job_id": 114759593678,
+      "actual_run_id": 38233856605,
+      "admission_sha256": "30b0a21d0855899c621e5d2ed74f38f9bf29a4b470b1516c6492c057241c03c4",
+      "admitted": false,
+      "bundle_sha256": "bd5bfcb43c06678ac2222a14529679d13f7a7d38f23adf328cd19304d7de1b4f",
+      "cases": [
+        "completed-wrong-workflow-producer",
+        "nondeployment-job"
+      ],
+      "deployable": false,
+      "fixture": false,
+      "github_read_sha256": "2d51e16a5c0f80eaba8451931f583dc5d52ee3897b2ab594ead12f51d2b2d040",
+      "kind": "authenticated-native-producer-refusal",
+      "main_sha": "f4d8dc783555f7866ed7d1a0cf7d7838b4d3550c",
+      "native_response_sha256": {
+        "/repos/Xynes-Studio/xynes-infra": "e75712e041b6092272bea54a42fc12e31947808dcd9aff766d25f58f64593f84",
+        "/repos/Xynes-Studio/xynes-infra/actions/jobs/114759593678": "778499fde8e6477dc52c7e7feab8aca4985ed5660f0dbb420935731b48d5318c",
+        "/repos/Xynes-Studio/xynes-infra/actions/runs/38233856605": "ecb258fd9af779faabf6a1f5353a038778e1782897dae2231a78d064dfd7badf",
+        "/repos/Xynes-Studio/xynes-infra/actions/runs/38233856605/attempts/1/jobs?per_page=100&page=1": "77e1c96355791b0a2a99efae1230fa07d875768bd15f214c660b0fc8172ec11d",
+        "/repos/Xynes-Studio/xynes-infra/actions/workflows/382009924/runs?branch=main&status=completed&per_page=100&page=1": "cb5d0f83128db160dc8ae1e2f5168f5afa360f8c20f305e83c8024ab9cb2c671",
+        "/repos/Xynes-Studio/xynes-infra/actions/workflows/security.yml": "d8e2a6140cbea6ad34a1435c153050c31685ce3006a7f0e64156b8053d925c2f",
+        "/repos/Xynes-Studio/xynes-infra/branches/main": "ceeb4d6f1636f34f35274fb5853c3cf97ce018488659e02630cfad04b915246c",
+        "/repos/Xynes-Studio/xynes-infra/check-runs/114759593678": "944654a5f55881cf6fd24281058c798a282d367933d82e12abe37bb018a259ac"
+      },
+      "observed_at": 1791987087,
+      "plan_sha256": "42349dd06ab12c2ed63bed49c49cc5ab7bbc8a701df0d49903cb29693fbd50c7",
+      "repository_id": 1415400917,
+      "result": "refused",
+      "stage": "qa"
+    },
+    {
+      "actual_check_run_id": 114759593678,
+      "actual_job_id": 114759593678,
+      "actual_run_id": 38233856605,
+      "admission_sha256": "30b0a21d0855899c621e5d2ed74f38f9bf29a4b470b1516c6492c057241c03c4",
+      "admitted": false,
+      "bundle_sha256": "bd5bfcb43c06678ac2222a14529679d13f7a7d38f23adf328cd19304d7de1b4f",
+      "cases": [
+        "completed-wrong-workflow-producer",
+        "nondeployment-job"
+      ],
+      "deployable": false,
+      "fixture": false,
+      "github_read_sha256": "2d51e16a5c0f80eaba8451931f583dc5d52ee3897b2ab594ead12f51d2b2d040",
+      "kind": "authenticated-native-producer-refusal",
+      "main_sha": "f4d8dc783555f7866ed7d1a0cf7d7838b4d3550c",
+      "native_response_sha256": {
+        "/repos/Xynes-Studio/xynes-infra": "e75712e041b6092272bea54a42fc12e31947808dcd9aff766d25f58f64593f84",
+        "/repos/Xynes-Studio/xynes-infra/actions/jobs/114759593678": "778499fde8e6477dc52c7e7feab8aca4985ed5660f0dbb420935731b48d5318c",
+        "/repos/Xynes-Studio/xynes-infra/actions/runs/38233856605": "ecb258fd9af779faabf6a1f5353a038778e1782897dae2231a78d064dfd7badf",
+        "/repos/Xynes-Studio/xynes-infra/actions/runs/38233856605/attempts/1/jobs?per_page=100&page=1": "77e1c96355791b0a2a99efae1230fa07d875768bd15f214c660b0fc8172ec11d",
+        "/repos/Xynes-Studio/xynes-infra/actions/workflows/382009924/runs?branch=main&status=completed&per_page=100&page=1": "cb5d0f83128db160dc8ae1e2f5168f5afa360f8c20f305e83c8024ab9cb2c671",
+        "/repos/Xynes-Studio/xynes-infra/actions/workflows/security.yml": "d8e2a6140cbea6ad34a1435c153050c31685ce3006a7f0e64156b8053d925c2f",
+        "/repos/Xynes-Studio/xynes-infra/branches/main": "ceeb4d6f1636f34f35274fb5853c3cf97ce018488659e02630cfad04b915246c",
+        "/repos/Xynes-Studio/xynes-infra/check-runs/114759593678": "944654a5f55881cf6fd24281058c798a282d367933d82e12abe37bb018a259ac"
+      },
+      "observed_at": 1791987087,
+      "plan_sha256": "42349dd06ab12c2ed63bed49c49cc5ab7bbc8a701df0d49903cb29693fbd50c7",
+      "repository_id": 1415400917,
+      "result": "refused",
+      "stage": "staging"
+    },
+    {
+      "actual_check_run_id": 114759593678,
+      "actual_job_id": 114759593678,
+      "actual_run_id": 38233856605,
+      "admission_sha256": "30b0a21d0855899c621e5d2ed74f38f9bf29a4b470b1516c6492c057241c03c4",
+      "admitted": false,
+      "bundle_sha256": "bd5bfcb43c06678ac2222a14529679d13f7a7d38f23adf328cd19304d7de1b4f",
+      "cases": [
+        "completed-wrong-workflow-producer",
+        "nondeployment-job"
+      ],
+      "deployable": false,
+      "fixture": false,
+      "github_read_sha256": "2d51e16a5c0f80eaba8451931f583dc5d52ee3897b2ab594ead12f51d2b2d040",
+      "kind": "authenticated-native-producer-refusal",
+      "main_sha": "f4d8dc783555f7866ed7d1a0cf7d7838b4d3550c",
+      "native_response_sha256": {
+        "/repos/Xynes-Studio/xynes-infra": "e75712e041b6092272bea54a42fc12e31947808dcd9aff766d25f58f64593f84",
+        "/repos/Xynes-Studio/xynes-infra/actions/jobs/114759593678": "778499fde8e6477dc52c7e7feab8aca4985ed5660f0dbb420935731b48d5318c",
+        "/repos/Xynes-Studio/xynes-infra/actions/runs/38233856605": "ecb258fd9af779faabf6a1f5353a038778e1782897dae2231a78d064dfd7badf",
+        "/repos/Xynes-Studio/xynes-infra/actions/runs/38233856605/attempts/1/jobs?per_page=100&page=1": "77e1c96355791b0a2a99efae1230fa07d875768bd15f214c660b0fc8172ec11d",
+        "/repos/Xynes-Studio/xynes-infra/actions/workflows/382009924/runs?branch=main&status=completed&per_page=100&page=1": "cb5d0f83128db160dc8ae1e2f5168f5afa360f8c20f305e83c8024ab9cb2c671",
+        "/repos/Xynes-Studio/xynes-infra/actions/workflows/security.yml": "d8e2a6140cbea6ad34a1435c153050c31685ce3006a7f0e64156b8053d925c2f",
+        "/repos/Xynes-Studio/xynes-infra/branches/main": "ceeb4d6f1636f34f35274fb5853c3cf97ce018488659e02630cfad04b915246c",
+        "/repos/Xynes-Studio/xynes-infra/check-runs/114759593678": "944654a5f55881cf6fd24281058c798a282d367933d82e12abe37bb018a259ac"
+      },
+      "observed_at": 1791987087,
+      "plan_sha256": "42349dd06ab12c2ed63bed49c49cc5ab7bbc8a701df0d49903cb29693fbd50c7",
+      "repository_id": 1415400917,
+      "result": "refused",
+      "stage": "prod"
+    }
+  ]
+}
