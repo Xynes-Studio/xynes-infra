@@ -22,9 +22,9 @@ def file_record(path, value):
 
 def fixtures(manifest=None):
  repository=dict(id=1415400917,full_name=REPO,default_branch='main',private=False,fork=False)
- actor=dict(id=7,login='archan96',type='User'); reviewer=dict(id=8,login='Aman9804',type='User')
+ actor=dict(id=7,login='archan96',type='User'); reviewer=dict(id=8,login='xynes-admin',type='User')
  run=dict(id=100,run_attempt=1,workflow_id=10,path='.github/workflows/apex-build.yml',head_sha=SHA,head_branch='main',event='workflow_dispatch',status='in_progress',conclusion=None,repository=repository,head_repository=repository,actor=actor,triggering_actor=actor)
- d={P:repository,'/users/Aman9804':reviewer,P+'/branches/main':dict(name='main',protected=True,commit=dict(sha=SHA)),P+'/actions/runs/100':run,P+'/actions/workflows/10':dict(id=10,path=run['path'],state='active'),P+'/actions/jobs/200':dict(id=200,name='publish-images',head_sha=SHA,head_branch='main',run_id=100,run_attempt=1,status='in_progress',conclusion=None,run_url='https://api.github.com'+P+'/actions/runs/100')}
+ d={P:repository,'/users/xynes-admin':reviewer,P+'/branches/main':dict(name='main',protected=True,commit=dict(sha=SHA)),P+'/actions/runs/100':run,P+'/actions/workflows/10':dict(id=10,path=run['path'],state='active'),P+'/actions/jobs/200':dict(id=200,name='publish-images',head_sha=SHA,head_branch='main',run_id=100,run_attempt=1,status='in_progress',conclusion=None,run_url='https://api.github.com'+P+'/actions/runs/100')}
  d[P+'/contents/.github/workflows/apex-build.yml?ref='+SHA]=file_record(run['path'],{'on':{'workflow_dispatch':{}},'jobs':{'admission':{'permissions':{'contents':'read'}},'build-images':{'permissions':{'contents':'read'}},'publish-images':{'name':'publish-images','environment':'release','needs':['admission','build-images'],'permissions':{'contents':'read','actions':'read','packages':'write'}}}})
  d[P+'/branches/main/protection']=dict(required_status_checks=dict(strict=True,checks=[dict(context=n,app_id=15368) for n in NAMES]),enforce_admins=dict(enabled=True),required_pull_request_reviews=dict(dismiss_stale_reviews=True,require_code_owner_reviews=True,require_last_push_approval=True,required_approving_review_count=1,bypass_pull_request_allowances=dict(users=[],teams=[],apps=[])),required_conversation_resolution=dict(enabled=True),allow_force_pushes=dict(enabled=False),allow_deletions=dict(enabled=False))
  env=dict(id=300,name='release',url='https://api.github.com'+P+'/environments/release',can_admins_bypass=False,deployment_branch_policy=dict(protected_branches=False,custom_branch_policies=True),protection_rules=[dict(id=301,type='required_reviewers',prevent_self_review=True,reviewers=[dict(type='User',reviewer=reviewer)])])
@@ -82,7 +82,7 @@ class Tests(unittest.TestCase):
  def test_paginated_source_reviews_cannot_hide_later_revocation_or_duplicates(self):
   first=[dict(id=1000+i,state='COMMENTED',user=dict(id=20,login='Other',type='User')) for i in range(100)]
   self.data[P+'/pulls/1/reviews?per_page=100&page=1']=first
-  decisive=dict(id=2000,state='APPROVED',commit_id='b'*40,user=self.data['/users/Aman9804'],submitted_at='2026-10-15T01:00:00Z')
+  decisive=dict(id=2000,state='APPROVED',commit_id='b'*40,user=self.data['/users/xynes-admin'],submitted_at='2026-10-15T01:00:00Z')
   self.data[P+'/pulls/1/reviews?per_page=100&page=2']=[decisive]
   self.assertTrue(self.verify()['admitted'])
   self.data[P+'/pulls/1/reviews?per_page=100&page=2'].append({**decisive,'id':2001,'state':'DISMISSED'});self.refused()
@@ -240,5 +240,18 @@ class Tests(unittest.TestCase):
      return copy.deepcopy(self.data[path])
     with self.assertRaises(self.module.AdmissionError):self.module.validate_admission(self.controller,200,read,json.loads)
     self.assertTrue(changed)
+
+
+ def test_selected_reviewer_is_independent_xynes_admin_and_old_identity_refuses(self):
+  self.assertEqual(self.module.REVIEWER,'xynes-admin')
+  self.assertTrue(self.verify()['admitted'])
+  for mode in ('lookup','source-review','release-review','self-initiator'):
+   with self.subTest(mode=mode):
+    self.data=fixtures()
+    if mode=='lookup':self.data['/users/xynes-admin']['login']='Aman9804'
+    elif mode=='source-review':self.data[P+'/pulls/1/reviews?per_page=100&page=1'][0]['user']={'id':8,'login':'Aman9804','type':'User'}
+    elif mode=='release-review':self.data[P+'/actions/runs/100/approvals'][0]['user']={'id':8,'login':'Aman9804','type':'User'}
+    else:self.data[P+'/actions/runs/100']['triggering_actor']={'id':8,'login':'xynes-admin','type':'User'}
+    self.refused()
 
 if __name__=='__main__':unittest.main()

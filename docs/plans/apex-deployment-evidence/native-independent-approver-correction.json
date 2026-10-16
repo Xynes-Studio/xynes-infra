@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "native-independent-approver-correction",
+  "code_owners": [
+    "archan96",
+    "xynes-admin"
+  ],
+  "independent_approver": "xynes-admin",
+  "separate_operator_confirmed_by_user": true,
+  "release_prod_reviewer_readback_verified": true,
+  "prevent_self_review": true,
+  "administrator_bypass": false,
+  "branch_protection_unchanged": true,
+  "conditional_one_time_code_owner_handover_and_merge_authorized": true,
+  "handover_executed": false,
+  "controller_bundle_sha256": "5a9d010f877721a782cf5be54f42edc3aa7a5965199eb2e1eb1e30cd85154675",
+  "controller_plan_sha256": "ae6d31a8ff28dc7f0f55bcf3b8ef224e924d82753b5021532f3628822f5b3c30",
+  "controller_ledger_sha256": "152e0590159e807bfbb70d6f6ad511faf25a1805a2c778fa6b4225948d5f5c33",
+  "changed_library_files": [
+    "scripts/release/admission.py"
+  ],
+  "native_component_checks": 10,
+  "upgrade_fixture_tests": 9,
+  "affected_admission_reader_tests": 43,
+  "fresh_ssh_cases": 8,
+  "idle_binary_and_policies_preserved": true,
+  "inactive_idle_units": 9,
+  "previous_libraries_and_recovery_preserved": true,
+  "native_upgrade_input_cleanup_verified": true,
+  "application_services_activated": false,
+  "deployment_accepted": false
+}

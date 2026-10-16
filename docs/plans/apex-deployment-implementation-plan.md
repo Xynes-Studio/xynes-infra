@@ -18,7 +18,7 @@ protection and independent review. Original internal reports/history stay privat
 | APEX-07 | Deploy QA, verify migrations/seeds and real product flows, force failed-smoke rollback. | Source-bound SQL planning/ledger fixtures pass; no hosted acceptance. |
 | APEX-08 | Promote staging, enable proven idle groups, measure resources and run 24-hour soak. | Pending QA acceptance. |
 | APEX-09 | Prove encrypted offsite backup, independent isolated restore and configured alert delivery. | Native configured-channel TEST delivered; timer templates inert. Actual offsite backup, isolated restore and scheduler acceptance remain. |
-| APEX-10 | Consolidate the final PR, obtain independent review/merge authorization and complete protected production acceptance. | Single final infra [PR #1](https://github.com/Xynes-Studio/xynes-infra/pull/1) is open; final-head CI and Aman9804 review/merge authorization are pending. |
+| APEX-10 | Consolidate the final PR, obtain independent review/merge authorization and complete protected production acceptance. | Single final infra [PR #1](https://github.com/Xynes-Studio/xynes-infra/pull/1) is open; final-head CI and xynes-admin independent review are pending; the user authorized the one-time code-owner handover and merge after final approval and passing checks. |
 
 ## Environment isolation
 

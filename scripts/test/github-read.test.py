@@ -42,6 +42,9 @@ class Tests(unittest.TestCase):
  def refused(self,callback):
   with self.assertRaises(self.module.GitHubReadError) as caught:callback()
   self.assertNotIn(TOKEN,str(caught.exception));self.assertNotIn('secret-body',str(caught.exception))
+ def test_reviewer_lookup_allows_only_current_independent_account(self):
+  self.reader().read('/users/xynes-admin')
+  self.refused(lambda:self.reader().read('/users/Aman9804'))
  def test_real_json_bytes_and_verified_tls_fixed_headers_connection_closed(self):
   reader=self.reader();result=reader.read('/repos/Xynes-Studio/xynes-infra');self.assertEqual(result,{'id':1415400917})
   self.assertNotIn(TOKEN,repr(reader));connection=self.connections[0];self.assertTrue(connection.closed)
@@ -49,7 +52,7 @@ class Tests(unittest.TestCase):
   args,kwargs=connection.calls[0];self.assertEqual(args[:2],('GET','/repos/Xynes-Studio/xynes-infra'))
   self.assertEqual(kwargs['headers']['Authorization'],'Bearer '+TOKEN);self.assertEqual(kwargs['headers']['X-GitHub-Api-Version'],'2022-11-28');self.assertTrue(all(0<n<=65536 for n in self.reply.reads))
  def test_known_repository_user_and_exact_native_package_paths(self):
-  for path in ['/repos/Xynes-Studio/xynes-infra/actions/runs/123','/repos/Xynes-Studio/xynes-infra/contents/.github/workflows/apex-build.yml?ref='+'a'*40,'/users/Aman9804','/orgs/Xynes-Studio/packages/container/apex%2Fxynes-gateway']:
+  for path in ['/repos/Xynes-Studio/xynes-infra/actions/runs/123','/repos/Xynes-Studio/xynes-infra/contents/.github/workflows/apex-build.yml?ref='+'a'*40,'/users/xynes-admin','/orgs/Xynes-Studio/packages/container/apex%2Fxynes-gateway']:
    self.reply=Reply()
    self.assertEqual(self.reader().read(path),{'id':1415400917})
  def test_only_authenticated_package_not_found_can_be_reported_as_missing(self):

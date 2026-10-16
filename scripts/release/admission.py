@@ -19,7 +19,7 @@ except ImportError:
 
 REPOSITORY = 'Xynes-Studio/xynes-infra'
 REPOSITORY_ID = 1415400917
-REVIEWER = 'Aman9804'
+REVIEWER = 'xynes-admin'
 WORKFLOW = '.github/workflows/apex-build.yml'
 PREFIX = '/repos/' + REPOSITORY
 CHECKS = ('lint', 'test', 'coverage', 'build', 'typecheck', 'security')

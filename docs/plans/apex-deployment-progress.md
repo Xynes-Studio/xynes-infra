@@ -819,3 +819,37 @@ and wait for actual timestamp separation in the restored-metadata case;
 all 29 tests pass. The earlier Linux staging receipt remains historical evidence
 for its recorded source bytes. Final native PR checks and independent approval
 remain required; the deployment goal is incomplete.
+
+
+The user has replaced Aman9804 with `xynes-admin` as the independent reviewer
+for the final infrastructure PR, release publication and production approval,
+and confirmed that a different person operates that account. Earlier Aman9804
+entries and receipts above remain historical evidence, not the current approval
+policy. The controller reviewer constant and CODEOWNERS now select `xynes-admin`;
+`archan96` remains the author. No-self-review, final-head review, merged-tree and
+fresh native API checks are unchanged. Native repository/environment protection
+updates and the sealed controller upgrade must be verified before release;
+this policy correction does not constitute approval, merge or deployment.
+
+
+The user clarified that the actual code owners are `archan96` and `xynes-admin`;
+Aman9804 is a colleague. The previous CODEOWNERS entry designated Aman by mistake.
+The corrected PR file names the two actual owners. GitHub still evaluates the
+old file on main for this PR. The user explicitly authorized a one-time handover:
+only after `xynes-admin` approves the final passing head, temporarily clear the
+code-owner review flag, retain every other review/check protection, merge this
+same PR, then immediately restore the flag against corrected main CODEOWNERS.
+No release may dispatch before native restoration readback. This authorization
+is conditional; no independent approval or merge has yet occurred.
+
+Release and production environment reviewers now read back as `xynes-admin`,
+with self-review prevention, main-only deployment policy and administrator
+bypass disabled. The review request is assigned; the old main code-owner request
+can remain until the handover. The one-module controller correction passed
+43 affected admission/reader tests, nine upgrade fixtures, ten actual Linux
+component checks and eight fresh SSH recovery/refusal checks. The successor
+bundle `5a9d010f877721a782cf5be54f42edc3aa7a5965199eb2e1eb1e30cd85154675`
+is installed, preserving the four prior libraries and recovery copies.
+The qualified idle binary and matching policies are unchanged; all nine units
+remain inactive and runtime records are absent. Final-head native CI and
+`xynes-admin` independent review remain required before conditional merge.
