@@ -1,12 +1,14 @@
 package idle
 
 import (
+	"encoding/json"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestOwnedSocketRecoversOnlyRecordedStaleInode(t *testing.T) {
@@ -248,4 +250,69 @@ func TestOwnedSocketRefusesUnsafeDirectoryLockAndRecordWithoutDeleting(t *testin
 	}
 	var absent *ownedListener
 	absent.Release()
+}
+
+func TestOwnedSocketChangedStampWithSameInodeIsNeverAdoptedOrRemoved(t *testing.T) {
+	for _, recovery := range []bool{false, true} {
+		t.Run(map[bool]string{false: "close", true: "recover"}[recovery], func(t *testing.T) {
+			path := filepath.Join(shortSocketDir(t), "control.sock")
+			first, err := newOwnedListener(path, uint32(os.Geteuid()), uint32(os.Getegid()), 0600)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer first.Release()
+			before, err := os.Lstat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			changed := before.ModTime().Add(time.Second)
+			if err := os.Chtimes(path, changed, changed); err != nil {
+				t.Fatal(err)
+			}
+			after, err := os.Lstat(path)
+			if err != nil || !os.SameFile(before, after) || before.Mode() != after.Mode() || before.ModTime().Equal(after.ModTime()) {
+				t.Fatal("fixture must preserve inode and mode")
+			}
+			if recovery {
+				// Model a kernel tick collision explicitly: the recorded dev/inode
+				// and ctime now equal the replacement, but its generation differs.
+				data, err := os.ReadFile(path + ".lock")
+				if err != nil {
+					t.Fatal(err)
+				}
+				var record socketRecord
+				if err := json.Unmarshal(data, &record); err != nil {
+					t.Fatal(err)
+				}
+				info, ok := after.Sys().(*syscall.Stat_t)
+				if !ok {
+					t.Fatal("missing socket stat")
+				}
+				record.ChangeSeconds, record.ChangeNanos = socketChange(info)
+				data, err = json.Marshal(record)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(path+".lock", data, 0600); err != nil {
+					t.Fatal(err)
+				}
+				first.UnixListener.Close()
+				syscall.Flock(int(first.lock.Fd()), syscall.LOCK_UN)
+				first.lock.Close()
+				second, err := newOwnedListener(path, uint32(os.Geteuid()), uint32(os.Getegid()), 0600)
+				if second != nil {
+					second.Release()
+				}
+				if err != ErrDenied {
+					t.Fatal("changed socket identity adopted as recorded stale socket")
+				}
+			} else {
+				first.Close()
+			}
+			current, err := os.Lstat(path)
+			if err != nil || !os.SameFile(after, current) {
+				t.Fatal("changed socket identity removed")
+			}
+		})
+	}
 }

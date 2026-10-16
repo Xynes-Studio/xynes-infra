@@ -10,6 +10,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -178,7 +179,13 @@ class StagingTests(unittest.TestCase):
 
     def test_stale_plan_refuses_when_directory_identity_or_network_changed(self):
         self.existing();instance = self.provisioner();p = instance.plan()
-        path = self.root/'staging/compose';path.rmdir();path.mkdir();path.chmod(0o750)
+        path = self.root/'staging/compose'
+        # Hold the old inode so this case deterministically exercises replacement.
+        old_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            path.rmdir();path.mkdir();path.chmod(0o750)
+        finally:
+            os.close(old_fd)
         with self.assertRaises(ValueError):instance.apply(p['plan_sha256'])
         p = instance.plan();self.docker.state['id'] = 'b'*64
         with self.assertRaises(ValueError):instance.apply(p['plan_sha256'])
@@ -186,7 +193,13 @@ class StagingTests(unittest.TestCase):
     def test_stale_plan_refuses_restored_metadata_even_when_inode_is_unchanged(self):
         self.existing();instance = self.provisioner();plan = instance.plan()
         path = self.root/'staging/compose';before = path.stat()
-        path.chmod(0o700);path.chmod(0o750);after = path.stat()
+        # Advance beyond a coarse kernel timestamp tick before restoring metadata.
+        deadline = time.monotonic() + 1
+        while True:
+            time.sleep(0.02)
+            path.chmod(0o700);path.chmod(0o750);after = path.stat()
+            if before.st_ctime_ns != after.st_ctime_ns or time.monotonic() >= deadline:
+                break
         self.assertEqual((before.st_dev, before.st_ino, before.st_uid, before.st_gid, before.st_mode),
                          (after.st_dev, after.st_ino, after.st_uid, after.st_gid, after.st_mode))
         self.assertNotEqual(before.st_ctime_ns, after.st_ctime_ns)

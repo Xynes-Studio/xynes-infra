@@ -1,6 +1,8 @@
 package idle
 
 import (
+	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,10 +15,14 @@ import (
 )
 
 type socketRecord struct {
-	Version int    `json:"version"`
-	Path    string `json:"path"`
-	Device  uint64 `json:"device"`
-	Inode   uint64 `json:"inode"`
+	Version       int    `json:"version"`
+	Path          string `json:"path"`
+	Device        uint64 `json:"device"`
+	Inode         uint64 `json:"inode"`
+	ChangeSeconds int64  `json:"change_seconds"`
+	ChangeNanos   int64  `json:"change_nanos"`
+	ModSeconds    int64  `json:"mod_seconds"`
+	ModNanos      int64  `json:"mod_nanos"`
 }
 
 // Closing admission retains the ownership lock until all handlers drain.
@@ -31,7 +37,7 @@ type ownedListener struct {
 }
 
 func removeSameSocket(path string, inode os.FileInfo) {
-	if current, err := os.Lstat(path); err == nil && current.Mode()&os.ModeSocket != 0 && os.SameFile(current, inode) {
+	if current, err := os.Lstat(path); err == nil && current.Mode()&os.ModeSocket != 0 && sameSocket(current, inode) {
 		_ = os.Remove(path)
 	}
 }
@@ -98,14 +104,14 @@ func newOwnedListener(path string, uid, gid uint32, mode os.FileMode) (_ *ownedL
 	var record socketRecord
 	if !fresh {
 		data, err := io.ReadAll(io.LimitReader(lock, 1025))
-		if err != nil || len(data) > 1024 || decodeRuntimeConfig(data, &record) != nil || record.Version != 1 || record.Path != path || record.Inode == 0 {
+		if err != nil || len(data) > 1024 || decodeRuntimeConfig(data, &record) != nil || record.Version != 2 || record.Path != path || record.Inode == 0 {
 			return nil, ErrDenied
 		}
 	}
 	existing, err := os.Lstat(path)
 	if err == nil {
 		socketStat, ok := existing.Sys().(*syscall.Stat_t)
-		if fresh || !ok || existing.Mode()&os.ModeSocket == 0 || existing.Mode().Perm() != mode || socketStat.Uid != uid || socketStat.Gid != gid || socketStat.Nlink != 1 || record.Device != uint64(socketStat.Dev) || record.Inode != socketStat.Ino {
+		if fresh || !ok || existing.Mode()&os.ModeSocket == 0 || existing.Mode().Perm() != mode || socketStat.Uid != uid || socketStat.Gid != gid || socketStat.Nlink != 1 || record.Device != uint64(socketStat.Dev) || record.Inode != socketStat.Ino || !record.matchesChange(socketStat) || record.ModSeconds != existing.ModTime().Unix() || record.ModNanos != int64(existing.ModTime().Nanosecond()) {
 			return nil, ErrDenied
 		}
 		conn, dialErr := net.DialTimeout("unix", path, 200*time.Millisecond)
@@ -117,7 +123,7 @@ func newOwnedListener(path string, uid, gid uint32, mode os.FileMode) (_ *ownedL
 			return nil, ErrDenied
 		}
 		current, err := os.Lstat(path)
-		if err != nil || !os.SameFile(existing, current) {
+		if err != nil || !sameSocket(existing, current) {
 			return nil, ErrDenied
 		}
 		if os.Remove(path) != nil {
@@ -143,14 +149,38 @@ func newOwnedListener(path string, uid, gid uint32, mode os.FileMode) (_ *ownedL
 			removeSameSocket(path, inode)
 		}
 	}()
-	if os.Chown(path, int(uid), int(gid)) != nil || os.Chmod(path, mode) != nil {
+	// A random, past mtime distinguishes a replacement even when the kernel
+	// reuses both inode and ctime within one clock tick. Connections do not
+	// change a socket's mtime. Use 50 bits at microsecond precision, supported
+	// by Linux and Darwin; refuse filesystems that lose the published marker.
+	// This is an ownership generation, not authentication against its own UID.
+	var nonce [8]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return nil, ErrUnavailable
+	}
+	stamp := time.Unix(1+int64(binary.BigEndian.Uint32(nonce[:4])%(1<<30)), int64(binary.BigEndian.Uint32(nonce[4:])%1000000)*1000)
+	mutate := func(operation func() error) bool {
+		err := operation()
+		current, statErr := os.Lstat(path)
+		if statErr != nil || !os.SameFile(inode, current) {
+			return false
+		}
+		// Refresh even on failure: a partially successful metadata syscall must
+		// not strand the socket created by this still-held owner.
+		inode = current
+		return err == nil
+	}
+	if !mutate(func() error { return os.Chown(path, int(uid), int(gid)) }) ||
+		!mutate(func() error { return os.Chmod(path, mode) }) ||
+		!mutate(func() error { return os.Chtimes(path, stamp, stamp) }) || !inode.ModTime().Equal(stamp) {
 		return nil, ErrDenied
 	}
 	socketStat, ok := inode.Sys().(*syscall.Stat_t)
 	if !ok {
 		return nil, ErrDenied
 	}
-	data, err := json.Marshal(socketRecord{Version: 1, Path: path, Device: uint64(socketStat.Dev), Inode: socketStat.Ino})
+	seconds, nanos := socketChange(socketStat)
+	data, err := json.Marshal(socketRecord{Version: 2, Path: path, Device: uint64(socketStat.Dev), Inode: socketStat.Ino, ChangeSeconds: seconds, ChangeNanos: nanos, ModSeconds: inode.ModTime().Unix(), ModNanos: int64(inode.ModTime().Nanosecond())})
 	if err != nil || lock.Truncate(0) != nil {
 		return nil, ErrUnavailable
 	}
@@ -171,4 +201,24 @@ func newOwnedListener(path string, uid, gid uint32, mode os.FileMode) (_ *ownedL
 	}
 	published = true
 	return &ownedListener{UnixListener: listener, lock: lock, path: path, inode: inode}, nil
+}
+
+// Inodes can be reused after unlink. A recorded change timestamp also protects
+// cleanup against an object whose ownership metadata changed after publication.
+func sameSocket(left, right os.FileInfo) bool {
+	if !os.SameFile(left, right) {
+		return false
+	}
+	a, aOK := left.Sys().(*syscall.Stat_t)
+	b, bOK := right.Sys().(*syscall.Stat_t)
+	if !aOK || !bOK {
+		return false
+	}
+	aSec, aNano := socketChange(a)
+	bSec, bNano := socketChange(b)
+	return aSec == bSec && aNano == bNano && left.ModTime().Equal(right.ModTime())
+}
+func (r socketRecord) matchesChange(info *syscall.Stat_t) bool {
+	seconds, nanos := socketChange(info)
+	return r.ChangeSeconds == seconds && r.ChangeNanos == nanos
 }
