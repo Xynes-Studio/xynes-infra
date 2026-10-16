@@ -795,3 +795,27 @@ during owned mkdir operations. A deterministic restored-metadata regression
 failed before the fix. All 29 substrate tests passed locally and on a real Linux
 filesystem afterward, with injected Docker responses, exact source cleanup and
 no hosted application changes. Native PR CI must still pass the final head.
+
+
+Native PR CI then exposed Unix socket inode reuse during stale recovery.
+Socket record version 2 binds device/inode, change time and a random past
+modification timestamp verified at portable microsecond precision. Legacy
+records fail closed and are preserved. The regression explicitly models a
+same-tick change-time collision; both stale recovery and final cleanup refuse
+the changed generation. This ownership marker does not authenticate a malicious
+process running as the socket owner's UID.
+
+The independently reviewed fix passed 69 race tests, vet, 70 real Linux Unix
+runtime tests and the host lifecycle fixture. Root verified its signed commit
+`51e29a8ceb4059acdb36fe6082e65676b87b5d80` and rebuilt all 36 exact Git source
+files with the verified pinned compiler. The binary reproduced as
+`21a25310e75616e1a9146b84b523cea131c6e745a4200b4929d53a7cbbc81abf`.
+A fresh native preflight verified 20 assets, 27 directories and nine inactive
+units. The authorized inert upgrade replaced only the binary and three matching
+host policies, preserving private originals and verifying all other assets
+unchanged. Nine units remain stopped, with no application activation.
+The staging test fixtures now prevent inode reuse in the changed-inode case
+and wait for actual timestamp separation in the restored-metadata case;
+all 29 tests pass. The earlier Linux staging receipt remains historical evidence
+for its recorded source bytes. Final native PR checks and independent approval
+remain required; the deployment goal is incomplete.

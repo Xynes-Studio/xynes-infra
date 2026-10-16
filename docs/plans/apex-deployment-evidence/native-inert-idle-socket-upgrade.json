@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "native-inert-idle-socket-ownership-upgrade",
+  "source_commit": "51e29a8ceb4059acdb36fe6082e65676b87b5d80",
+  "source_tree_sha256": "f881c785ecfbc0f99a0277bacc06498d19610afc36aa7ef21f329e7a8a4d3610",
+  "binary_sha256": "21a25310e75616e1a9146b84b523cea131c6e745a4200b4929d53a7cbbc81abf",
+  "binary_size": 11315745,
+  "signed_git_source_verified": true,
+  "reproducible_pinned_compiler_build": true,
+  "qualification_receipt_sha256": "20d0d68b07c88f5f10750b28fc5760007e4f29f37c0827679dbc22ff4d5da7c4",
+  "upgrade_plan_sha256": "1ef483e4458e398621020f4c956ec41c31d2608bfb43c96cabdb7abff8bea3ac",
+  "preflight_sha256": "ac33b376f3f99701a389971e531803eaea5c99dc5cd3bb7fac1d5d9fbc881d26",
+  "controller_ledger_sha256": "f9ddf2c4d54a1fd447fbf4212c1be08621c39805922a5adb86bb53c8067d72e7",
+  "installed": true,
+  "replaced_assets": 4,
+  "other_assets_unchanged": true,
+  "units_enabled": 9,
+  "units_started": 0,
+  "runtime_generation_and_socket_records_absent": true,
+  "original_binary_and_policies_preserved_privately": true,
+  "socket_record_version": 2,
+  "legacy_records_preserved_and_refused": true,
+  "checks": [
+    {
+      "name": "race",
+      "exit_code": 0
+    },
+    {
+      "name": "vet",
+      "exit_code": 0
+    },
+    {
+      "name": "unix-runtime",
+      "exit_code": 0
+    },
+    {
+      "name": "host-runtime",
+      "exit_code": 0
+    }
+  ],
+  "race_tests": 69,
+  "linux_runtime_tests": 70,
+  "host_lifecycle_tests": 1,
+  "independent_review_no_remaining_blockers": true,
+  "application_services_activated": false,
+  "hosted_acceptance": false,
+  "deployment_accepted": false
+}
