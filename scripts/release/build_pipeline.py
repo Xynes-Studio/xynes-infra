@@ -217,7 +217,7 @@ def build(env,*,read,download,command=bounded_command,execute=image_build.execut
         if created:
             try:
                 with image_build.diagnostic('builder-cleanup'):
-                    command(docker+['rm','--force',builder],env=clean,cwd=ROOT,timeout=60)
+                    command(docker+['rm','--force',builder],env=clean,cwd=ROOT,timeout=300)
             except Exception:raise PipelineError(ERROR) from None
 
 
