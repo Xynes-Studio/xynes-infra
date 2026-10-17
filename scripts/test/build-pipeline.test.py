@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Isolated native artifact ZIP/OCI fixtures exercise the build job boundary."""
+import contextlib
 import copy
 import hashlib
 import importlib.util
@@ -33,6 +34,7 @@ class Tests(unittest.TestCase):
   for stage in records.STAGES:self.env['APEX_PUBLIC_'+stage.upper()]=json.dumps(self.public[stage])
   self.commands=[];self.fail_build=False;self.fail_create=False;self.corrupt_last=False;self.migration_calls=[];self.fail_migration=False
   self.refresh()
+  self.captured=io.StringIO();manager=contextlib.redirect_stderr(self.captured);manager.__enter__();self.addCleanup(manager.__exit__,None,None,None)
  def refresh(self):
   files={'controller.json':self.controller,'source-manifest.json':self.manifest,'public-inputs.json':self.public,'source-checks.json':self.checks}
   stream=io.BytesIO()
@@ -74,6 +76,29 @@ class Tests(unittest.TestCase):
           'source_manifest_sha256':records.canonical_sha256(self.manifest),
           'source_manifest_bytes_sha256':hashlib.sha256(manifest_bytes).hexdigest(),
           'approved':False,'deployable':False}
+ def diagnostics(self):return [json.loads(line) for line in self.captured.getvalue().splitlines()]
+ def test_build_phase_success_order_exposes_only_fixed_enums(self):
+  self.env['GITHUB_JOB']='build-images'
+  with patch.dict(os.environ,self.env,clear=True):self.invoke()
+  phases=('controller','admission-intake','input-qualification','tracked-source-manifest','source-materialize','migration-export','migration-qualification','builder-create','image-batch','image-qualification','builder-cleanup')
+  self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()],[(phase,status) for phase in phases for status in ('start','success')])
+  for private in ('private-capability',self.env['GH_TOKEN'],self.env['SSH_AUTH_SOCK'],self.env['DOCKER_HOST']):self.assertNotIn(private,self.captured.getvalue())
+ def test_primary_failure_is_preserved_when_cleanup_also_fails(self):
+  self.env['GITHUB_JOB']='build-images';self.fail_build=True;original=self.command
+  def command(argv,**options):
+   if 'rm' in argv:raise RuntimeError('private-capability')
+   return original(argv,**options)
+  with self.assertRaises(self.module.PipelineError) as error:self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=command,execute=self.execute,migration_writer=self.migration_writer)
+  self.assertEqual(str(error.exception),'Protected build pipeline refused')
+  self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-4:]],[('image-batch','start'),('image-batch','failure'),('builder-cleanup','start'),('builder-cleanup','failure')])
+  self.assertNotIn('private-capability',self.captured.getvalue())
+ def test_migration_failure_has_phase_without_raw_error(self):
+  self.env['GITHUB_JOB']='build-images';self.fail_migration=True;self.refuse()
+  self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-2:]],[('migration-export','start'),('migration-export','failure')])
+  self.assertNotIn('private-capability',self.captured.getvalue())
+ def test_unvalidated_controller_never_echoes_input_value(self):
+  self.env['GITHUB_JOB']='build-images';self.env['GITHUB_REPOSITORY']='private-capability';self.refuse()
+  self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()],[('controller','start'),('controller','failure')]);self.assertNotIn('private-capability',self.captured.getvalue())
  def test_build_emits_separate_source_bound_migration_artifact_without_credentials(self):
   self.env['GITHUB_JOB']='build-images'
   with patch.dict(os.environ,self.env,clear=True):self.invoke()

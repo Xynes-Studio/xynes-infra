@@ -264,8 +264,8 @@ class ImageBuildTests(unittest.TestCase):
             if fail_at==len(calls):raise subprocess.CalledProcessError(1,command)
             archive(artifact,task['labels'],architecture='arm64' if tamper else 'amd64')
             return subprocess.CompletedProcess(command,0)
-        captured=io.StringIO()
-        with contextlib.redirect_stdout(captured),patch.object(tool().source_context,'prepare',prepare),patch.object(tool().subprocess,'run',builder),patch.dict(os.environ,{'GH_TOKEN':'DO-NOT-EXPOSE','GITHUB_TOKEN':'DO-NOT-EXPOSE','DOCKER_AUTH_CONFIG':'DO-NOT-EXPOSE'}):
+        captured=io.StringIO();stdout=io.StringIO()
+        with contextlib.redirect_stderr(captured),contextlib.redirect_stdout(stdout),patch.object(tool().source_context,'prepare',prepare),patch.object(tool().subprocess,'run',builder),patch.dict(os.environ,{'GH_TOKEN':'DO-NOT-EXPOSE','GITHUB_TOKEN':'DO-NOT-EXPOSE','DOCKER_AUTH_CONFIG':'DO-NOT-EXPOSE'}):
             if fail_at or tamper:
                 with self.assertRaises((ValueError,subprocess.SubprocessError)):
                     tool().execute(self.manifest,self.public,self.controller,'planning',self.base,output,'fixture-builder',config)
@@ -277,9 +277,51 @@ class ImageBuildTests(unittest.TestCase):
                 self.assertEqual(json.loads((output/'image-receipts.json').read_text()),result)
                 self.assertEqual(len(list((output/'archives').glob('*.oci.tar'))),15)
                 self.assertNotIn('DO-NOT-EXPOSE',(output/'image-receipts.json').read_text())
-        self.assertEqual(captured.getvalue(),'')
+        self.assertEqual(stdout.getvalue(),'')
+        self.diagnostics=[json.loads(line) for line in captured.getvalue().splitlines()]
+        self.assertNotIn('DO-NOT-EXPOSE',captured.getvalue())
         self.assertEqual((output/'logs/source-preparation.log').read_text().count('Prepared immutable contexts'),3)
         return calls
+    def test_diagnostics_report_success_order_and_fixed_image_ids(self):
+        calls=self.run_fixture()
+        expected=[]
+        for phase in ('image-tasks','image-output','context-qa','context-staging','context-prod','image-recipes'):
+            expected.extend([(phase,'start',None),(phase,'success',None)])
+        for task in calls:
+            for phase in ('image-build','image-inspect'):expected.extend([(phase,'start',task),(phase,'success',task)])
+        expected.extend([('image-receipts','start',None),('image-receipts','success',None)])
+        self.assertEqual([(v['phase'],v['status'],v.get('task')) for v in self.diagnostics],expected)
+        for event in self.diagnostics:
+            self.assertEqual(event['artifact_kind'],'apex-build-diagnostic')
+            if event['phase']=='image-build' and event['status']=='start':self.assertIs(type(event['output_free_bytes']),int)
+    def test_failed_build_and_failed_inspection_have_distinct_fixed_events(self):
+        self.run_fixture(fail_at=3)
+        self.assertEqual([(v['phase'],v['status'],v.get('task')) for v in self.diagnostics[-2:]],
+                         [('image-build','start','shared--xynes-authz-service'),('image-build','failure','shared--xynes-authz-service')])
+        self.assertIs(type(self.diagnostics[-1]['output_free_bytes']),int)
+    def test_failed_inspection_reports_the_correct_fixed_task(self):
+        self.run_fixture(tamper=True)
+        self.assertEqual([(v['phase'],v['status'],v.get('task')) for v in self.diagnostics[-2:]],
+                         [('image-inspect','start','shared--xynes-gateway'),('image-inspect','failure','shared--xynes-gateway')])
+    def test_unknown_diagnostic_inputs_never_echo(self):
+        self.assertTrue(hasattr(tool(),'emit_event'),'fixed enum diagnostic emitter missing')
+        for phase,status,task in [('DO-NOT-EXPOSE','start',None),('image-build','DO-NOT-EXPOSE',None),('image-build','start','DO-NOT-EXPOSE')]:
+            captured=io.StringIO()
+            with contextlib.redirect_stderr(captured),self.assertRaises(ValueError):tool().emit_event(phase,status,task)
+            self.assertEqual(captured.getvalue(),'')
+    def test_failed_disk_measurement_never_masks_primary_error_or_echoes_values(self):
+        self.assertTrue(hasattr(tool(),'diagnostic'),'fixed enum diagnostic context missing')
+        captured=io.StringIO()
+        with patch.object(tool().shutil,'disk_usage',side_effect=OSError('DO-NOT-EXPOSE')),contextlib.redirect_stderr(captured):
+            with self.assertRaisesRegex(RuntimeError,'primary'):
+                with tool().diagnostic('image-build','shared--xynes-gateway',self.base):raise RuntimeError('primary')
+        events=[json.loads(line) for line in captured.getvalue().splitlines()]
+        self.assertEqual([v['status'] for v in events],['start','failure']);self.assertTrue(all('output_free_bytes' not in v for v in events))
+        self.assertNotIn('DO-NOT-EXPOSE',captured.getvalue());self.assertNotIn('primary',captured.getvalue())
+        for value in ('DO-NOT-EXPOSE',True,-1):
+            captured=io.StringIO()
+            with patch.object(tool().shutil,'disk_usage',return_value=type('Disk',(),{'free':value})()),contextlib.redirect_stderr(captured):tool().emit_event('image-build','start','shared--xynes-gateway',self.base)
+            self.assertNotIn('output_free_bytes',captured.getvalue());self.assertNotIn('DO-NOT-EXPOSE',captured.getvalue())
     def test_executor_builds_exactly_fifteen_archives_without_credentials(self):
         self.assertEqual(len(self.run_fixture()),15)
     def test_partial_build_does_not_publish_a_complete_receipt(self):

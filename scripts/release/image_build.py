@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import stat
 import subprocess
 import sys
@@ -68,6 +69,43 @@ def namespace_task(task):
         return True
     except (ValueError, KeyError, TypeError):
         return False
+
+
+DIAGNOSTIC_PHASES = frozenset(('controller', 'admission-intake', 'input-qualification',
+    'tracked-source-manifest', 'source-materialize', 'migration-export', 'migration-qualification',
+    'builder-create', 'image-batch', 'image-qualification', 'builder-cleanup', 'image-tasks',
+    'image-output', 'context-qa', 'context-staging', 'context-prod', 'image-recipes',
+    'image-build', 'image-inspect', 'image-receipts'))
+DIAGNOSTIC_TASKS = frozenset('shared--' + name for name in SHARED_BUILD) | frozenset(
+    stage + '--' + name for stage in ('qa', 'staging', 'prod') for name in source_context.APPS)
+
+
+def emit_event(phase, status, task=None, output_root=None):
+    """Emit only closed identifiers and an optional non-authorizing disk metric."""
+    require(type(phase) is str and phase in DIAGNOSTIC_PHASES
+            and type(status) is str and status in ('start', 'success', 'failure')
+            and (task is None or (type(task) is str and task in DIAGNOSTIC_TASKS
+                 and phase in ('image-build', 'image-inspect'))))
+    value = {'artifact_kind': 'apex-build-diagnostic', 'phase': phase, 'status': status}
+    if task is not None:value['task'] = task
+    if isinstance(output_root, Path):
+        try:
+            free = shutil.disk_usage(output_root).free
+            if type(free) is int and 0 <= free <= 2**63-1:value['output_free_bytes'] = free
+        except Exception:pass
+    print(json.dumps(value, sort_keys=True), file=sys.stderr, flush=True)
+
+
+@contextlib.contextmanager
+def diagnostic(phase, task=None, output_root=None):
+    emit_event(phase, 'start', task, output_root)
+    try:
+        yield
+    except BaseException:
+        emit_event(phase, 'failure', task, output_root)
+        raise
+    else:
+        emit_event(phase, 'success', task)
 
 
 def build_tasks(manifest, public, controller, purpose):
@@ -251,51 +289,58 @@ def inspect_oci(path, task):
 
 
 def execute(manifest, public, controller, purpose, workspace, output, builder, docker_config):
-    tasks = build_tasks(manifest, public, controller, purpose)
-    require(output.is_absolute() and not output.exists() and not output.is_symlink()
-            and output.parent.is_dir() and output.parent.resolve() == output.parent)
-    require(docker_config.is_absolute() and docker_config.is_dir() and not docker_config.is_symlink()
-            and docker_config.resolve() == docker_config)
-    # Build jobs may have public base-pull credentials only. Registry writers and
-    # source credentials must never be inherited by this Docker invocation.
-    config_file = docker_config / 'config.json'
-    require(not config_file.is_symlink() and (not config_file.exists() or records.read_json(config_file) == {}))
-    build_argv(tasks[0], output, output / 'archives/first.oci.tar', builder, docker_config)
-    output.mkdir(mode=0o700)
-    (output / 'contexts').mkdir(); (output / 'archives').mkdir(); (output / 'logs').mkdir()
+    with diagnostic('image-tasks'):
+        tasks = build_tasks(manifest, public, controller, purpose)
+    with diagnostic('image-output'):
+        require(output.is_absolute() and not output.exists() and not output.is_symlink()
+                and output.parent.is_dir() and output.parent.resolve() == output.parent)
+        require(docker_config.is_absolute() and docker_config.is_dir() and not docker_config.is_symlink()
+                and docker_config.resolve() == docker_config)
+        # Build jobs may have public base-pull credentials only. Registry writers and
+        # source credentials must never be inherited by this Docker invocation.
+        config_file = docker_config / 'config.json'
+        require(not config_file.is_symlink() and (not config_file.exists() or records.read_json(config_file) == {}))
+        build_argv(tasks[0], output, output / 'archives/first.oci.tar', builder, docker_config)
+        output.mkdir(mode=0o700)
+        (output / 'contexts').mkdir(); (output / 'archives').mkdir(); (output / 'logs').mkdir()
     for stage in records.STAGES:
-        values_path = output / f'public-{stage}.json'
-        values_path.write_text(json.dumps(public[stage]))
-        manifest_path = output / 'source-manifest.json'
-        manifest_path.write_text(json.dumps(manifest))
-        with (output / 'logs/source-preparation.log').open('a') as log, contextlib.redirect_stdout(log):
-            source_context.prepare(SimpleNamespace(environment=stage, manifest=manifest_path,
-                                   purpose=purpose, public_inputs=values_path, output=output / 'contexts' / stage,
-                                   workspace_root=workspace))
+        with diagnostic({'qa': 'context-qa', 'staging': 'context-staging', 'prod': 'context-prod'}[stage]):
+            values_path = output / f'public-{stage}.json'
+            values_path.write_text(json.dumps(public[stage]))
+            manifest_path = output / 'source-manifest.json'
+            manifest_path.write_text(json.dumps(manifest))
+            with (output / 'logs/source-preparation.log').open('a') as log, contextlib.redirect_stdout(log):
+                source_context.prepare(SimpleNamespace(environment=stage, manifest=manifest_path,
+                                       purpose=purpose, public_inputs=values_path, output=output / 'contexts' / stage,
+                                       workspace_root=workspace))
     # Resolve every scheduled recipe before starting any expensive image build.
-    for task in tasks:
-        recipe = output / task['dockerfile']
-        require(recipe.is_file() and not recipe.is_symlink() and recipe.stat().st_size <= 1024 * 1024)
-        require(hashlib.sha256(recipe.read_bytes()).hexdigest() == task['recipe_sha256'])
+    with diagnostic('image-recipes'):
+        for task in tasks:
+            recipe = output / task['dockerfile']
+            require(recipe.is_file() and not recipe.is_symlink() and recipe.stat().st_size <= 1024 * 1024)
+            require(hashlib.sha256(recipe.read_bytes()).hexdigest() == task['recipe_sha256'])
     receipts = []
     # These are operational Docker client settings, not credentials. No caller
     # supplied secrets, GH_TOKEN, SSH_AUTH_SOCK or host-wide registry config.
     environment = {k: os.environ[k] for k in ('PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH') if k in os.environ}
     for task in tasks:
-        artifact = output / 'archives' / (task['id'] + '.oci.tar')
-        require(',' not in str(artifact) and '\n' not in str(artifact))
-        with (output / 'logs' / (task['id'] + '.log')).open('xb') as log:
-            subprocess.run(build_argv(task, output, artifact, builder, docker_config), env=environment,
-                           stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=2400, check=True)
-        receipts.append(inspect_oci(artifact, task))
-    result = {'schema_version': 1, 'artifact_kind': 'local-oci-build-receipts', 'controller': controller,
-              'source_manifest_sha256': records.canonical_sha256(manifest), 'images': receipts,
-              'external_images': manifest['external_images'], 'published': False, 'deployable': False}
-    # No complete receipt exists after a partial build or failed content check.
-    with (output / '.image-receipts.tmp').open('x') as file:
-        file.write(json.dumps(result, indent=2, sort_keys=True) + '\n')
-        file.flush(); os.fsync(file.fileno())
-    os.replace(output / '.image-receipts.tmp', output / 'image-receipts.json')
+        with diagnostic('image-build', task['id'], output):
+            artifact = output / 'archives' / (task['id'] + '.oci.tar')
+            require(',' not in str(artifact) and '\n' not in str(artifact))
+            with (output / 'logs' / (task['id'] + '.log')).open('xb') as log:
+                subprocess.run(build_argv(task, output, artifact, builder, docker_config), env=environment,
+                               stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=2400, check=True)
+        with diagnostic('image-inspect', task['id']):
+            receipts.append(inspect_oci(artifact, task))
+    with diagnostic('image-receipts'):
+        result = {'schema_version': 1, 'artifact_kind': 'local-oci-build-receipts', 'controller': controller,
+                  'source_manifest_sha256': records.canonical_sha256(manifest), 'images': receipts,
+                  'external_images': manifest['external_images'], 'published': False, 'deployable': False}
+        # No complete receipt exists after a partial build or failed content check.
+        with (output / '.image-receipts.tmp').open('x') as file:
+            file.write(json.dumps(result, indent=2, sort_keys=True) + '\n')
+            file.flush(); os.fsync(file.fileno())
+        os.replace(output / '.image-receipts.tmp', output / 'image-receipts.json')
     return result
 
 

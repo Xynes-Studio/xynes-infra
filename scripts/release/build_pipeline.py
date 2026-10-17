@@ -157,55 +157,67 @@ def qualify_build(output,result,manifest,public,bound):
 def build(env,*,read,download,command=bounded_command,execute=image_build.execute,migration_writer=migration_transport.create):
     created=False;docker=None;clean=None
     try:
-        bound=controller(env,'build-images');base=runner_temp(env)
-        intake=artifact_handoff.acquire(kind='admission',reference=records.strict_json(env['APEX_ADMISSION_RECEIPT']),
-            controller=bound,read=read,download=download,output=base/'apex-build-admission')
-        require(records.read_json(intake/'controller.json')==bound)
-        manifest=records.read_json(intake/'source-manifest.json');public=records.read_json(intake/'public-inputs.json')
-        source_context.validate_manifest(manifest,'release');records.validate_public_maps(public,'release')
-        publish_images.qualified_sources(records.read_json(intake/'source-checks.json'),manifest)
-        home=base/'apex-build-home';home.mkdir(mode=0o700);clean=clean_environment(env,home)
-        raw,tracked=tracked_manifest(bound,clean,command)
-        require(tracked==manifest and (intake/'source-manifest.json').read_bytes()==raw)
-        workspace=base/'apex-source-workspace';materialize(manifest,workspace,clean,command)
+        with image_build.diagnostic('controller'):
+            bound=controller(env,'build-images');base=runner_temp(env)
+        with image_build.diagnostic('admission-intake'):
+            intake=artifact_handoff.acquire(kind='admission',reference=records.strict_json(env['APEX_ADMISSION_RECEIPT']),
+                controller=bound,read=read,download=download,output=base/'apex-build-admission')
+        with image_build.diagnostic('input-qualification'):
+            require(records.read_json(intake/'controller.json')==bound)
+            manifest=records.read_json(intake/'source-manifest.json');public=records.read_json(intake/'public-inputs.json')
+            source_context.validate_manifest(manifest,'release');records.validate_public_maps(public,'release')
+            publish_images.qualified_sources(records.read_json(intake/'source-checks.json'),manifest)
+        with image_build.diagnostic('tracked-source-manifest'):
+            home=base/'apex-build-home';home.mkdir(mode=0o700);clean=clean_environment(env,home)
+            raw,tracked=tracked_manifest(bound,clean,command)
+            require(tracked==manifest and (intake/'source-manifest.json').read_bytes()==raw)
+        with image_build.diagnostic('source-materialize'):
+            workspace=base/'apex-source-workspace';materialize(manifest,workspace,clean,command)
         # A separate data artifact preserves the exact reviewed migration source.
         # The host will independently recompute its inventory/plan before SQL use.
-        migration_dir=base/'apex-migrations';migration_dir.mkdir(mode=0o700)
-        repositories={'xynes-infra':ROOT,**{name:workspace/'xynes'/name for name in source_context.BACKENDS}}
-        previous=dict(os.environ)
-        try:
-            os.environ.clear();os.environ.update(clean)
-            migration_receipt=migration_writer(manifest_bytes=raw,controller=bound,
-                repositories=repositories,output=migration_dir/'migration-bundle.tar')
-        finally:os.environ.clear();os.environ.update(previous)
-        migration_raw=migration_transport.private_bytes(migration_dir/'migration-bundle.tar',os.getuid())
-        require(type(migration_receipt) is dict
-                and migration_receipt.get('artifact_kind')=='immutable-migration-bundle-receipt'
-                and migration_receipt.get('controller')==bound
-                and migration_receipt.get('source_manifest_sha256')==records.canonical_sha256(manifest)
-                and migration_receipt.get('source_manifest_bytes_sha256')==migration_transport.sha(raw)
-                and migration_receipt.get('bundle_sha256')==migration_transport.sha(migration_raw)
-                and type(migration_receipt.get('bundle_size')) is int and migration_receipt['bundle_size']==len(migration_raw)
-                and migration_receipt.get('approved') is False and migration_receipt.get('deployable') is False
-                and {p.name for p in migration_dir.iterdir()}=={'migration-bundle.tar'})
-        config=base/'apex-docker';config.mkdir(mode=0o700);private_write(config/'config.json',b'{}\n')
-        builder='apex-build-'+str(bound['run_id'])+'-1';docker=['docker','--config',str(config),'buildx']
-        command(docker+['create','--name',builder,'--driver','docker-container','--driver-opt',BUILDKIT],
-                env=clean,cwd=ROOT,timeout=120);created=True
-        output=base/'apex-images'
-        # image_build/source_context use os.environ internally. Replace it only
-        # for this single-process build, restoring it on every success/failure.
-        previous=dict(os.environ)
-        try:
-            os.environ.clear();os.environ.update(clean)
-            result=execute(manifest,public,bound,'release',workspace,output,builder,config)
-        finally:os.environ.clear();os.environ.update(previous)
-        qualify_build(output,result,manifest,public,bound)
+        with image_build.diagnostic('migration-export'):
+            migration_dir=base/'apex-migrations';migration_dir.mkdir(mode=0o700)
+            repositories={'xynes-infra':ROOT,**{name:workspace/'xynes'/name for name in source_context.BACKENDS}}
+            previous=dict(os.environ)
+            try:
+                os.environ.clear();os.environ.update(clean)
+                migration_receipt=migration_writer(manifest_bytes=raw,controller=bound,
+                    repositories=repositories,output=migration_dir/'migration-bundle.tar')
+            finally:os.environ.clear();os.environ.update(previous)
+        with image_build.diagnostic('migration-qualification'):
+            migration_raw=migration_transport.private_bytes(migration_dir/'migration-bundle.tar',os.getuid())
+            require(type(migration_receipt) is dict
+                    and migration_receipt.get('artifact_kind')=='immutable-migration-bundle-receipt'
+                    and migration_receipt.get('controller')==bound
+                    and migration_receipt.get('source_manifest_sha256')==records.canonical_sha256(manifest)
+                    and migration_receipt.get('source_manifest_bytes_sha256')==migration_transport.sha(raw)
+                    and migration_receipt.get('bundle_sha256')==migration_transport.sha(migration_raw)
+                    and type(migration_receipt.get('bundle_size')) is int and migration_receipt['bundle_size']==len(migration_raw)
+                    and migration_receipt.get('approved') is False and migration_receipt.get('deployable') is False
+                    and {p.name for p in migration_dir.iterdir()}=={'migration-bundle.tar'})
+        with image_build.diagnostic('builder-create'):
+            config=base/'apex-docker';config.mkdir(mode=0o700);private_write(config/'config.json',b'{}\n')
+            builder='apex-build-'+str(bound['run_id'])+'-1';docker=['docker','--config',str(config),'buildx']
+            command(docker+['create','--name',builder,'--driver','docker-container','--driver-opt',BUILDKIT],
+                    env=clean,cwd=ROOT,timeout=120);created=True
+        with image_build.diagnostic('image-batch'):
+            output=base/'apex-images'
+            # image_build/source_context use os.environ internally. Replace it only
+            # for this single-process build, restoring it on every success/failure.
+            previous=dict(os.environ)
+            try:
+                os.environ.clear();os.environ.update(clean)
+                result=execute(manifest,public,bound,'release',workspace,output,builder,config)
+            finally:os.environ.clear();os.environ.update(previous)
+        with image_build.diagnostic('image-qualification'):
+            qualify_build(output,result,manifest,public,bound)
         return output
     except Exception:raise PipelineError(ERROR) from None
     finally:
         if created:
-            try:command(docker+['rm','--force',builder],env=clean,cwd=ROOT,timeout=60)
+            try:
+                with image_build.diagnostic('builder-cleanup'):
+                    command(docker+['rm','--force',builder],env=clean,cwd=ROOT,timeout=60)
             except Exception:raise PipelineError(ERROR) from None
 
 
