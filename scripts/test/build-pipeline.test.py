@@ -92,6 +92,33 @@ class Tests(unittest.TestCase):
   self.assertEqual(str(error.exception),'Protected build pipeline refused')
   self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-4:]],[('image-batch','start'),('image-batch','failure'),('builder-cleanup','start'),('builder-cleanup','failure')])
   self.assertNotIn('private-capability',self.captured.getvalue())
+ def cleanup_command(self,elapsed):
+  original=self.command
+  def command(argv,**options):
+   result=original(argv,**options)
+   if 'rm' in argv:
+    self.assertEqual(argv,['docker','--config',str(self.base/'apex-docker'),'buildx','rm','--force','apex-build-100-1'])
+    self.assertEqual(options['cwd'],self.root)
+    for key in ('GH_TOKEN','GH_POLICY_READ_TOKEN','SSH_AUTH_SOCK','DOCKER_HOST'):self.assertNotIn(key,options['env'])
+    if elapsed>options['timeout']:raise subprocess.TimeoutExpired(argv,options['timeout'])
+   return result
+  return command
+ def test_qualified_images_survive_owned_cleanup_taking_longer_than_sixty_seconds(self):
+  self.env['GITHUB_JOB']='build-images'
+  with patch.dict(os.environ,self.env,clear=True):
+   result=self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=self.cleanup_command(61),execute=self.execute,migration_writer=self.migration_writer)
+  self.assertEqual(len(list((result/'archives').iterdir())),15)
+  self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-2:]],[('builder-cleanup','start'),('builder-cleanup','success')])
+ def test_cleanup_exceeding_five_minutes_still_refuses_qualified_output(self):
+  self.env['GITHUB_JOB']='build-images'
+  with patch.dict(os.environ,self.env,clear=True),self.assertRaises(self.module.PipelineError):
+   self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=self.cleanup_command(301),execute=self.execute,migration_writer=self.migration_writer)
+  self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-2:]],[('builder-cleanup','start'),('builder-cleanup','failure')])
+ def test_slow_successful_cleanup_cannot_mask_a_failed_build(self):
+  self.env['GITHUB_JOB']='build-images';self.fail_build=True
+  with patch.dict(os.environ,self.env,clear=True),self.assertRaises(self.module.PipelineError):
+   self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=self.cleanup_command(61),execute=self.execute,migration_writer=self.migration_writer)
+  self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-4:]],[('image-batch','start'),('image-batch','failure'),('builder-cleanup','start'),('builder-cleanup','success')])
  def test_migration_failure_has_phase_without_raw_error(self):
   self.env['GITHUB_JOB']='build-images';self.fail_migration=True;self.refuse()
   self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-2:]],[('migration-export','start'),('migration-export','failure')])
