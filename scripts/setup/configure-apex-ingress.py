@@ -23,10 +23,10 @@ CADDY_ID='775dcb0593b7a05551ca46fd25ac18721714a4cb9ca79aa042b0729d18d53afa'
 IMAGE_ID='sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d'
 STAGING_NETWORK='8436b3c90c4e1646bd43edc86ff6b8f31f610abf8415f97db7f7781586c341e6'
 NETWORKS={
- 'caddy_net':dict(id='99199a632cdf75b63469636056dbf264483884d4b343b6d06ac27c3acc17dfba',gateway='172.21.0.1',subnet='172.21.0.0/16',address='172.21.0.2',endpoint='b443319608df7e01f48d3038e5a315f6f59d17d0916b8fd8557c6711edc34f76'),
- 'xynes_dev_net':dict(id='915de8978e2e766c26241ccba7af16fc5a47f22c51aa9fb18d1da9386bd145ce',gateway='172.18.0.1',subnet='172.18.0.0/16',address='172.18.0.2',endpoint='caeb4a77427f7dd7f1432e61826bde5684aed8960abddba7d1dc44fd4776803b'),
- 'xynes_prod_net':dict(id='ae0b0d341f5dceb3b745f6215ea0f11e8c1b8fdf9757958fb95b8b5250c00f90',gateway='172.20.0.1',subnet='172.20.0.0/16',address='172.20.0.2',endpoint='719e4cbc1127295ad068b2b6d67942a5fba8f5e0e125a800137e38923299ecce'),
- 'xynes_qa_net':dict(id='63b93dc90bac0c75958847ecddfc7cfb59d63612a98e245e6ac2dfba754796e6',gateway='172.19.0.1',subnet='172.19.0.0/16',address='172.19.0.2',endpoint='7e0d49d70d6da730ab8af4fc1737ea3b76ae77167e2cf8c70b058a3318f0df0d'),
+ 'caddy_net':dict(id='99199a632cdf75b63469636056dbf264483884d4b343b6d06ac27c3acc17dfba',gateway='172.21.0.1',subnet='172.21.0.0/16',address='172.21.0.2'),
+ 'xynes_dev_net':dict(id='915de8978e2e766c26241ccba7af16fc5a47f22c51aa9fb18d1da9386bd145ce',gateway='172.18.0.1',subnet='172.18.0.0/16',address='172.18.0.2'),
+ 'xynes_prod_net':dict(id='ae0b0d341f5dceb3b745f6215ea0f11e8c1b8fdf9757958fb95b8b5250c00f90',gateway='172.20.0.1',subnet='172.20.0.0/16',address='172.20.0.2'),
+ 'xynes_qa_net':dict(id='63b93dc90bac0c75958847ecddfc7cfb59d63612a98e245e6ac2dfba754796e6',gateway='172.19.0.1',subnet='172.19.0.0/16',address='172.19.0.2'),
  'xynes_staging_net':dict(id=STAGING_NETWORK,gateway='172.22.0.1',subnet='172.22.0.0/16')}
 for name,value in NETWORKS.items():
  value['labels']=({'io.xynes.apex.substrate':'1','io.xynes.environment':'staging','io.xynes.managed':'true','io.xynes.owner':'xynes-infra'} if name=='xynes_staging_net' else {'com.xynes.managed':'true','com.xynes.network':name})
@@ -102,8 +102,10 @@ def snapshot(run):
  networks=value['NetworkSettings']['Networks'];require(set(networks) in (set(NETWORKS)-{'xynes_staging_net'},set(NETWORKS)))
  for name,endpoint in networks.items():
   expected=NETWORKS[name];require(endpoint['NetworkID']==expected['id'] and endpoint['Gateway']==expected['gateway'] and endpoint['IPPrefixLen']==16)
-  if name!='xynes_staging_net':require(endpoint['IPAddress']==expected['address'] and endpoint['EndpointID']==expected['endpoint'])
-  else:require(re.fullmatch(r'172\.22\.(?:[0-9]{1,3})\.(?:[0-9]{1,3})',endpoint['IPAddress']) and re.fullmatch(r'[a-f0-9]{64}',endpoint['EndpointID']))
+  # Docker regenerates endpoint IDs on restart; bind the observed ID in the plan.
+  require(type(endpoint['EndpointID']) is str and re.fullmatch(r'[a-f0-9]{64}',endpoint['EndpointID']))
+  if name!='xynes_staging_net':require(endpoint['IPAddress']==expected['address'])
+  else:require(re.fullmatch(r'172\.22\.(?:[0-9]{1,3})\.(?:[0-9]{1,3})',endpoint['IPAddress']))
  ports=value['NetworkSettings']['Ports'];require(type(ports) is dict and not ports.get('8090/tcp'))
  mounts=value['Mounts'];require(type(mounts) is list)
  for source,destination,rw in (('/srv/xynes/caddy/config','/config',True),('/srv/xynes/caddy/Caddyfile','/etc/caddy/Caddyfile',False)):

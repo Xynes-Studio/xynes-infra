@@ -18,7 +18,7 @@ class Tests(unittest.TestCase):
   directory=self.config.path('/var/lib/xynes/deploy/state');directory.mkdir(parents=True,mode=0o700)
   self.container=self.fixture_container();self.networks=self.fixture_networks();self.calls=[];self.fail_reload=False
  def fixture_container(self):
-  return {'Id':self.m.CADDY_ID,'Name':'/caddy','Image':self.m.IMAGE_ID,'State':{'Running':True},'NetworkSettings':{'Networks':{name:{'NetworkID':value['id'],'EndpointID':value['endpoint'],'Gateway':value['gateway'],'IPAddress':value['address'],'IPPrefixLen':16} for name,value in self.m.NETWORKS.items() if name!='xynes_staging_net'},'Ports':{'80/tcp':[{'HostPort':'80'}],'443/tcp':[{'HostPort':'443'}]}},'Mounts':[{'Source':'/srv/xynes/caddy/config','Destination':'/config','RW':True},{'Source':'/srv/xynes/caddy/Caddyfile','Destination':'/etc/caddy/Caddyfile','RW':False}]}
+  return {'Id':self.m.CADDY_ID,'Name':'/caddy','Image':self.m.IMAGE_ID,'State':{'Running':True},'NetworkSettings':{'Networks':{name:{'NetworkID':value['id'],'EndpointID':hashlib.sha256(('fixture:'+name).encode()).hexdigest(),'Gateway':value['gateway'],'IPAddress':value['address'],'IPPrefixLen':16} for name,value in self.m.NETWORKS.items() if name!='xynes_staging_net'},'Ports':{'80/tcp':[{'HostPort':'80'}],'443/tcp':[{'HostPort':'443'}]}},'Mounts':[{'Source':'/srv/xynes/caddy/config','Destination':'/config','RW':True},{'Source':'/srv/xynes/caddy/Caddyfile','Destination':'/etc/caddy/Caddyfile','RW':False}]}
  def fixture_networks(self):
   return [{'Name':name,'Id':value['id'],'Driver':'bridge','Internal':False,'IPAM':{'Driver':'default','Config':[{'Subnet':value['subnet'],'Gateway':value['gateway']}]},'Labels':value['labels'].copy()} for name,value in self.m.NETWORKS.items()]
  def docker_run(self,argv,*,input=None):
@@ -42,6 +42,38 @@ class Tests(unittest.TestCase):
   self.assertIn(b'gateway_qa:4100',plan.proposed);self.assertIn(b'gateway_staging:4100',plan.proposed)
   self.assertIn(b'root * /config/apex-auth/templates',plan.proposed);self.assertIn(b'http://:8090',plan.proposed)
   self.assertTrue(all('reload' not in call[0] and 'connect' not in call[0] for call in self.calls));self.assertEqual(self.file.read_bytes(),self.original)
+ def test_regenerated_endpoint_ids_are_accepted_and_bound_to_the_plan(self):
+  original=self.prepare()
+  for name,endpoint in self.container['NetworkSettings']['Networks'].items():
+   endpoint['EndpointID']=hashlib.sha256(('restarted:'+name).encode()).hexdigest()
+  fresh=self.prepare()
+  self.assertNotEqual(fresh.plan_sha256,original.plan_sha256)
+  self.assertEqual(fresh.container['networks'],self.container['NetworkSettings']['Networks'])
+  self.assertEqual(fresh.proposed,original.proposed)
+  self.assertTrue(all(not any(v in argv for v in ('connect','disconnect','reload')) for argv,_ in self.calls))
+ def test_endpoint_change_after_preview_refuses_before_any_mutation(self):
+  plan=self.prepare()
+  self.container['NetworkSettings']['Networks']['caddy_net']['EndpointID']='d'*64
+  self.calls=[]
+  with self.assertRaises(self.m.IngressError):
+   self.m.apply(plan,configuration=self.config,run=self.docker_run,reviewed_plan_sha256=plan.plan_sha256,current_sha256=self.hash)
+  self.assertEqual(self.file.read_bytes(),self.original)
+  self.assertFalse((self.mount/'apex-auth').exists())
+  self.assertFalse(self.config.path('/var/lib/xynes/deploy/state/host.lock').exists())
+  self.assertFalse(list(self.file.parent.glob('Caddyfile.apex-backup-*')))
+  self.assertNotIn('xynes_staging_net',self.container['NetworkSettings']['Networks'])
+  self.assertTrue(all(not any(v in argv for v in ('connect','disconnect','reload')) for argv,_ in self.calls))
+ def test_malformed_observed_endpoint_ids_refuse(self):
+  for name in self.m.NETWORKS:
+   for value in ('','a'*63,'a'*65,'A'*64,'g'*64,'a'*63+'\n',None,1):
+    with self.subTest(network=name,endpoint=value):
+     self.container=self.fixture_container()
+     if name=='xynes_staging_net':
+      self.container['NetworkSettings']['Networks'][name]={'NetworkID':self.m.STAGING_NETWORK,'EndpointID':'e'*64,'Gateway':'172.22.0.1','IPAddress':'172.22.0.2','IPPrefixLen':16}
+     self.container['NetworkSettings']['Networks'][name]['EndpointID']=value
+     with self.assertRaises(self.m.IngressError):self.prepare()
+  self.assertEqual(self.file.read_bytes(),self.original)
+  self.assertFalse((self.mount/'apex-auth').exists())
  def test_unknown_or_ambiguous_config_and_managed_blocks_refuse(self):
   for raw in (self.original+b'# unexpected\n',self.original+b'auth.qa.xynes.com {}\n',self.original+b'# BEGIN XYNES APEX INGRESS v1\n'):
    self.file.write_bytes(raw)
@@ -52,7 +84,7 @@ class Tests(unittest.TestCase):
   self.file.write_bytes(plan.proposed.replace(b'172.21.0.1:18081',b'example.invalid:80'))
   with self.assertRaises(self.m.IngressError):self.prepare()
  def test_changed_container_image_published_template_port_and_network_ownership_refuse(self):
-  for mutate in (lambda:self.container.update(Id='f'*64),lambda:self.container.update(Image='sha256:'+'f'*64),lambda:self.container['NetworkSettings']['Ports'].update({'8090/tcp':[{'HostPort':'8090'}]}),lambda:self.networks[-1]['Labels'].update({'io.xynes.owner':'other'}),lambda:self.container['NetworkSettings']['Networks']['caddy_net'].update(IPAddress='172.21.0.99'),lambda:self.container['Mounts'][0].update(Source='/other'),lambda:self.container['Mounts'][0].update(RW=False),lambda:self.networks[-1]['IPAM']['Config'][0].update(Gateway='172.22.0.99')):
+  for mutate in (lambda:self.container.update(Id='f'*64),lambda:self.container.update(Image='sha256:'+'f'*64),lambda:self.container['NetworkSettings']['Ports'].update({'8090/tcp':[{'HostPort':'8090'}]}),lambda:self.networks[-1]['Labels'].update({'io.xynes.owner':'other'}),lambda:self.container['NetworkSettings']['Networks']['caddy_net'].update(IPAddress='172.21.0.99'),lambda:self.container['Mounts'][0].update(Source='/other'),lambda:self.container['Mounts'][0].update(RW=False),lambda:self.networks[-1]['IPAM']['Config'][0].update(Gateway='172.22.0.99'),lambda:self.container['NetworkSettings']['Networks']['caddy_net'].update(NetworkID='f'*64),lambda:self.container['NetworkSettings']['Networks']['caddy_net'].update(Gateway='172.21.0.99'),lambda:self.container['NetworkSettings']['Networks']['caddy_net'].update(IPPrefixLen=24),lambda:self.networks[-1]['IPAM']['Config'][0].update(Subnet='172.99.0.0/16')):
    self.container=self.fixture_container();self.networks=self.fixture_networks();mutate()
    with self.assertRaises(self.m.IngressError):self.prepare()
  def test_apply_validates_before_mutation_preserves_inode_and_all_existing_endpoints(self):
