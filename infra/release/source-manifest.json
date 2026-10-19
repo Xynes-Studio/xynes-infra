@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "approved",
-  "approval_reference": "https://github.com/Xynes-Studio/xynes-infra/pull/4",
+  "approval_reference": "https://github.com/Xynes-Studio/xynes-infra/pull/5",
   "sources": {
     "xynes-gateway": {
       "repository": "Xynes-Studio/xynes-gateway",
