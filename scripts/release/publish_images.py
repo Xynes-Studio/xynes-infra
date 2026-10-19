@@ -9,9 +9,9 @@ import sys
 import tempfile
 
 try:
-    from . import admission, artifact_download, artifact_handoff, github_read, publish_batch, registry_https, registry_io, registry_policy, registry_namespace, release_manifest as records
+    from . import admission, artifact_download, artifact_handoff, github_read, image_build, publish_batch, registry_https, registry_io, registry_policy, registry_namespace, release_manifest as records
 except ImportError:
-    import admission, artifact_download, artifact_handoff, github_read, publish_batch, registry_https, registry_io, registry_policy, registry_namespace
+    import admission, artifact_download, artifact_handoff, github_read, image_build, publish_batch, registry_https, registry_io, registry_policy, registry_namespace
     import release_manifest as records
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -77,32 +77,39 @@ def package_value(value):
 def run(env,work,*,read,read_policy,read_graphql,download,transport,read_namespace=None,publish=registry_io.publish_oci):
     """Injected callbacks are trusted I/O boundaries. main always supplies real adapters."""
     try:
-        controller=controller_from(env);work=Path(work)
-        require(work.is_absolute() and work.is_dir() and not work.is_symlink() and work.resolve()==work)
-        jobs=read(admission.PREFIX+f'/actions/runs/{controller["run_id"]}/attempts/1/jobs?per_page=100&page=1')
-        require(isinstance(jobs,dict) and isinstance(jobs.get('jobs'),list) and type(jobs.get('total_count')) is int
-                and 0<jobs['total_count']<=100 and len(jobs['jobs'])==jobs['total_count'])
-        candidates=[j for j in jobs['jobs'] if isinstance(j,dict) and j.get('name')=='publish-images']
-        require(len(candidates)==1 and admission.positive(candidates[0].get('id')));job_id=candidates[0]['id']
-        gate=lambda bound: admission.validate_admission(bound,job_id,read_policy,github_read.strict_json,read_graphql)
-        # Admission here prevents unauthorized downloads; the batch repeats it
-        # immediately before each application upload, including fresh approvals.
-        gate(controller)
-        intake=artifact_handoff.acquire(kind='admission',reference=records.strict_json(env['APEX_ADMISSION_RECEIPT']),
-            controller=controller,read=read,download=download,output=work/'admission')
-        require(records.read_json(intake/'controller.json')==controller)
-        manifest=records.read_json(intake/'source-manifest.json');public=records.read_json(intake/'public-inputs.json')
-        qualified_sources(records.read_json(intake/'source-checks.json'),manifest)
-        build=artifact_handoff.acquire(kind='build',reference=records.strict_json(env['APEX_BUILD_RECEIPT']),
-            controller=controller,read=read,download=download,output=work/'build')
+        with image_build.diagnostic('initial-policy'):
+            controller=controller_from(env);work=Path(work)
+            require(work.is_absolute() and work.is_dir() and not work.is_symlink() and work.resolve()==work)
+            jobs=read(admission.PREFIX+f'/actions/runs/{controller["run_id"]}/attempts/1/jobs?per_page=100&page=1')
+            require(isinstance(jobs,dict) and isinstance(jobs.get('jobs'),list) and type(jobs.get('total_count')) is int
+                    and 0<jobs['total_count']<=100 and len(jobs['jobs'])==jobs['total_count'])
+            candidates=[j for j in jobs['jobs'] if isinstance(j,dict) and j.get('name')=='publish-images']
+            require(len(candidates)==1 and admission.positive(candidates[0].get('id')));job_id=candidates[0]['id']
+            gate=lambda bound: admission.validate_admission(bound,job_id,read_policy,github_read.strict_json,read_graphql)
+            # Admission here prevents unauthorized downloads; the batch repeats it
+            # immediately before each application upload, including fresh approvals.
+            gate(controller)
+        with image_build.diagnostic('admission-artifact'):
+            intake=artifact_handoff.acquire(kind='admission',reference=records.strict_json(env['APEX_ADMISSION_RECEIPT']),
+                controller=controller,read=read,download=download,output=work/'admission')
+            require(records.read_json(intake/'controller.json')==controller)
+        with image_build.diagnostic('source-qualification'):
+            manifest=records.read_json(intake/'source-manifest.json');public=records.read_json(intake/'public-inputs.json')
+            qualified_sources(records.read_json(intake/'source-checks.json'),manifest)
+        with image_build.diagnostic('build-artifact'):
+            build=artifact_handoff.acquire(kind='build',reference=records.strict_json(env['APEX_BUILD_RECEIPT']),
+                controller=controller,read=read,download=download,output=work/'build')
         credential=registry_io.GitHubPublisherToken(env['GITHUB_ACTOR'],env['GH_TOKEN'])
-        return publish_batch.publish_batch(manifest=manifest,public=public,controller=controller,
-            build_receipt=records.read_json(build/'image-receipts.json'),archives=build/'archives',admission_check=gate,
-            package_proof=lambda workload:package(read,workload),credential=credential,
-            transport=transport,publish=publish,
-            namespace_init=lambda:registry_namespace.qualify(controller=controller,
-                read_package=read_namespace or (lambda workload:package(read,workload)),admission_check=gate,
-                credential=credential,transport=transport,output=work/'namespace-qualification',publish=publish))
+        def namespace_init():
+            with image_build.diagnostic('namespace-qualification'):
+                return registry_namespace.qualify(controller=controller,
+                    read_package=read_namespace or (lambda workload:package(read,workload)),admission_check=gate,
+                    credential=credential,transport=transport,output=work/'namespace-qualification',publish=publish)
+        with image_build.diagnostic('image-publication-batch'):
+            return publish_batch.publish_batch(manifest=manifest,public=public,controller=controller,
+                build_receipt=records.read_json(build/'image-receipts.json'),archives=build/'archives',admission_check=gate,
+                package_proof=lambda workload:package(read,workload),credential=credential,
+                transport=transport,publish=publish,namespace_init=namespace_init)
     except Exception:
         raise PublisherError('Protected image publisher refused') from None
 
@@ -115,34 +122,35 @@ def persist_publication(result,env):
     attestation and does not itself grant deployment authority.
     """
     try:
-        require(isinstance(result,dict) and result.get('artifact_kind')=='content-verified-image-publications'
-                and result.get('published') is True and result.get('visibility_verified') is True
-                and result.get('attested') is False and result.get('deployable') is False)
-        require(result.get('receipt_sha256')==records.canonical_sha256({k:v for k,v in result.items() if k!='receipt_sha256'}))
-        records.validate_controller(result['controller']);require(result['controller']==controller_from(env))
-        require(isinstance(result.get('images'),list) and len(result['images'])==15)
-        subjects=[]
-        for image in result['images']:
-            require(isinstance(image,dict) and image.get('published') is True and image.get('visibility_verified') is True)
-            name,digest=image['image'].rsplit('@',1)
-            require(name==registry_policy.EXPECTED['registry_prefix']+'/'+image['workload']
-                    and image['workload'] in registry_io.WORKLOADS and re.fullmatch('sha256:[a-f0-9]{64}',digest)
-                    and digest==image['manifest_digest'])
-            subjects.append({'name':name,'digest':digest})
-        require(len({(s['name'],s['digest']) for s in subjects})==15)
-        base=Path(env['RUNNER_TEMP']);require(base.is_absolute() and base.resolve()==base and not base.is_symlink())
-        info=base.lstat();require(stat.S_ISDIR(info.st_mode) and info.st_uid==os.getuid() and not stat.S_IMODE(info.st_mode)&0o022)
-        directory=base/'apex-publications';directory.mkdir(mode=0o700)
-        path=directory/'published-receipt.json'
-        descriptor=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600)
-        with os.fdopen(descriptor,'w') as output:
-            json.dump(result,output,sort_keys=True);output.write('\n');output.flush();os.fsync(output.fileno())
-        descriptor=os.open(env['GITHUB_OUTPUT'],os.O_WRONLY|os.O_APPEND|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
-        with os.fdopen(descriptor,'wb') as output:
-            info=os.fstat(output.fileno());require(stat.S_ISREG(info.st_mode) and info.st_uid==os.getuid()
-                                                 and info.st_nlink==1 and info.st_size<=4*1024*1024 and not stat.S_IMODE(info.st_mode)&0o022)
-            output.write(('subjects='+json.dumps(subjects,separators=(',',':'))+'\n').encode());output.flush();os.fsync(output.fileno())
-        return path
+        with image_build.diagnostic('publication-receipt'):
+            require(isinstance(result,dict) and result.get('artifact_kind')=='content-verified-image-publications'
+                    and result.get('published') is True and result.get('visibility_verified') is True
+                    and result.get('attested') is False and result.get('deployable') is False)
+            require(result.get('receipt_sha256')==records.canonical_sha256({k:v for k,v in result.items() if k!='receipt_sha256'}))
+            records.validate_controller(result['controller']);require(result['controller']==controller_from(env))
+            require(isinstance(result.get('images'),list) and len(result['images'])==15)
+            subjects=[]
+            for image in result['images']:
+                require(isinstance(image,dict) and image.get('published') is True and image.get('visibility_verified') is True)
+                name,digest=image['image'].rsplit('@',1)
+                require(name==registry_policy.EXPECTED['registry_prefix']+'/'+image['workload']
+                        and image['workload'] in registry_io.WORKLOADS and re.fullmatch('sha256:[a-f0-9]{64}',digest)
+                        and digest==image['manifest_digest'])
+                subjects.append({'name':name,'digest':digest})
+            require(len({(s['name'],s['digest']) for s in subjects})==15)
+            base=Path(env['RUNNER_TEMP']);require(base.is_absolute() and base.resolve()==base and not base.is_symlink())
+            info=base.lstat();require(stat.S_ISDIR(info.st_mode) and info.st_uid==os.getuid() and not stat.S_IMODE(info.st_mode)&0o022)
+            directory=base/'apex-publications';directory.mkdir(mode=0o700)
+            path=directory/'published-receipt.json'
+            descriptor=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600)
+            with os.fdopen(descriptor,'w') as output:
+                json.dump(result,output,sort_keys=True);output.write('\n');output.flush();os.fsync(output.fileno())
+            descriptor=os.open(env['GITHUB_OUTPUT'],os.O_WRONLY|os.O_APPEND|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
+            with os.fdopen(descriptor,'wb') as output:
+                info=os.fstat(output.fileno());require(stat.S_ISREG(info.st_mode) and info.st_uid==os.getuid()
+                                                     and info.st_nlink==1 and info.st_size<=4*1024*1024 and not stat.S_IMODE(info.st_mode)&0o022)
+                output.write(('subjects='+json.dumps(subjects,separators=(',',':'))+'\n').encode());output.flush();os.fsync(output.fileno())
+            return path
     except Exception:
         raise PublisherError('Protected image publisher refused') from None
 

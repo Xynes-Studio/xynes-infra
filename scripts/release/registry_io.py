@@ -201,26 +201,28 @@ class Session:
         return response, metadata
 
     def authenticate(self, repository, credential):
-        probe, metadata = self.request('GET', ORIGIN + '/v2/', response_limit=TOKEN_RESPONSE_BYTES)
-        require(probe.status in (200, 401))
-        if probe.status == 401:
-            validate_challenge(metadata.get('www-authenticate'), repository)
-        encoded = base64.b64encode((credential.actor + ':' + credential.token).encode('ascii')).decode('ascii')
-        query = urlencode({'service': 'ghcr.io', 'scope': 'repository:' + repository + ':pull,push'})
-        response, metadata = self.request('GET', ORIGIN + '/token?' + query,
-                                          extra={'Authorization': 'Basic ' + encoded}, response_limit=TOKEN_RESPONSE_BYTES)
-        require(response.status == 200 and metadata.get('content-type', '').split(';')[0].strip() == 'application/json')
-        payload = records.strict_json(response.body.decode('utf8'))
-        require(isinstance(payload, dict) and set(payload) <= {'token', 'access_token', 'expires_in', 'issued_at'}
-                and ('token' in payload or 'access_token' in payload))
-        token = payload.get('token', payload.get('access_token'))
-        require(isinstance(token, str) and TOKEN_PATTERN.fullmatch(token)
-                and ('access_token' not in payload or payload['access_token'] == token))
-        expires = payload.get('expires_in', 60)
-        require(type(expires) is int and 0 < expires <= 86400)
-        self.token_deadline = min(self.deadline, self.now() + min(expires, TOKEN_SECONDS))
-        self.bearer = token
-        self.repository = repository
+        with image_build.diagnostic('registry-challenge'):
+            probe, metadata = self.request('GET', ORIGIN + '/v2/' + repository + '/tags/list?n=1', response_limit=TOKEN_RESPONSE_BYTES)
+            require(probe.status in (200, 401))
+            if probe.status == 401:
+                validate_challenge(metadata.get('www-authenticate'), repository)
+        with image_build.diagnostic('registry-token'):
+            encoded = base64.b64encode((credential.actor + ':' + credential.token).encode('ascii')).decode('ascii')
+            query = urlencode({'service': 'ghcr.io', 'scope': 'repository:' + repository + ':pull,push'})
+            response, metadata = self.request('GET', ORIGIN + '/token?' + query,
+                                              extra={'Authorization': 'Basic ' + encoded}, response_limit=TOKEN_RESPONSE_BYTES)
+            require(response.status == 200 and metadata.get('content-type', '').split(';')[0].strip() == 'application/json')
+            payload = records.strict_json(response.body.decode('utf8'))
+            require(isinstance(payload, dict) and set(payload) <= {'token', 'access_token', 'expires_in', 'issued_at'}
+                    and ('token' in payload or 'access_token' in payload))
+            token = payload.get('token', payload.get('access_token'))
+            require(isinstance(token, str) and TOKEN_PATTERN.fullmatch(token)
+                    and ('access_token' not in payload or payload['access_token'] == token))
+            expires = payload.get('expires_in', 60)
+            require(type(expires) is int and 0 < expires <= 86400)
+            self.token_deadline = min(self.deadline, self.now() + min(expires, TOKEN_SECONDS))
+            self.bearer = token
+            self.repository = repository
 
 
 class VerifiedBlobReader:
@@ -320,39 +322,43 @@ def _publish(path, task, expected_image, policy, credential, transport, monotoni
                 if blob['digest'] in seen:
                     continue
                 seen.add(blob['digest'])
-                response, metadata = session.request('HEAD', base + '/blobs/' + blob['digest'])
-                if response.status == 200:
-                    check_metadata(metadata, blob['digest'], blob['size'])
-                    continue
-                require(response.status == 404)
-                started, metadata = session.request('POST', base + '/blobs/uploads/', extra={'Content-Length': '0'})
-                require(started.status == 202)
-                location = upload_url(metadata.get('location'), repository, blob['digest'])
-                stream = archive.extractfile(archive.getmember('blobs/sha256/' + blob['digest'][7:]))
-                try:
-                    reader = VerifiedBlobReader(stream, blob, session)
-                    uploaded, metadata = session.request('PUT', location, body=reader, upload=True,
-                         extra={'Content-Type': 'application/octet-stream', 'Content-Length': str(blob['size'])})
-                    reader.verify_complete()
-                    require(uploaded.status == 201)
-                    # PUT Content-Length measures its response body, unlike blob HEAD.
-                    require(metadata.get('docker-content-digest') == blob['digest'])
-                finally:
-                    stream.close()
+                with image_build.diagnostic('registry-blob-upload'):
+                    response, metadata = session.request('HEAD', base + '/blobs/' + blob['digest'])
+                    if response.status == 200:
+                        check_metadata(metadata, blob['digest'], blob['size'])
+                        continue
+                    require(response.status == 404)
+                    started, metadata = session.request('POST', base + '/blobs/uploads/', extra={'Content-Length': '0'})
+                    require(started.status == 202)
+                    location = upload_url(metadata.get('location'), repository, blob['digest'])
+                    stream = archive.extractfile(archive.getmember('blobs/sha256/' + blob['digest'][7:]))
+                    try:
+                        reader = VerifiedBlobReader(stream, blob, session)
+                        uploaded, metadata = session.request('PUT', location, body=reader, upload=True,
+                             extra={'Content-Type': 'application/octet-stream', 'Content-Length': str(blob['size'])})
+                        reader.verify_complete()
+                        require(uploaded.status == 201)
+                        # PUT Content-Length measures its response body, unlike blob HEAD.
+                        require(metadata.get('docker-content-digest') == blob['digest'])
+                    finally:
+                        stream.close()
             subject_url = base + '/manifests/' + local['manifest_digest']
-            uploaded, metadata = session.request('PUT', subject_url, body=manifest_bytes,
-                 extra={'Content-Type': image_build.OCI_MANIFEST, 'Content-Length': str(len(manifest_bytes))})
-            require(uploaded.status == 201 and metadata.get('docker-content-digest') == local['manifest_digest'])
-            subject, metadata = session.request('GET', subject_url, extra={'Accept': image_build.OCI_MANIFEST})
-            require(subject.status == 200 and metadata.get('content-type', '').split(';')[0].strip() == image_build.OCI_MANIFEST
-                    and subject.body == manifest_bytes)
-            check_metadata(metadata, local['manifest_digest'], len(manifest_bytes), mandatory=True)
-            remote_config, metadata = session.config_blob(repository, local['config_digest'])
-            require(remote_config.status == 200 and remote_config.body == config_bytes)
-            check_metadata(metadata, local['config_digest'], len(config_bytes))
-            config = records.strict_json(remote_config.body.decode('utf8'))
-            require(config.get('os') == 'linux' and config.get('architecture') == 'amd64'
-                    and all(config['config']['Labels'].get(k) == v for k, v in task['labels'].items()))
+            with image_build.diagnostic('registry-manifest-upload'):
+                uploaded, metadata = session.request('PUT', subject_url, body=manifest_bytes,
+                     extra={'Content-Type': image_build.OCI_MANIFEST, 'Content-Length': str(len(manifest_bytes))})
+                require(uploaded.status == 201 and metadata.get('docker-content-digest') == local['manifest_digest'])
+            with image_build.diagnostic('registry-manifest-readback'):
+                subject, metadata = session.request('GET', subject_url, extra={'Accept': image_build.OCI_MANIFEST})
+                require(subject.status == 200 and metadata.get('content-type', '').split(';')[0].strip() == image_build.OCI_MANIFEST
+                        and subject.body == manifest_bytes)
+                check_metadata(metadata, local['manifest_digest'], len(manifest_bytes), mandatory=True)
+            with image_build.diagnostic('registry-config-readback'):
+                remote_config, metadata = session.config_blob(repository, local['config_digest'])
+                require(remote_config.status == 200 and remote_config.body == config_bytes)
+                check_metadata(metadata, local['config_digest'], len(config_bytes))
+                config = records.strict_json(remote_config.body.decode('utf8'))
+                require(config.get('os') == 'linux' and config.get('architecture') == 'amd64'
+                        and all(config['config']['Labels'].get(k) == v for k, v in task['labels'].items()))
             check_file()
     return {**local, 'image': expected_image, 'published': True, 'registry_content_verified': True,
             'visibility_verified': False, 'attested': False, 'trust_verified': False, 'deployable': False}
