@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "approved",
-  "approval_reference": "https://github.com/Xynes-Studio/xynes-infra/pull/4",
+  "approval_reference": "https://github.com/Xynes-Studio/xynes-infra/pull/5",
   "sources": {
     "xynes-gateway": {
       "repository": "Xynes-Studio/xynes-gateway",
@@ -29,7 +29,7 @@
     },
     "xynes-storage-service": {
       "repository": "Xynes-Studio/xynes-storage-service",
-      "commit": "12791e9d609abea0546573a54e385b9ffe323b1c"
+      "commit": "56d4020a9f152a61310af9417fb2fd7ba38f889d"
     },
     "xynes-auth-app": {
       "repository": "Xynes-Studio/xynes-auth-app",
@@ -147,7 +147,7 @@
         {
           "path": "gateway_test.go",
           "mode": "100644",
-          "sha256": "1fe1a8aafc37fdbb91be29af53ce09809bcb9c1413eec89b2ac43a27f422084b"
+          "sha256": "b6a0632b1fb8d10ac8140642062cbae89b6c4301704add938d6300f14cc654bc"
         },
         {
           "path": "go.mod",
