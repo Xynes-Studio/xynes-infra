@@ -75,7 +75,10 @@ DIAGNOSTIC_PHASES = frozenset(('controller', 'admission-intake', 'input-qualific
     'tracked-source-manifest', 'source-materialize', 'migration-export', 'migration-qualification',
     'builder-create', 'image-batch', 'image-qualification', 'builder-cleanup', 'image-tasks',
     'image-output', 'context-qa', 'context-staging', 'context-prod', 'image-recipes',
-    'image-build', 'image-inspect', 'image-receipts'))
+    'image-build', 'image-inspect', 'image-receipts', 'initial-policy', 'admission-artifact',
+    'source-qualification', 'build-artifact', 'namespace-qualification', 'image-publication-batch',
+    'publication-receipt', 'registry-challenge', 'registry-token', 'registry-blob-upload',
+    'registry-manifest-upload', 'registry-manifest-readback', 'registry-config-readback'))
 DIAGNOSTIC_TASKS = frozenset('shared--' + name for name in SHARED_BUILD) | frozenset(
     stage + '--' + name for stage in ('qa', 'staging', 'prod') for name in source_context.APPS)
 

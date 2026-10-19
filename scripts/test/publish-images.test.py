@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Real artifact ZIPs/OCI archives and native metadata fixtures; zero network."""
+import contextlib
 import copy
 import hashlib
 import importlib.util
@@ -10,6 +11,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'scripts/release'))
@@ -37,6 +39,49 @@ class Tests(unittest.TestCase):
   self.env={'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':'Xynes-Studio/xynes-infra','GITHUB_SHA':'a'*40,'GITHUB_REF':'refs/heads/main','GITHUB_REF_PROTECTED':'true','GITHUB_EVENT_NAME':'workflow_dispatch','GITHUB_RUN_ID':'100','GITHUB_RUN_ATTEMPT':'1','GITHUB_JOB':'publish-images','GITHUB_ACTOR':'archan96','GITHUB_API_URL':'https://api.github.com','GITHUB_SERVER_URL':'https://github.com','GITHUB_WORKFLOW_REF':'Xynes-Studio/xynes-infra/.github/workflows/apex-build.yml@refs/heads/main','APEX_REGISTRY_PREFIX':'ghcr.io/xynes-studio/apex','GH_TOKEN':'ghs_INERT_DO_NOT_PRINT_JOB_TOKEN','GH_POLICY_READ_TOKEN':'inert-policy-token'}
   for kind in ('admission','build'):self.env['APEX_'+kind.upper()+'_RECEIPT']=json.dumps(self.refs[kind])
   self.writes=[]
+  self.events_output=io.StringIO();self.stdout=io.StringIO()
+  for manager in (contextlib.redirect_stderr(self.events_output),contextlib.redirect_stdout(self.stdout)):
+   manager.__enter__();self.addCleanup(manager.__exit__,None,None,None)
+ def events(self):return [(value['phase'],value['status']) for value in map(json.loads,self.events_output.getvalue().splitlines())]
+ def assert_safe_events(self):
+  self.assertEqual(self.stdout.getvalue(),'')
+  for value in map(json.loads,self.events_output.getvalue().splitlines()):
+   self.assertEqual(set(value),{'artifact_kind','phase','status'});self.assertEqual(value['artifact_kind'],'apex-build-diagnostic')
+  for secret in (self.env['GH_TOKEN'],self.env['GH_POLICY_READ_TOKEN'],'CANARY-private-error','https://private.invalid/credential'):
+   self.assertNotIn(secret,self.events_output.getvalue())
+ def test_publisher_diagnostics_preserve_success_order_and_stdout_contract(self):
+  result=self.invoke();out=self.root/'outputs';out.write_text('');out.chmod(0o600)
+  self.module.persist_publication(result,{**self.env,'RUNNER_TEMP':str(self.root),'GITHUB_OUTPUT':str(out)})
+  expected=[(phase,status) for phase in ('initial-policy','admission-artifact','source-qualification','build-artifact') for status in ('start','success')]
+  expected += [('image-publication-batch','start'),('namespace-qualification','start'),('namespace-qualification','success'),('image-publication-batch','success'),('publication-receipt','start'),('publication-receipt','success')]
+  self.assertEqual(self.events(),expected);self.assert_safe_events()
+ def test_cli_stdout_remains_one_machine_readable_result_without_diagnostics(self):
+  result=self.invoke()
+  with patch.dict(os.environ,self.env,clear=True),patch.object(self.module.sys,'argv',['publish_images.py']),patch.object(self.module,'run',return_value=result),patch.object(self.module,'persist_publication'):
+   self.assertEqual(self.module.main(),0)
+  self.assertEqual(len(self.stdout.getvalue().splitlines()),1)
+  self.assertEqual(json.loads(self.stdout.getvalue()),{'published':True,'images':15,'receipt_sha256':result['receipt_sha256'],'attested':False,'deployable':False})
+  for secret in (self.env['GH_TOKEN'],self.env['GH_POLICY_READ_TOKEN']):self.assertNotIn(secret,self.stdout.getvalue()+self.events_output.getvalue())
+ def test_unvalidated_input_failure_only_emits_fixed_policy_phase(self):
+  self.env['GITHUB_REPOSITORY']='https://private.invalid/credential';self.refused()
+  self.assertEqual(self.events(),[('initial-policy','start'),('initial-policy','failure')]);self.assert_safe_events()
+ def test_failed_artifact_download_reports_phase_without_private_error(self):
+  def download(*args):raise RuntimeError('CANARY-private-error https://private.invalid/credential '+self.env['GH_TOKEN'])
+  self.download=download;self.refused()
+  self.assertEqual(self.events()[-2:],[('admission-artifact','start'),('admission-artifact','failure')]);self.assertEqual(self.writes,[]);self.assert_safe_events()
+ def test_failed_source_qualification_reports_phase_before_build_download(self):
+  self.source_checks['checks_verified']=False;self.refresh();self.env['APEX_ADMISSION_RECEIPT']=json.dumps(self.refs['admission']);self.refused()
+  self.assertEqual(self.events()[-2:],[('source-qualification','start'),('source-qualification','failure')]);self.assertEqual(self.writes,[]);self.assert_safe_events()
+ def test_failed_namespace_reports_nested_phase_and_no_publication_receipt(self):
+  def read(path):
+   if path.startswith('/orgs/'):raise RuntimeError('CANARY-private-error '+self.env['GH_POLICY_READ_TOKEN'])
+   return self.read(path)
+  with self.assertRaises(self.module.PublisherError):self.module.run(self.env,self.root,read=read,read_policy=self.read,read_graphql=lambda _:None,download=self.download,transport=type('Transport',(),{'request':lambda *a,**k:None})(),publish=self.publish)
+  self.assertEqual(self.events()[-4:],[('image-publication-batch','start'),('namespace-qualification','start'),('namespace-qualification','failure'),('image-publication-batch','failure')])
+  self.assertEqual(self.writes,[]);self.assertFalse((self.root/'apex-publications').exists());self.assert_safe_events()
+ def test_invalid_publication_receipt_reports_fixed_failure(self):
+  with self.assertRaises(self.module.PublisherError):self.module.persist_publication({'CANARY-private-error':'https://private.invalid/credential'},self.env)
+  self.assertEqual(self.events(),[('publication-receipt','start'),('publication-receipt','failure')]);self.assert_safe_events()
  def refresh(self):
   for identifier,kind,files in [(98,'admission',self.admission_files),(99,'build',self.build_files)]:
    stream=io.BytesIO()

@@ -80,8 +80,9 @@ class Registry:
             config_digest = json.loads(self.files['blobs/sha256/' + self.digest[7:]])['config']['digest']
             data = self.blobs[config_digest] if self.cdn_body is None else self.cdn_body
             return self.response(self.cdn_status, {'Content-Length': str(len(data)), 'Location': self.config_redirect}, data)
-        if path == '/v2/':
+        if path in ('/v2/', '/v2/' + self.repository + '/tags/list'):
             self.assert_no_auth(headers)
+            if path != '/v2/': assert parse_qs(parsed.query) == {'n': ['1']}
             return self.response(401, {'WWW-Authenticate': self.challenge})
         if path == '/token':
             expected = 'Basic ' + base64.b64encode(('fixture-actor:' + TOKEN).encode()).decode()
@@ -150,6 +151,9 @@ class RegistryIOTest(unittest.TestCase):
         self.clock = Clock()
         self.registry = Registry(self.api, self.repository, self.files, self.digest, self.clock)
         self.credential = self.api.GitHubPublisherToken('fixture-actor', TOKEN)
+        self.diagnostics = io.StringIO()
+        capture = contextlib.redirect_stderr(self.diagnostics)
+        capture.__enter__(); self.addCleanup(capture.__exit__, None, None, None)
 
     def publish(self, reference=None, policy=None):
         return self.api.publish_oci(self.path, self.task, reference or self.reference,
@@ -171,6 +175,48 @@ class RegistryIOTest(unittest.TestCase):
         self.assertFalse(result['attested']); self.assertFalse(result['trust_verified']); self.assertFalse(result['deployable'])
         self.assertEqual(self.registry.manifest, self.files['blobs/sha256/' + self.digest[7:]])
         self.assertNotIn(TOKEN, json.dumps(result)); self.assertNotIn(BEARER, json.dumps(result)); self.assertNotIn(STATE, json.dumps(result))
+
+    def test_repository_probe_handles_observed_ghcr_root_placeholder_without_relaxing_scope(self):
+        endpoint = '/v2/' + self.repository + '/tags/list'
+        def observed(method, url):
+            parsed = urlsplit(url)
+            if parsed.path == '/v2/':
+                return self.registry.response(401, {'WWW-Authenticate': self.registry.challenge + ',scope="repository:user/image:pull"'})
+            if parsed.path == endpoint:
+                return self.registry.response(401, {'WWW-Authenticate': self.registry.challenge + ',scope="repository:' + self.repository + ':pull"'})
+        self.registry.override = observed
+        result = self.publish()
+        self.assertTrue(result['registry_content_verified'])
+        self.assertEqual(self.registry.calls[0], ('GET', 'https://ghcr.io' + endpoint + '?n=1', {}))
+        self.assertFalse(any(urlsplit(url).path == '/v2/' for _, url, _ in self.registry.calls))
+        token_calls = [(method, url, headers) for method, url, headers in self.registry.calls if urlsplit(url).path == '/token']
+        self.assertEqual(len(token_calls), 1)
+        self.assertEqual(parse_qs(urlsplit(token_calls[0][1]).query), {'service': ['ghcr.io'], 'scope': ['repository:' + self.repository + ':pull,push']})
+
+    def test_registry_diagnostics_use_only_fixed_phases_in_protocol_order(self):
+        self.publish()
+        events = [json.loads(line) for line in self.diagnostics.getvalue().splitlines()]
+        manifest = json.loads(self.files['blobs/sha256/' + self.digest[7:]])
+        count = len({b['digest'] for b in [manifest['config']] + manifest['layers']})
+        phases = ['registry-challenge', 'registry-token'] + ['registry-blob-upload'] * count + ['registry-manifest-upload', 'registry-manifest-readback', 'registry-config-readback']
+        self.assertEqual(events, [{'artifact_kind': 'apex-build-diagnostic', 'phase': phase, 'status': status} for phase in phases for status in ('start', 'success')])
+
+    def test_registry_failure_diagnostics_never_echo_credentials_urls_or_exceptions(self):
+        self.registry.fail_put = True
+        self.refused()
+        raw = self.diagnostics.getvalue()
+        events = [json.loads(line) for line in raw.splitlines()]
+        self.assertEqual([(e['phase'], e['status']) for e in events[-2:]], [('registry-blob-upload', 'start'), ('registry-blob-upload', 'failure')])
+        for private in (TOKEN, BEARER, STATE, self.registry.location, 'secret='):
+            self.assertNotIn(private, raw)
+
+    def test_foreign_challenge_diagnostic_fails_before_token_exchange(self):
+        self.registry.challenge = 'Bearer realm="https://attacker.invalid/token",service="ghcr.io"'
+        self.refused()
+        events = [json.loads(line) for line in self.diagnostics.getvalue().splitlines()]
+        self.assertEqual([(e['phase'], e['status']) for e in events], [('registry-challenge', 'start'), ('registry-challenge', 'failure')])
+        self.assertEqual(len(self.registry.calls), 1)
+        self.assertNotIn('attacker.invalid', self.diagnostics.getvalue())
 
     def test_ghcr_config_blob_redirect_downloads_once_without_any_credentials_or_extra_headers(self):
         self.registry.config_redirect = 'https://pkg-containers.githubusercontent.com/ghcr1/blobs/config?signature=' + STATE
