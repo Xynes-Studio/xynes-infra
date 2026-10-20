@@ -111,6 +111,8 @@ def snapshot(run):
  for source,destination,rw in (('/srv/xynes/caddy/config','/config',True),('/srv/xynes/caddy/Caddyfile','/etc/caddy/Caddyfile',False)):
   matches=[row for row in mounts if row['Destination']==destination]
   require(len(matches)==1 and matches[0]['Source']==source and matches[0]['RW'] is rw)
+ # Docker may return identical mounts in a different order; retain every field.
+ mounts=sorted(mounts,key=canonical)
  # Include only identity/routing metadata, never container environment values.
  container={'id':value['Id'],'image':value['Image'],'networks':networks,'mounts':mounts,'ports':ports}
  rows=json.loads(invoke(run,['network','inspect',*[v['id'] for v in NETWORKS.values()]]));require(type(rows) is list and len(rows)==len(NETWORKS))
@@ -236,6 +238,7 @@ def apply(plan,*,configuration=Configuration(),run=command,reviewed_plan_sha256,
    require(read(path,config)[0]==plan.proposed)
    final,_=snapshot(run)
    for name,endpoint in after['networks'].items():require(final['networks'][name]==endpoint)
+   require(final['mounts']==after['mounts'] and final['ports']==after['ports'])
    return {'applied':True,'plan_sha256':plan.plan_sha256,'current_sha256':digest(plan.proposed),'backup_path':str(backup),'dns_changed':False,'applications_started':False}
   except Exception:
    if changed:
