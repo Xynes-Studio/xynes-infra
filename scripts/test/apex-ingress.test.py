@@ -98,6 +98,53 @@ class Tests(unittest.TestCase):
    if 'adapt' in argv or 'reload' in argv:self.assertEqual(raw,plan.proposed);self.assertIn('-',argv)
   for name,raw in plan.templates.items():
    p=self.mount/'apex-auth/templates'/name;self.assertEqual(p.read_bytes(),raw);self.assertEqual(p.stat().st_mode&0o777,0o444)
+ def test_equivalent_mount_order_has_identical_plan_identity(self):
+  first=self.prepare();expected=copy.deepcopy(self.container['Mounts'])
+  self.container['Mounts'].reverse()
+  second=self.prepare()
+  self.assertEqual(first.plan_sha256,second.plan_sha256)
+  self.assertEqual(first.container['mounts'],second.container['mounts'])
+  self.assertEqual(first.container['mounts'],sorted(expected,key=self.m.canonical))
+ def test_mount_order_can_vary_between_preview_and_apply(self):
+  plan=self.prepare();before=copy.deepcopy(self.container['Mounts'])
+  def reordered(argv,*,input=None):
+   if argv[0]=='inspect':self.container['Mounts'].reverse()
+   return self.docker_run(argv,input=input)
+  result=self.m.apply(plan,configuration=self.config,run=reordered,reviewed_plan_sha256=plan.plan_sha256,current_sha256=self.hash)
+  self.assertTrue(result['applied']);self.assertEqual(self.file.read_bytes(),plan.proposed)
+  self.assertEqual(sorted(self.container['Mounts'],key=self.m.canonical),sorted(before,key=self.m.canonical))
+ def test_real_mount_metadata_change_still_refuses_before_mutation(self):
+  self.container['Mounts'][0].update(Type='bind',Propagation='rprivate',Mode='rw')
+  plan=self.prepare()
+  self.assertIn(self.container['Mounts'][0],plan.container['mounts'])
+  self.container['Mounts'][0]['Propagation']='rshared';self.calls=[]
+  with self.assertRaises(self.m.IngressError):
+   self.m.apply(plan,configuration=self.config,run=self.docker_run,reviewed_plan_sha256=plan.plan_sha256,current_sha256=self.hash)
+  self.assertEqual(self.file.read_bytes(),self.original)
+  self.assertFalse((self.mount/'apex-auth').exists())
+  self.assertFalse(self.config.path('/var/lib/xynes/deploy/state/host.lock').exists())
+  self.assertFalse(list(self.file.parent.glob('Caddyfile.apex-backup-*')))
+  self.assertNotIn('xynes_staging_net',self.container['NetworkSettings']['Networks'])
+  self.assertTrue(all(not any(v in argv for v in ('connect','disconnect','reload')) for argv,_ in self.calls))
+ def assert_reload_metadata_drift_rolls_back(self,mutate):
+  self.container['Mounts'][0].update(Propagation='rprivate')
+  plan=self.prepare();inode=self.file.stat().st_ino;changed=False
+  def drift(argv,*,input=None):
+   nonlocal changed
+   result=self.docker_run(argv,input=input)
+   if 'reload' in argv and input==plan.proposed and not changed:
+    changed=True;mutate()
+   return result
+  with self.assertRaises(self.m.IngressError):
+   self.m.apply(plan,configuration=self.config,run=drift,reviewed_plan_sha256=plan.plan_sha256,current_sha256=self.hash)
+  self.assertTrue(changed)
+  self.assertEqual(self.file.read_bytes(),self.original);self.assertEqual(self.file.stat().st_ino,inode)
+  self.assertNotIn('xynes_staging_net',self.container['NetworkSettings']['Networks'])
+  self.assertEqual([raw for argv,raw in self.calls if 'reload' in argv],[plan.proposed,self.original])
+ def test_mount_metadata_drift_during_reload_refuses_and_rolls_back(self):
+  self.assert_reload_metadata_drift_rolls_back(lambda:self.container['Mounts'][0].update(Propagation='rshared'))
+ def test_published_port_drift_during_reload_refuses_and_rolls_back(self):
+  self.assert_reload_metadata_drift_rolls_back(lambda:self.container['NetworkSettings']['Ports']['80/tcp'][0].update(HostPort='8080'))
  def test_partial_host_write_restores_original_bytes_before_refusing(self):
   plan=self.prepare();inode=self.file.stat().st_ino;original_write=self.m.os.write;calls=[0]
   def short_then_fail(fd,raw):
