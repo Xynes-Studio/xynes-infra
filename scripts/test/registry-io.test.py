@@ -98,9 +98,10 @@ class Registry:
         if method == 'POST' and path == base + '/blobs/uploads/':
             assert body == b''
             return self.response(202, {'Location': self.location})
-        if method == 'PUT' and path.startswith(base + '/blobs/uploads/'):
+        if method == 'PUT' and any(path.startswith(base + '/blobs/' + form + '/') for form in ('upload', 'uploads')):
             if self.fail_put: raise RuntimeError('secret=' + TOKEN + ' location=' + self.location)
-            assert parse_qs(parsed.query)['_state'] == [STATE]
+            expected_state = parse_qs(urlsplit(self.location).query)
+            assert parse_qs(parsed.query) == {**expected_state, 'digest': [parse_qs(parsed.query)['digest'][0]]}
             digest = parse_qs(parsed.query)['digest'][0]
             chunks = []
             while True:
@@ -369,6 +370,42 @@ class RegistryIOTest(unittest.TestCase):
     def test_relative_same_repository_upload_location_is_supported(self):
         self.registry.location = urlsplit(self.registry.location).path + '?_state=' + STATE
         self.publish()
+
+    def test_singular_ghcr_upload_locations_preserve_path_query_and_verified_bytes(self):
+        for absolute in (False, True):
+            for state in ('', '?_state=' + STATE):
+                with self.subTest(absolute=absolute, with_state=bool(state)):
+                    self.registry = Registry(self.api, self.repository, self.files, self.digest, self.clock)
+                    path = '/v2/' + self.repository + '/blobs/upload/76eed1e2-471f-48f6-83c5-9137a405e7ea'
+                    self.registry.location = ('https://ghcr.io' if absolute else '') + path + state
+                    captured = io.StringIO()
+                    with contextlib.redirect_stdout(captured): result = self.publish()
+                    self.assertTrue(result['published']); self.assertTrue(result['registry_content_verified'])
+                    self.assertEqual(self.registry.manifest, self.files['blobs/sha256/' + self.digest[7:]])
+                    manifest = json.loads(self.registry.manifest)
+                    for blob in [manifest['config']] + manifest['layers']:
+                        self.assertEqual(self.registry.blobs[blob['digest']], self.files['blobs/sha256/' + blob['digest'][7:]])
+                    puts = [urlsplit(u) for method, u, _ in self.registry.calls if method == 'PUT' and '/blobs/' in urlsplit(u).path]
+                    self.assertEqual(len(puts), len(self.registry.blobs))
+                    for target in puts:
+                        self.assertEqual(target.path, path)
+                        self.assertEqual(parse_qs(target.query), {**({'_state': [STATE]} if state else {}), 'digest': [parse_qs(target.query)['digest'][0]]})
+                    for canary in (TOKEN, BEARER, STATE):
+                        self.assertNotIn(canary, captured.getvalue() + self.diagnostics.getvalue() + json.dumps(result))
+
+    def test_both_upload_location_forms_keep_boundaries_without_authenticated_put(self):
+        for form in ('upload', 'uploads'):
+            prefix = 'https://ghcr.io/v2/' + self.repository + '/blobs/' + form + '/'
+            locations = [prefix + value for value in ('', '.', '..', '%2e%2e', 'nested/id', 'x' * 129, 'id?redirect=' + TOKEN, 'id?_state=', 'id?_state=' + STATE + '&_state=duplicate', 'id?digest=sha256%3A' + 'a' * 64, 'id#fragment', 'id\n')]
+            locations += [prefix.replace('https://ghcr.io', host) + 'id' for host in ('https://attacker.invalid', 'http://ghcr.io', '//ghcr.io', 'https://' + TOKEN + '@ghcr.io')]
+            locations += [prefix.replace(self.repository, 'attacker/app') + 'id']
+            for location in locations:
+                with self.subTest(form=form, location_kind=locations.index(location)):
+                    self.registry = Registry(self.api, self.repository, self.files, self.digest, self.clock)
+                    self.registry.location = location
+                    self.refused()
+                    self.assertFalse(any(method == 'PUT' for method, _, _ in self.registry.calls))
+                    for canary in (TOKEN, BEARER, STATE): self.assertNotIn(canary, self.diagnostics.getvalue())
 
     def test_put_network_failure_is_not_retried_or_echoed(self):
         self.registry.fail_put = True; self.refused()

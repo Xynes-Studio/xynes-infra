@@ -108,9 +108,10 @@ def upload_url(location, repository, digest):
     parsed = urlsplit(location)
     require(parsed.scheme == 'https' and parsed.netloc == 'ghcr.io' and not parsed.fragment
             and not parsed.username and not parsed.password)
-    prefix = '/v2/' + repository + '/blobs/uploads/'
-    require(parsed.path.startswith(prefix))
-    identifier = parsed.path[len(prefix):]
+    prefixes = tuple('/v2/' + repository + '/blobs/' + form + '/' for form in ('upload', 'uploads'))
+    matching = [prefix for prefix in prefixes if parsed.path.startswith(prefix)]
+    require(len(matching) == 1)
+    identifier = parsed.path[len(matching[0]):]
     require(re.fullmatch(r'[A-Za-z0-9._-]{1,128}', identifier) and identifier not in ('.', '..'))
     values = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=True)
     require(len(values) <= 1)
