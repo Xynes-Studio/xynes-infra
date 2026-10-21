@@ -31,7 +31,8 @@ LIBRARY_FILES=tuple('scripts/release/'+name+'.py' for name in (
     'source_context','ssh_entry','root_executor'))+(
     'scripts/release/validate-hosted.py','scripts/lib/backup_recovery.py',
     'infra/release/registry-policy.json','infra/release/source-check-catalog.json','infra/release/verifier-toolchain.json',
-    'infra/release/backup-toolchain.json')
+    'infra/release/backup-toolchain.json','infra/release/source-manifest.json',
+    'infra/release/auth/compose.fragment.yml')
 LIBRARY='/usr/local/lib/xynes-deploy/releases/'
 ENTRY='/usr/local/libexec/xynes-deploy-ssh'
 EXECUTOR='/usr/local/libexec/xynes-deploy-root'

@@ -20,6 +20,34 @@ ERROR='Host deployment boundary refused'
 
 
 class Tests(unittest.TestCase):
+    def test_packaged_validator_loads_auth_references_without_checkout(self):
+        # Exercise the validator from only the exact files the installer packages.
+        packaged=self.base/'packaged'
+        for name in self.module.LIBRARY_FILES:
+            target=packaged/name;target.parent.mkdir(parents=True,exist_ok=True)
+            target.write_bytes((ROOT/name).read_bytes())
+        spec=importlib.util.spec_from_file_location('packaged_validator',packaged/'scripts/release/validate-hosted.py')
+        validator=importlib.util.module_from_spec(spec);spec.loader.exec_module(validator)
+        fixture_spec=importlib.util.spec_from_file_location('boundary_render_fixture',ROOT/'scripts/test/hosted-release.test.py')
+        fixture=importlib.util.module_from_spec(fixture_spec);fixture_spec.loader.exec_module(fixture)
+        for stage in ('qa','staging','prod'):
+            with self.subTest(stage=stage):
+                validator.validate(stage,fixture.HostedReleaseTests().render(stage))
+
+    def test_auth_reference_resources_are_hash_bound_and_tampering_refuses(self):
+        resources=('infra/release/source-manifest.json','infra/release/auth/compose.fragment.yml')
+        plan=self.prepare();assets={asset.path:asset for asset in plan.files}
+        for name in resources:
+            with self.subTest(resource=name):
+                self.assertIn(name,plan.source_hashes)
+                asset=assets[self.module.LIBRARY+plan.bundle_sha256+'/'+name]
+                self.assertEqual(asset.mode,0o444)
+                self.assertEqual(hashlib.sha256(asset.data).hexdigest(),self.hashes[name])
+                original=(self.source/name).read_bytes()
+                (self.source/name).write_bytes(original+b' ')
+                with self.assertRaises(self.module.BoundaryError):self.prepare()
+                (self.source/name).write_bytes(original)
+
     def test_concrete_runtime_is_inside_the_exact_sealed_bundle(self):
         for name in ('host_runtime','host_supervisor','host_controls','host_smoke','host_smoke_setup',
                      'host_boundary','host_retained_dev','host_storage_control','host_quiescence'):
