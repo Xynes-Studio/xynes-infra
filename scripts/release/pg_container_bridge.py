@@ -213,6 +213,11 @@ class Bridge:
             with selector:
                 while selector.get_map():
                     require(time.monotonic()<deadline)
+                    # A dead child cannot consume further caller input. Drain
+                    # its remaining output, then enforce its exit status below.
+                    if validate_input and process.poll() is not None and input_fd in selector.get_map():
+                        selector.unregister(input_fd)
+                        process.stdin.close()
                     for key,_ in selector.select(min(1,max(0,deadline-time.monotonic()))):
                         fd=key.fileobj if type(key.fileobj) is int else key.fileobj.fileno()
                         chunk=os.read(fd,65536)
@@ -247,7 +252,7 @@ class Bridge:
             container=self.inspected_container()
             argv=BASE+['exec','-i','--env','PGPASSWORD']
             for value in ('PGHOST=127.0.0.1','PGPORT=5432','PGDATABASE=postgres','PGUSER=postgres',
-                          'PGSERVICE=','PGSERVICEFILE=','PGHOSTADDR=','PGOPTIONS=',
+                          'PGSERVICE','PGSERVICEFILE','PGHOSTADDR','PGOPTIONS',
                           'PGPASSFILE=/nonexistent','PGSSLMODE=disable','PGCONNECT_TIMEOUT=15'):
                 argv += ['--env',value]
             argv += [container,program,*flags]

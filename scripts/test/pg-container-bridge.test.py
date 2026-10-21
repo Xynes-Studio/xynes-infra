@@ -49,6 +49,7 @@ elif args[0] == 'exec':
     assert os.environ.get('PGPASSWORD') == 'inert-private-db-password'
     assert 'UNRELATED_SECRET' not in os.environ
     assert 'DOCKER_HOST' not in os.environ
+    assert not any(k in os.environ for k in ('PGSERVICE','PGSERVICEFILE','PGHOSTADDR','PGOPTIONS'))
     program = args[args.index(%r)+1]
     flags = args[args.index(%r)+2:]
     if program == 'psql':
@@ -79,7 +80,8 @@ bridge=m.Bridge('qa',work_root=pathlib.Path(%r),owner_uid=os.geteuid(),
 raise SystemExit(bridge.run(sys.argv[1],sys.argv[2:],input_fd=0,output_fd=1))
 ''' % (str(MODULE), str(self.docker), str(self.work)))
         self.env = {**os.environ, 'UNRELATED_SECRET':'INERT_SENTINEL', 'DOCKER_HOST':'tcp://hostile.invalid',
-                    'PGPASSWORD':'WRONG_INHERITED_PASSWORD', 'PYTHONDONTWRITEBYTECODE':'1'}
+                    'PGPASSWORD':'WRONG_INHERITED_PASSWORD', 'PGSERVICE':'hostile', 'PGSERVICEFILE':'/hostile',
+                    'PGHOSTADDR':'192.0.2.1','PGOPTIONS':'-c search_path=hostile','PYTHONDONTWRITEBYTECODE':'1'}
 
     def call(self, program, args, data=b''):
         return subprocess.run([sys.executable,'-I',str(self.entry),program,*args], input=data,
@@ -106,6 +108,44 @@ raise SystemExit(bridge.run(sys.argv[1],sys.argv[2:],input_fd=0,output_fd=1))
         self.assertEqual(process.wait(timeout=5),0)
         self.assertEqual(process.stderr.read(),b'')
         process.stdout.close();process.stderr.close()
+
+    def test_exited_psql_refuses_promptly_while_caller_keeps_stdin_open(self):
+        script=self.docker.read_text().replace("elif args[0] == 'exec':",
+            "elif args[0] == 'exec':\n    print('INERT_SENTINEL inert-private-db-password',file=sys.stderr)\n    sys.exit(2)")
+        self.docker.write_text(script)
+        process=subprocess.Popen([sys.executable,'-I',str(self.entry),'psql','-X','-qAt','--no-password',
+            '--set=ON_ERROR_STOP=1'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=self.env)
+        try:
+            try:
+                code=process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                self.fail('exited psql must refuse without waiting for caller stdin EOF')
+            self.assertEqual(code,1)
+            self.assertEqual(process.stdout.read(),b'')
+            self.assertEqual(process.stderr.read(),b'PostgreSQL container bridge refused\n')
+        finally:
+            if process.poll() is None:process.kill()
+            process.wait(timeout=5)
+            process.stdin.close();process.stdout.close();process.stderr.close()
+
+    def test_exited_psql_drains_buffered_response_with_caller_stdin_open(self):
+        for exit_code in (0,2):
+            with self.subTest(exit_code=exit_code):
+                original=self.docker.read_text()
+                script=original.replace("elif args[0] == 'exec':",
+                    "elif args[0] == 'exec':\n    print('inert buffered response',flush=True)\n    print('INERT_SENTINEL inert-private-db-password',file=sys.stderr)\n    sys.exit(%d)" % exit_code)
+                self.docker.write_text(script)
+                process=subprocess.Popen([sys.executable,'-I',str(self.entry),'psql','-X','-qAt','--no-password',
+                    '--set=ON_ERROR_STOP=1'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=self.env)
+                try:
+                    self.assertEqual(process.wait(timeout=3),0 if exit_code==0 else 1)
+                    self.assertEqual(process.stdout.read(),b'inert buffered response\n')
+                    self.assertEqual(process.stderr.read(),b'' if exit_code==0 else b'PostgreSQL container bridge refused\n')
+                finally:
+                    if process.poll() is None:process.kill()
+                    process.wait(timeout=5)
+                    process.stdin.close();process.stdout.close();process.stderr.close()
+                    self.docker.write_text(original)
 
     def test_dump_stream_and_schema_only_local_dump(self):
         result=self.call('pg_dump',['--no-password','--format=custom','--no-owner','--no-acl','--snapshot','00000001-00000002-1'])
@@ -202,7 +242,7 @@ raise SystemExit(bridge.run(sys.argv[1],sys.argv[2:],input_fd=0,output_fd=1))
         calls=[json.loads(line) for line in self.log.read_text().splitlines()]
         argv=calls[-1]
         for value in ('PGHOST=127.0.0.1','PGPORT=5432','PGDATABASE=postgres','PGUSER=postgres',
-                      'PGSERVICE=','PGSERVICEFILE=','PGHOSTADDR=','PGOPTIONS=',
+                      'PGSERVICE','PGSERVICEFILE','PGHOSTADDR','PGOPTIONS',
                       'PGPASSFILE=/nonexistent','PGSSLMODE=disable','PGCONNECT_TIMEOUT=15'):
             self.assertIn(value,argv)
 
@@ -240,7 +280,8 @@ raise SystemExit(bridge.run(sys.argv[1],sys.argv[2:],input_fd=0,output_fd=1))
         entrypoint=ROOT/'scripts/lib/backup_recovery.py'
         result=subprocess.run([sys.executable,'-I',str(entrypoint),'backup','--environment','qa',
             '--output-dir',str(self.work),'--recipient-file',str(recipient),'--verify-table','platform.workspaces'],
-            env={**self.env,'PATH':str(wrappers)+':/usr/bin:/bin','PGHOST':'supabase-db','PGPORT':'5432',
+            env={**{k:v for k,v in self.env.items() if k not in ('PGSERVICE','PGSERVICEFILE','PGHOSTADDR','PGOPTIONS')},
+                 'PATH':str(wrappers)+':/usr/bin:/bin','PGHOST':'supabase-db','PGPORT':'5432',
                  'PGDATABASE':'postgres','PGUSER':'postgres'},stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=20)
         self.assertEqual(result.returncode,0,result.stderr)
         record=json.loads(result.stdout)

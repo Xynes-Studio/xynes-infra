@@ -39,7 +39,7 @@ MAX_OUTPUT=65536
 BASE=pg_container_bridge.BASE.copy()
 PG_FLAGS=['-X','-qAt','--no-password','--set=ON_ERROR_STOP=1']
 PG_ENV=('PGHOST=127.0.0.1','PGPORT=5432','PGDATABASE=postgres','PGUSER=postgres',
-        'PGSERVICE=','PGSERVICEFILE=','PGHOSTADDR=','PGOPTIONS=',
+        'PGSERVICE','PGSERVICEFILE','PGHOSTADDR','PGOPTIONS',
         'PGPASSFILE=/nonexistent','PGSSLMODE=disable','PGCONNECT_TIMEOUT=15')
 LEDGER_QUERY="""SELECT json_build_object(
  'database',current_database(), 'user',current_user, 'in_recovery',pg_is_in_recovery(),
