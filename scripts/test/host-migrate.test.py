@@ -156,6 +156,17 @@ else:sys.exit(1)
         self.assertNotIn('inert-migration-db-password',self.log.read_text())
         self.assertNotIn('INERT_SENTINEL',json.dumps(result))
 
+    def test_migration_unsets_inherited_libpq_service_and_option_variables(self):
+        with self.state() as state:
+            self.pending(state)
+            self.m.apply(self.current,state)
+        calls=[json.loads(line) for line in self.log.read_text().splitlines()]
+        self.assertEqual(len(calls),2)
+        for call in calls:
+            for key in ('PGSERVICE','PGSERVICEFILE','PGHOSTADDR','PGOPTIONS'):
+                self.assertIn(key,call['argv'])
+                self.assertNotIn(key+'=',call['argv'])
+
     def test_closed_or_missing_pending_stage_controller_and_source_mismatches_refuse_before_exec(self):
         state=self.state();self.refuse(lambda:self.m.apply(self.current,state))
         with state:
