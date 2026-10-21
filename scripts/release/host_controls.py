@@ -135,6 +135,20 @@ class Controls:
         require(pg_container_bridge.inspected_container(stage)==rows[0])
         return rows[0]
 
+    def _pg_version(self,directory):
+        # PGDATA is owned by PostgreSQL, unlike our root-owned configuration
+        # ancestors. Read only this fixed marker through the validated PGDATA fd.
+        before=os.stat('PG_VERSION',dir_fd=directory,follow_symlinks=False)
+        require(stat.S_ISREG(before.st_mode) and before.st_uid==self.data_uid
+                and stat.S_IMODE(before.st_mode)==0o600 and before.st_nlink==1 and before.st_size==3)
+        fd=os.open('PG_VERSION',os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC,dir_fd=directory)
+        with os.fdopen(fd,'rb') as file:
+            require(stamp(os.fstat(file.fileno()))==stamp(before))
+            raw=file.read(4)
+            require(len(raw)==3 and stamp(os.fstat(file.fileno()))==stamp(before)
+                    and stamp(os.stat('PG_VERSION',dir_fd=directory,follow_symlinks=False))==stamp(before))
+        return raw,stamp(before),hashlib.sha256(raw).hexdigest()
+
     def seed_counts(self,stage,query):
         try:
             self.stage_check(stage);require(query==host_seed.POSTCONDITIONS_SQL)
@@ -164,11 +178,12 @@ class Controls:
                     state='fresh'
                 else:
                     require(type(container) is str and re.fullmatch(r'[a-f0-9]{64}',container))
-                    marker=self.sealed(data/'PG_VERSION',3,uid=self.data_uid,mode=0o600)
+                    marker=self._pg_version(fd)
                     require(marker[0]==b'17\n');state='existing'
                 require(self.container(stage)==container and stamp(os.fstat(fd))==stamp(before)
                         and stamp(data.lstat())==stamp(before))
-                if container is not None:require(self.sealed(data/'PG_VERSION',3,uid=self.data_uid,mode=0o600)==marker)
+                if container is not None:require(self._pg_version(fd)==marker)
+                require(stamp(os.fstat(fd))==stamp(before) and stamp(data.lstat())==stamp(before))
             evidence={'stage':stage,'database_state':state,'database_image':pg_container_bridge.DB_IMAGE,
                 'database_container_id':container,'data_inode':[before.st_dev,before.st_ino],
                 'data_uid':before.st_uid,'data_mode':stat.S_IMODE(before.st_mode)}
