@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Fixed host operations with private filesystem and inert command boundaries."""
-import importlib.util,json,os,socket,sys,tempfile,threading,time,unittest
+import importlib.util,json,os,socket,sys,tempfile,threading,time,types,unittest
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'scripts/release'))
@@ -110,6 +110,38 @@ class Tests(unittest.TestCase):
   with self.assertRaises(self.m.ControlError):self.controls.target_audit('qa',self.current(),None)
   alias.unlink();marker.write_bytes(b'17\n'+b'X'*65536)
   with self.assertRaises(self.m.ControlError):self.controls.target_audit('qa',self.current(),None)
+
+ def test_existing_database_accepts_data_uid_distinct_from_root_without_relaxing_ancestors(self):
+  data=self.data();marker=data/'PG_VERSION';marker.write_bytes(b'17\n');marker.chmod(0o600)
+  self.controls.data_uid=os.getuid()+10000
+  original_lstat=Path.lstat;original_fstat=os.fstat;original_stat=os.stat
+  selected={(p.stat().st_dev,p.stat().st_ino) for p in (data,marker)}
+  def data_owned(info):
+   if (info.st_dev,info.st_ino) not in selected:return info
+   fields=('st_dev','st_ino','st_uid','st_gid','st_mode','st_nlink','st_size','st_mtime_ns','st_ctime_ns')
+   return types.SimpleNamespace(**{k:self.controls.data_uid if k in ('st_uid','st_gid') else getattr(info,k) for k in fields})
+  with patch.object(Path,'lstat',lambda p:data_owned(original_lstat(p))),patch.object(os,'fstat',lambda fd:data_owned(original_fstat(fd))),patch.object(os,'stat',lambda *a,**kw:data_owned(original_stat(*a,**kw))):
+   self.assertEqual(self.controls.target_audit('qa',self.current(),None)['database_state'],'existing')
+   # The generic root-owned ancestor rule must remain strict for other reads.
+   with self.assertRaises(self.m.ControlError):self.controls.protected(marker,leaf_uid=self.controls.data_uid,mode=0o600)
+
+ def test_pg_version_symlink_and_wrong_mode_refuse(self):
+  data=self.data();marker=data/'PG_VERSION';target=data/'saved';target.write_bytes(b'17\n');target.chmod(0o600)
+  marker.symlink_to(target)
+  with self.assertRaises(self.m.ControlError):self.controls.target_audit('qa',self.current(),None)
+  marker.unlink();target.rename(marker);marker.chmod(0o640)
+  with self.assertRaises(self.m.ControlError):self.controls.target_audit('qa',self.current(),None)
+
+ def test_pg_version_replacement_between_stat_and_open_refuses(self):
+  data=self.data();marker=data/'PG_VERSION';marker.write_bytes(b'17\n');marker.chmod(0o600)
+  original_open=os.open;replaced=False
+  def replace(path,*args,**kwargs):
+   nonlocal replaced
+   if path=='PG_VERSION' and not replaced:
+    replaced=True;marker.rename(data/'preserved');marker.write_bytes(b'17\n');marker.chmod(0o600)
+   return original_open(path,*args,**kwargs)
+  with patch.object(os,'open',replace),self.assertRaises(self.m.ControlError):self.controls.target_audit('qa',self.current(),None)
+  self.assertTrue(replaced)
 
  def test_disabled_policy_cannot_hide_an_active_broker(self):
   self.policy({'schema_version':1,'stage':'qa','mode':'disabled','groups':[]})
