@@ -1,0 +1,500 @@
+{
+  "description": "Sanitized native QA SQL readback: only immutable public source bindings, no host identity or credentials.",
+  "ledger": {
+    "bootstrap": [
+      {
+        "baseline_sha256": "e4c769a64a873a8cc3bcd63d1f2eee7545f3bc8ca3ac1466c9c89a2ca1594ed5",
+        "completed": true,
+        "environment": "qa"
+      }
+    ],
+    "database": "postgres",
+    "in_recovery": false,
+    "migration_count": 40,
+    "migrations": [
+      {
+        "owner": "xynes-accounts-service",
+        "path": "drizzle/0000_add_workspaces_slug_unique_idx.sql",
+        "sha256": "e7a5ef73a6efbd8ac29e0b7f662e4c3cae41921be458d0a8056137371a7be3da",
+        "source_commit": "650239bd7c0ffa59c53c44a01d8ab121b86635ab"
+      },
+      {
+        "owner": "xynes-authz-service",
+        "path": "src/db/migrations/0000_unique_morlocks.sql",
+        "sha256": "1aa8711bf4f3d1c34607b4ce879b72e27be374f3160b8ba1f4d3a260fd25c36a",
+        "source_commit": "2962bf88c53ba79efe5696ed3072b792b222e41c"
+      },
+      {
+        "owner": "xynes-authz-service",
+        "path": "src/db/migrations/0001_accounts_schema_1_authz_user_roles_workspace_scoped.sql",
+        "sha256": "deac47b2bf226e95181ba6fad3d8b0ea0fab411158e91fbd71dee4cde52e883d",
+        "source_commit": "2962bf88c53ba79efe5696ed3072b792b222e41c"
+      },
+      {
+        "owner": "xynes-cms-core",
+        "path": "drizzle/0000_aspiring_phalanx.sql",
+        "sha256": "a1dbea06763c2a291fb4034b01cf1ca89ee83bc6c754f7df05ea5dcf3f93e517",
+        "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      },
+      {
+        "owner": "xynes-cms-core",
+        "path": "drizzle/0001_glorious_maximus.sql",
+        "sha256": "2f70d3a92b527754613d88343fa7aca55a2f7c5b6f5eeaaca477293259c47fbf",
+        "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      },
+      {
+        "owner": "xynes-cms-core",
+        "path": "drizzle/0002_mysterious_betty_ross.sql",
+        "sha256": "8a40814182b78c734362ce7e86044377d4bb721f24202bd2ddfb38d416e6c935",
+        "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      },
+      {
+        "owner": "xynes-cms-core",
+        "path": "drizzle/0003_busy_diamondback.sql",
+        "sha256": "bbfba7eef940a9e4cb50d7926ead968b1e2ca75b83ea84c8d73789d0a8834fd9",
+        "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      },
+      {
+        "owner": "xynes-cms-core",
+        "path": "drizzle/0004_complete_cyclops.sql",
+        "sha256": "21d1cba478a88a3bd39929c3d231a3c1c81ed486a8752f0ab30881a8882cf926",
+        "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      },
+      {
+        "owner": "xynes-cms-core",
+        "path": "drizzle/0005_green_pixie.sql",
+        "sha256": "6efe0fd0b235f166f14d813a57d12d8d0433700221ba97228ee4fe0cdd08e230",
+        "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      },
+      {
+        "owner": "xynes-cms-core",
+        "path": "drizzle/0006_sturdy_hobgoblin.sql",
+        "sha256": "fd56938eb0c442dee09e03fc3a2d0d878353c51782c4d608eaeed47897c70dff",
+        "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      },
+      {
+        "owner": "xynes-cms-core",
+        "path": "drizzle/0007_cms_entry_actor_columns.sql",
+        "sha256": "d2983231fe5644f1931c5f9de3cb854287fe099602fdaf5300a29c511f43c4bc",
+        "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      },
+      {
+        "owner": "xynes-cms-core",
+        "path": "drizzle/0008_cms_published_snapshot.sql",
+        "sha256": "a0726a00e3626e8e8044b2957ff037f5374bf114cf7e63df14aa0d5782063650",
+        "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      },
+      {
+        "owner": "xynes-cms-core",
+        "path": "drizzle/0009_cms_publication_validation.sql",
+        "sha256": "757f34ff09bc0a8789bee9d2a195a993479f6605d0e33c16cb9c64f030267754",
+        "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      },
+      {
+        "owner": "xynes-doc-service",
+        "path": "drizzle/0000_complete_war_machine.sql",
+        "sha256": "12a2379a8cbfc61c3337bdb76d4cc58d8d8ce3c0dfe128b1d4389f0801f6c977",
+        "source_commit": "a0144b8a9d85ff12eb53b126a15fabe62aa5b2f2"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20251210135828_create_app_schemas.sql",
+        "sha256": "98ccde32deb7cd9da92ff956ad624cdeca6096112a816c59bd81bcf8f6fd5b65",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20251219133000_accounts_schema_1_identity_workspace_core.sql",
+        "sha256": "6ce10e0f40968fe16baa79f6c9566774e6c8ada0435c6a92262f4e24b7b6fb98",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20251229100000_create_platform_routes.sql",
+        "sha256": "00243a805882a6dba37a98254e3df1420bc5c5f775a4b20806a98ea956e8e941",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20251229100001_seed_platform_routes.sql",
+        "sha256": "545dbfeec2d8b744e0953c50ddba827726879fd7dd0b8976e1e6959b1e9e299c",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20251230100000_create_route_rate_limits.sql",
+        "sha256": "6fd267812f69fd72baea93a9f65ba15db426cf3ef86b0a7e435dc0e39b9534fe",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20251230100001_seed_route_rate_limits.sql",
+        "sha256": "af8c173ebbacc858a72552e99fb9b7108fd8f72cda1ea270611eb124de63dce3",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260218090000_add_me_profile_route.sql",
+        "sha256": "cb754d427bf8054cf6135eab147e026a3bc3bb7a2ae28ed7380346163bd66f94",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260218160000_add_workspace_members_route.sql",
+        "sha256": "dff05d3f2c3d5d53698667320ca5d0df9977a88d48c770c386941c143785e37d",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260424090000_workspace_admin_integrations.sql",
+        "sha256": "bd0b928959b8b07d1a70a2a6f7e49302125584127ded05add5057bde2cde5982",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260424103000_cms_content_entries_actor_columns.sql",
+        "sha256": "2ae18a3096a2c68b3d6fed3510861895c9db96a370fd76f57713111ae33af503",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260427090000_seed_cms_dashboard_routes.sql",
+        "sha256": "8215759975ead18c242a92759932f3b1eb7e43b2ee196b971c4f2b390e1e639a",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260508120000_fix_workspace_domains_hostname_shape.sql",
+        "sha256": "3fe101b1a6b3a26715d340b1c2e6f7a781043bc5f9508048bb4c364e578f3574",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260508130000_seed_platform_domain_regenerate_route.sql",
+        "sha256": "cd385459f7a33ef28267eea3352d3e29508a7d4db9d8576f3861425412f3b306",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260508140000_add_dns_records_found.sql",
+        "sha256": "c28e599c03d1e2f106d75d1f09eaacf710b6a9370d0df47515cf9615bfd2ff43",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260513090000_universal_storage_platform_schema.sql",
+        "sha256": "7b3f2827728bc7ab98be4589d5bf6e903a18fe4e25bba3048420395756c4aa4e",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260513120000_seed_platform_storage_routes.sql",
+        "sha256": "5f4e337aef19e4503ef8868b94c0334dc9680f0874e0b0467bc9ac508a430081",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260513140000_promote_workspace_invites_to_infra.sql",
+        "sha256": "0de26eab6c69ffef4f063264c2b8014474950270066758e0e46839ce15b0249b",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260528090000_storage_object_references_and_dedup_index.sql",
+        "sha256": "ded793f1c1738ef6bad80561813c7494b1854769172f9254f76a6fee92792f0f",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260528100000_storage_processing_jobs_active_unique_index.sql",
+        "sha256": "b2dcbc1d7fc962908912fbfa9d89552107d87bf3292bba22fdb56950f03a78cd",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260529090000_storage_processing_jobs_payload_and_required.sql",
+        "sha256": "f1748fddb721723fab0d583c29f4366b3391705711b9ce26c623247fb524db38",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260601090000_workspace_invites_mail_columns.sql",
+        "sha256": "61466d307d484d325bca75e0bb739ab9321e858597911827c5925e76c5777060",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20260603090000_seed_platform_invite_resend_route.sql",
+        "sha256": "c5ef34dc6aebbe380bffa1480f6820beeb0a7a17a77c8c1d67d8c6c3bddb43de",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20261005090000_seed_cms_delivery_routes.sql",
+        "sha256": "dd4d35737e23a7e17619c3d53e6cc44803f81f617bfa4f09bc86cbdff523459a",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-infra",
+        "path": "supabase/migrations/20261012090000_gateway_route_body_limits.sql",
+        "sha256": "cbbaf2f5b233288771bc1d275186cb68a8f053e50e94bcad783a22df1fa8052c",
+        "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+      },
+      {
+        "owner": "xynes-telemetry-service",
+        "path": "src/db/migrations/0000_furry_rawhide_kid.sql",
+        "sha256": "f1171ef34523ce3c74472977bc3e9bb701d9fac9206f04bb96becc8aaa8f271e",
+        "source_commit": "b8025424bfe41723f23f9609942ec070fff75c0e"
+      },
+      {
+        "owner": "xynes-telemetry-service",
+        "path": "src/db/migrations/0001_gateway_request_logs.sql",
+        "sha256": "4484dc2d903e016c8a794c9ffbe3adf3d3b3e6bbf9604130d9ed27272ea782d8",
+        "source_commit": "b8025424bfe41723f23f9609942ec070fff75c0e"
+      }
+    ],
+    "user": "postgres"
+  },
+  "units": [
+    {
+      "owner": "xynes-telemetry-service",
+      "path": "src/db/migrations/0000_furry_rawhide_kid.sql",
+      "sha256": "f1171ef34523ce3c74472977bc3e9bb701d9fac9206f04bb96becc8aaa8f271e",
+      "source_commit": "b8025424bfe41723f23f9609942ec070fff75c0e"
+    },
+    {
+      "owner": "xynes-telemetry-service",
+      "path": "src/db/migrations/0001_gateway_request_logs.sql",
+      "sha256": "4484dc2d903e016c8a794c9ffbe3adf3d3b3e6bbf9604130d9ed27272ea782d8",
+      "source_commit": "b8025424bfe41723f23f9609942ec070fff75c0e"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20251210135828_create_app_schemas.sql",
+      "sha256": "98ccde32deb7cd9da92ff956ad624cdeca6096112a816c59bd81bcf8f6fd5b65",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20251219133000_accounts_schema_1_identity_workspace_core.sql",
+      "sha256": "6ce10e0f40968fe16baa79f6c9566774e6c8ada0435c6a92262f4e24b7b6fb98",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-authz-service",
+      "path": "src/db/migrations/0000_unique_morlocks.sql",
+      "sha256": "1aa8711bf4f3d1c34607b4ce879b72e27be374f3160b8ba1f4d3a260fd25c36a",
+      "source_commit": "2962bf88c53ba79efe5696ed3072b792b222e41c"
+    },
+    {
+      "owner": "xynes-authz-service",
+      "path": "src/db/migrations/0001_accounts_schema_1_authz_user_roles_workspace_scoped.sql",
+      "sha256": "deac47b2bf226e95181ba6fad3d8b0ea0fab411158e91fbd71dee4cde52e883d",
+      "source_commit": "2962bf88c53ba79efe5696ed3072b792b222e41c"
+    },
+    {
+      "owner": "xynes-doc-service",
+      "path": "drizzle/0000_complete_war_machine.sql",
+      "sha256": "12a2379a8cbfc61c3337bdb76d4cc58d8d8ce3c0dfe128b1d4389f0801f6c977",
+      "source_commit": "a0144b8a9d85ff12eb53b126a15fabe62aa5b2f2"
+    },
+    {
+      "owner": "xynes-cms-core",
+      "path": "drizzle/0000_aspiring_phalanx.sql",
+      "sha256": "a1dbea06763c2a291fb4034b01cf1ca89ee83bc6c754f7df05ea5dcf3f93e517",
+      "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    {
+      "owner": "xynes-cms-core",
+      "path": "drizzle/0001_glorious_maximus.sql",
+      "sha256": "2f70d3a92b527754613d88343fa7aca55a2f7c5b6f5eeaaca477293259c47fbf",
+      "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    {
+      "owner": "xynes-cms-core",
+      "path": "drizzle/0002_mysterious_betty_ross.sql",
+      "sha256": "8a40814182b78c734362ce7e86044377d4bb721f24202bd2ddfb38d416e6c935",
+      "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    {
+      "owner": "xynes-cms-core",
+      "path": "drizzle/0003_busy_diamondback.sql",
+      "sha256": "bbfba7eef940a9e4cb50d7926ead968b1e2ca75b83ea84c8d73789d0a8834fd9",
+      "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    {
+      "owner": "xynes-cms-core",
+      "path": "drizzle/0004_complete_cyclops.sql",
+      "sha256": "21d1cba478a88a3bd39929c3d231a3c1c81ed486a8752f0ab30881a8882cf926",
+      "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    {
+      "owner": "xynes-cms-core",
+      "path": "drizzle/0005_green_pixie.sql",
+      "sha256": "6efe0fd0b235f166f14d813a57d12d8d0433700221ba97228ee4fe0cdd08e230",
+      "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    {
+      "owner": "xynes-cms-core",
+      "path": "drizzle/0006_sturdy_hobgoblin.sql",
+      "sha256": "fd56938eb0c442dee09e03fc3a2d0d878353c51782c4d608eaeed47897c70dff",
+      "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    {
+      "owner": "xynes-cms-core",
+      "path": "drizzle/0007_cms_entry_actor_columns.sql",
+      "sha256": "d2983231fe5644f1931c5f9de3cb854287fe099602fdaf5300a29c511f43c4bc",
+      "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    {
+      "owner": "xynes-cms-core",
+      "path": "drizzle/0008_cms_published_snapshot.sql",
+      "sha256": "a0726a00e3626e8e8044b2957ff037f5374bf114cf7e63df14aa0d5782063650",
+      "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    {
+      "owner": "xynes-cms-core",
+      "path": "drizzle/0009_cms_publication_validation.sql",
+      "sha256": "757f34ff09bc0a8789bee9d2a195a993479f6605d0e33c16cb9c64f030267754",
+      "source_commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+    },
+    {
+      "owner": "xynes-accounts-service",
+      "path": "drizzle/0000_add_workspaces_slug_unique_idx.sql",
+      "sha256": "e7a5ef73a6efbd8ac29e0b7f662e4c3cae41921be458d0a8056137371a7be3da",
+      "source_commit": "650239bd7c0ffa59c53c44a01d8ab121b86635ab"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20251229100000_create_platform_routes.sql",
+      "sha256": "00243a805882a6dba37a98254e3df1420bc5c5f775a4b20806a98ea956e8e941",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20251229100001_seed_platform_routes.sql",
+      "sha256": "545dbfeec2d8b744e0953c50ddba827726879fd7dd0b8976e1e6959b1e9e299c",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20251230100000_create_route_rate_limits.sql",
+      "sha256": "6fd267812f69fd72baea93a9f65ba15db426cf3ef86b0a7e435dc0e39b9534fe",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20251230100001_seed_route_rate_limits.sql",
+      "sha256": "af8c173ebbacc858a72552e99fb9b7108fd8f72cda1ea270611eb124de63dce3",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260218090000_add_me_profile_route.sql",
+      "sha256": "cb754d427bf8054cf6135eab147e026a3bc3bb7a2ae28ed7380346163bd66f94",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260218160000_add_workspace_members_route.sql",
+      "sha256": "dff05d3f2c3d5d53698667320ca5d0df9977a88d48c770c386941c143785e37d",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260424090000_workspace_admin_integrations.sql",
+      "sha256": "bd0b928959b8b07d1a70a2a6f7e49302125584127ded05add5057bde2cde5982",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260424103000_cms_content_entries_actor_columns.sql",
+      "sha256": "2ae18a3096a2c68b3d6fed3510861895c9db96a370fd76f57713111ae33af503",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260427090000_seed_cms_dashboard_routes.sql",
+      "sha256": "8215759975ead18c242a92759932f3b1eb7e43b2ee196b971c4f2b390e1e639a",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260508120000_fix_workspace_domains_hostname_shape.sql",
+      "sha256": "3fe101b1a6b3a26715d340b1c2e6f7a781043bc5f9508048bb4c364e578f3574",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260508130000_seed_platform_domain_regenerate_route.sql",
+      "sha256": "cd385459f7a33ef28267eea3352d3e29508a7d4db9d8576f3861425412f3b306",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260508140000_add_dns_records_found.sql",
+      "sha256": "c28e599c03d1e2f106d75d1f09eaacf710b6a9370d0df47515cf9615bfd2ff43",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260513090000_universal_storage_platform_schema.sql",
+      "sha256": "7b3f2827728bc7ab98be4589d5bf6e903a18fe4e25bba3048420395756c4aa4e",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260513120000_seed_platform_storage_routes.sql",
+      "sha256": "5f4e337aef19e4503ef8868b94c0334dc9680f0874e0b0467bc9ac508a430081",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260513140000_promote_workspace_invites_to_infra.sql",
+      "sha256": "0de26eab6c69ffef4f063264c2b8014474950270066758e0e46839ce15b0249b",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260528090000_storage_object_references_and_dedup_index.sql",
+      "sha256": "ded793f1c1738ef6bad80561813c7494b1854769172f9254f76a6fee92792f0f",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260528100000_storage_processing_jobs_active_unique_index.sql",
+      "sha256": "b2dcbc1d7fc962908912fbfa9d89552107d87bf3292bba22fdb56950f03a78cd",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260529090000_storage_processing_jobs_payload_and_required.sql",
+      "sha256": "f1748fddb721723fab0d583c29f4366b3391705711b9ce26c623247fb524db38",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260601090000_workspace_invites_mail_columns.sql",
+      "sha256": "61466d307d484d325bca75e0bb739ab9321e858597911827c5925e76c5777060",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20260603090000_seed_platform_invite_resend_route.sql",
+      "sha256": "c5ef34dc6aebbe380bffa1480f6820beeb0a7a17a77c8c1d67d8c6c3bddb43de",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20261005090000_seed_cms_delivery_routes.sql",
+      "sha256": "dd4d35737e23a7e17619c3d53e6cc44803f81f617bfa4f09bc86cbdff523459a",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    },
+    {
+      "owner": "xynes-infra",
+      "path": "supabase/migrations/20261012090000_gateway_route_body_limits.sql",
+      "sha256": "cbbaf2f5b233288771bc1d275186cb68a8f053e50e94bcad783a22df1fa8052c",
+      "source_commit": "95495df641fcb6ea31d24c64a248f795b199c3e1"
+    }
+  ]
+}

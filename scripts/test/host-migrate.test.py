@@ -137,6 +137,19 @@ else:sys.exit(1)
         with self.assertRaises(self.m.MigrationError) as caught:callback()
         self.assertEqual(str(caught.exception),'Hosted migration refused')
 
+    def test_actual_native_40_row_baseline_keeps_original_commits_on_successor(self):
+        fixture=json.loads((ROOT/'scripts/test/fixtures/qa-completed-initial-baseline.json').read_bytes())
+        original=fixture['units'];units=copy.deepcopy(original)
+        for row in units:
+            if row['owner']=='xynes-infra':row['source_commit']='f'*40 # Synthetic, never a claimed release.
+        raw=json.dumps(fixture['ledger']).encode()
+        self.assertEqual(self.m.baseline(original),'e4c769a64a873a8cc3bcd63d1f2eee7545f3bc8ca3ac1466c9c89a2ca1594ed5')
+        self.refuse(lambda:self.m.ledger(raw,stage='qa',units=units,prior={}))
+        prior={(u['owner'],u['path']):u for u in original}
+        self.assertEqual(len(self.m.ledger(raw,stage='qa',units=units,prior=prior)),40)
+        hostile=copy.deepcopy(fixture['ledger']);hostile['migrations'][0]['source_commit']='e'*40
+        self.refuse(lambda:self.m.ledger(json.dumps(hostile).encode(),stage='qa',units=units,prior=prior))
+
     def test_real_transport_binds_exact_sql_stdin_and_readback_without_accepting_release(self):
         with self.state() as state:
             token=self.pending(state)

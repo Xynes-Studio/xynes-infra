@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fixed seed execution boundaries: inert subprocesses; no Docker daemon or DB."""
 import copy
+from dataclasses import replace
 import importlib.util
 import json
 import os
@@ -127,6 +128,40 @@ class Tests(unittest.TestCase):
             before=len(self.commands);self.refused(self.execute)
             self.assertFalse(any(a[5]=='create' for a in self.commands[before:]))
 
+    def test_existing_host_network_ownership_contracts(self):
+        original=copy.deepcopy(self.db)
+        for stage in ('qa','prod','staging'):
+            with self.subTest(stage=stage):
+                name='xynes_'+stage+'_net';self.compose.stage=stage
+                self.network['Name']=name
+                self.network['Labels']=({'io.xynes.managed':'true','io.xynes.owner':'xynes-infra',
+                    'io.xynes.environment':'staging','io.xynes.apex.substrate':'1'} if stage=='staging' else
+                    {'com.xynes.managed':'true','com.xynes.network':name})
+                self.db=copy.deepcopy(original)
+                self.db['labels'].update({'com.xynes.environment':stage,'com.docker.compose.project':'xynes-'+stage})
+                self.db['networks']={name:original['networks']['xynes_qa_net']}
+                config=copy.deepcopy(self.fixture.config);config['networks']['environment']['name']=name
+                self.assertEqual(self.driver.network(config,replace(self.prepared,stage=stage)),(name,self.network_id,self.database_id))
+
+    def test_legacy_network_cannot_hide_conflicting_ownership(self):
+        for conflict in ({'com.xynes.environment':'prod'},{'io.xynes.environment':'staging'},
+                         {'io.xynes.owner':'foreign'},{'com.xynes.network':'xynes_prod_net'},
+                         {'io.xynes.managed':'false'}):
+            self.network['Labels']={'com.xynes.managed':'true','com.xynes.network':'xynes_qa_net',**conflict}
+            self.refused(lambda:self.driver.network(self.fixture.config,self.prepared))
+
+    def test_managed_marker_alone_and_spoofed_staging_contracts_refused(self):
+        self.network['Labels']={'com.xynes.managed':'true'}
+        self.refused(lambda:self.driver.network(self.fixture.config,self.prepared))
+        self.compose.stage='staging';self.network['Name']='xynes_staging_net'
+        config=copy.deepcopy(self.fixture.config);config['networks']['environment']['name']='xynes_staging_net'
+        original={'io.xynes.managed':'true','io.xynes.owner':'xynes-infra',
+                  'io.xynes.environment':'staging','io.xynes.apex.substrate':'1'}
+        for change in ({'io.xynes.apex.substrate':'2'},{'io.xynes.owner':'foreign'},
+                       {'io.xynes.environment':'prod'},{'com.xynes.managed':'true'}, {7:'invalid'}):
+            self.network['Labels']={**original,**change}
+            self.refused(lambda:self.driver.network(config,replace(self.prepared,stage='staging')))
+
     def test_shared_ingress_permitted_but_competing_db_alias_refused(self):
         peer='c'*64;self.network['Containers'][peer]={'Name':'shared-caddy'};native=self.native
         def with_ingress(argv,**kwargs):
@@ -221,5 +256,125 @@ class Tests(unittest.TestCase):
             return real_popen([sys.executable,'-c','import sys;sys.stdout.buffer.write('+repr(raw)+')'],**kwargs)
         self.compose.runner=host_compose.run_command
         with patch.object(host_compose.subprocess,'Popen',spawn):self.assertTrue(self.execute()['seeds_applied'])
+
+class BunSeedTransactionTests(unittest.TestCase):
+    """Run seed bodies with import-only facades for the SDK client/tx distinction.
+
+    PostgresJs construct reads fullclient.options.parsers/serializers. Its
+    transaction client lacks options; Drizzle's transaction callback instead
+    receives a database exposing execute(). No database/daemon is contacted.
+    """
+    def run_seed(self,kind,failure=None):
+        import tempfile
+        binary=os.environ.get('XYNES_TEST_BUN_BIN') or shutil.which('bun')
+        self.assertTrue(binary,'Bun is required to execute the seed API regression')
+        module=load('host_seed_api_fixture',ROOT/'scripts/release/host_seed.py')
+        code=module.AUTHZ_CODE if kind=='authz' else module.CMS_CODE
+        postgres=r'''export default function postgres(){
+ const s=globalThis.seedState;
+ return {options:{parsers:{},serializers:{}},
+  async begin(work){
+   if(s.active)throw new Error("nested raw transaction");s.active=true;s.events.push("begin");
+   const raw=async (strings)=>{s.events.push("raw-query");return strings.join("").includes("SELECT")?s.workspaces:[]};
+   try {const result=await work(raw);s.committed.push(...s.staged);s.events.push("commit");return result;}
+   catch(e){s.events.push("rollback");throw e;}
+   finally{s.active=false;s.staged=[];}
+  },
+  async end(options){s.closed++;s.events.push("close");if(options.timeout!==5)throw new Error("close timeout");if(s.failure==="close")throw new Error("fixture close failure");}
+ };
+}'''
+        drizzle=r'''export function drizzle(client){
+ const s=globalThis.seedState;
+ // Same dereference as the real postgres-js driver; a raw transaction has no options.
+ client.options.parsers["1184"]=(v)=>v;client.options.serializers["1184"]=(v)=>v;s.events.push("construct-full-client");
+ return {async transaction(work){return client.begin(async ()=>{
+  const db={async execute(query){
+   if(!s.active||s.tx!==db||typeof query!=="string")throw new Error("unscoped SQL");
+   s.events.push(query);if(query.includes("SELECT"))return s.workspaces;return [];
+  }};s.tx=db;return await work(db);
+ });}};
+}'''
+        catalog=r'''const s=globalThis.seedState;
+function write(db,name){
+ if(!s.active||db!==s.tx)throw new Error("seed outside transaction");
+ s.events.push(name);s.staged.push(name);
+ if(s.failure==="seed"&&name==="authz")throw new Error("fixture seed failure");
+ if(s.failure==="seed"&&name==="content:workspace-a")throw new Error("fixture seed failure");
+}
+export const AUTHZ_PERMISSIONS=s.failure==="catalog"?[]:["read","write"];
+export const AUTHZ_ROLES=[{permissions:["read","read","write"]}];
+export const DEFAULT_TEMPLATE_DEFINITIONS=s.failure==="catalog"?[]:[1,2,3];
+export const DEFAULT_CONTENT_TYPE_DEFINITIONS=[1,2,3];
+export async function seedAuthz({db}){write(db,"authz");}
+export async function seedAllDefaultTemplates(db){write(db,"templates");}
+export async function seedAllDefaultContentTypes(db,id){write(db,"content:"+id);}
+'''
+        modules={'postgres':postgres,'drizzle-orm/postgres-js':drizzle,
+                 'drizzle-orm':'export const sql=(strings,...values)=>{if(values.length)throw new Error("unexpected interpolation");return strings.join("");};',
+                 '/app/src/db/schema.ts':'export const schemaMarker=true;',
+                 '/app/src/infra/db/schema.ts':'export const schemaMarker=true;',
+                 '/app/src/db/seed/authz.seed.ts':catalog,'/app/src/infra/db/seeders.ts':catalog}
+        with tempfile.TemporaryDirectory(prefix='apex-seed-api-') as folder:
+            folder=Path(folder)
+            # Resolve fixture imports only; keep every seed/transaction statement
+            # unchanged and execute that body in Bun rather than matching strings.
+            for index,(specifier,facade) in enumerate(modules.items()):
+                target=folder/('sdk-'+str(index)+'.mjs');target.write_text(facade)
+                code=code.replace(json.dumps(specifier),json.dumps(str(target)))
+            seed=folder/'seed.ts';seed.write_text(code)
+            harness=folder/'harness.ts';harness.write_text('''globalThis.seedState={failure:'''+json.dumps(failure)+''',active:false,closed:0,events:[],staged:[],committed:[],workspaces:[{id:"workspace-a"},{id:"workspace-b"}]};
+if(globalThis.seedState.failure==="workspace-limit")globalThis.seedState.workspaces=Array.from({length:10001},(_,i)=>({id:"workspace-"+i}));
+await import('''+json.dumps(str(seed))+''');
+const {workspaces,...state}=globalThis.seedState;
+process.stdout.write("FIXTURE_STATE="+JSON.stringify(state)+"\\n");
+''')
+            result=subprocess.run([binary,str(harness)],cwd=folder,env=host_compose.CLEAN_ENV,capture_output=True,timeout=15)
+            self.assertEqual(result.stderr,b'','seed fixture emitted a raw diagnostic')
+            lines=result.stdout.decode().splitlines();state=json.loads(next(line.removeprefix('FIXTURE_STATE=') for line in lines if line.startswith('FIXTURE_STATE=')))
+            evidence=[json.loads(line) for line in lines if not line.startswith('FIXTURE_STATE=')]
+            return result.returncode,state,evidence
+
+    def test_authz_and_cms_use_full_client_then_transaction_scoped_database(self):
+        for kind in ('authz','cms'):
+            with self.subTest(kind=kind):
+                exit_code,state,evidence=self.run_seed(kind)
+                self.assertEqual(exit_code,0)
+                self.assertEqual(state['events'][:2],['construct-full-client','begin'])
+                self.assertEqual(state['events'][2:4],["SET LOCAL lock_timeout='5s'","SET LOCAL statement_timeout='120s'"])
+                self.assertEqual(state['events'][-2:],['commit','close']);self.assertEqual(state['closed'],1)
+                if kind=='authz':
+                    self.assertEqual(state['committed'],['authz']);self.assertEqual(evidence,[{'kind':'authz','permissions':2,'roles':1,'mappings':2}])
+                else:
+                    self.assertEqual(state['events'][4],'SELECT id FROM platform.workspaces ORDER BY id LIMIT 10001')
+                    self.assertEqual(state['committed'],['templates','content:workspace-a','content:workspace-b'])
+                    self.assertEqual(evidence,[{'kind':'cms','templates':3,'workspaces':2,'defaults':6}])
+
+    def test_seed_failure_rolls_back_all_writes_and_always_closes(self):
+        for kind in ('authz','cms'):
+            with self.subTest(kind=kind):
+                exit_code,state,evidence=self.run_seed(kind,'seed')
+                self.assertEqual(exit_code,1);self.assertEqual(evidence,[]);self.assertEqual(state['closed'],1)
+                self.assertEqual(state['events'][-2:],['rollback','close']);self.assertEqual(state['committed'],[])
+                self.assertIn('authz' if kind=='authz' else 'templates',state['events'])
+
+    def test_catalog_guards_refuse_before_transaction_and_close(self):
+        for kind in ('authz','cms'):
+            with self.subTest(kind=kind):
+                exit_code,state,evidence=self.run_seed(kind,'catalog')
+                self.assertEqual(exit_code,1);self.assertEqual(evidence,[])
+                self.assertEqual(state['events'],['close']);self.assertEqual(state['closed'],1)
+
+    def test_cms_workspace_limit_rolls_back_before_any_seed_write(self):
+        exit_code,state,evidence=self.run_seed('cms','workspace-limit')
+        self.assertEqual(exit_code,1);self.assertEqual(evidence,[])
+        self.assertEqual(state['events'][-2:],['rollback','close']);self.assertEqual(state['closed'],1)
+        self.assertNotIn('templates',state['events']);self.assertEqual(state['committed'],[])
+
+    def test_close_failure_refuses_success_for_both_seed_entrypoints(self):
+        for kind in ('authz','cms'):
+            with self.subTest(kind=kind):
+                exit_code,state,evidence=self.run_seed(kind,'close')
+                self.assertEqual(exit_code,1);self.assertEqual(state['closed'],1);self.assertIn('commit',state['events'])
+                self.assertEqual(len(evidence),1)
 
 if __name__=='__main__':unittest.main()

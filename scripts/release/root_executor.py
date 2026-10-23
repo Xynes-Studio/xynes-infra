@@ -189,14 +189,25 @@ def validate_assets(assets,*,stage,driver,record=None,expected=None):
     return assets
 
 
-def origin_bundle(assets,state,current):
-    if assets is None:return None
+def origin_bundle(assets,state,current,publication=None):
+    # A failed initial origin has no acceptance authority. Only the fixed,
+    # separately root-reviewed QA packet can bridge it to one real successor.
+    try:
+        from . import host_assets
+    except ImportError:
+        import host_assets
+    if assets is None:
+        recovery=host_assets.Store(state.stage).initial_origin(state,current,publication)
+        return recovery[0] if recovery is not None else None
     origin=assets.origin if assets.origin is not None else assets.migration
     require(type(origin) is migration_transport.Verified and origin.deployable is False)
     migration_transport.application_inputs(origin)
-    require(any(record['status']=='accepted' and record['request']['controller']==origin.controller
+    accepted=any(record['status']=='accepted' and record['request']['controller']==origin.controller
                 and record['source_sha256']=='sha256:'+origin.source_manifest_sha256
-                for record in state.data['attempts']))
+                for record in state.data['attempts'])
+    if not accepted:
+        recovery=host_assets.Store(state.stage).initial_origin(state,current,publication,expected_prior=origin)
+        require(recovery is not None)
     old={(unit['owner'],unit['path']):unit['sha256'] for unit in origin.plan['units']}
     now={(unit['owner'],unit['path']):unit['sha256'] for unit in current.plan['units']}
     require(len(old)==len(now)==40 and old==now)
@@ -272,7 +283,7 @@ def execute_locked(*,stage,request,work,state,native,operations,current,driver):
     previous=None
     if previous_record is not None:
         previous=validate_assets(operations.load_release(stage,previous_record),stage=stage,driver=driver,record=previous_record)
-    prior=origin_bundle(previous,state,current.migration)
+    prior=origin_bundle(previous,state,current.migration,current.publication)
     current=ReleaseAssets(**{**current.__dict__,'origin':prior or current.migration})
     audit=target(operations.target_audit(stage,current,previous),stage=stage,current=current,
                  previous=previous,now=clock(operations))

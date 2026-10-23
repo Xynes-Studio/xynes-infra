@@ -2,8 +2,9 @@
 """Private durable release assets; only the separate ledger grants acceptance.
 
 The root coordinator validates native candidates and qualifies these assets both
-before and after persistence. No code, SQL, Docker operation or request-selected
-path executes here. Current/previous and the first migration origin remain data.
+before and after persistence. No code, SQL or request-selected path executes
+here. Initial QA recovery additionally inspects the fixed DB container read-only.
+Current/previous and the first migration origin remain data.
 Interrupted writes retain a private incomplete directory for reconciliation.
 """
 import copy
@@ -23,6 +24,14 @@ except ImportError:
     import release_manifest as records
 
 ROOT_UID=0
+INITIAL_BASELINE_ROOT=Path('/var/lib/xynes/deploy/initial-baselines/qa')
+INITIAL_DATA=Path('/srv/xynes/qa/supabase/db')
+# One proven failed initial deployment, not a general failed-origin adoption API.
+INITIAL_ORIGIN_COMMIT='95495df641fcb6ea31d24c64a248f795b199c3e1'
+INITIAL_ORIGIN_MANIFEST='3efa88877ad2095da4b8291c70439fb3606356501056b5e33b949a7775e5b835'
+INITIAL_ORIGIN_BASELINE='e4c769a64a873a8cc3bcd63d1f2eee7545f3bc8ca3ac1466c9c89a2ca1594ed5'
+INITIAL_FAILED_DEPLOYMENT={'run_id':39771693703,'run_attempt':1,'job_id':119800547985}
+INITIAL_FAILED_PUBLICATION={'id':12400586717,'digest':'sha256:f16043e734b307dd38a5020890133e7c5dc18fec30630df333bb2e54659d39b1'}
 ERROR='Durable release assets refused'
 META_KEYS={'schema_version','artifact_kind','stage','token','controller','publication',
            'source_manifest_sha256','prepared','files','proofs'}
@@ -66,6 +75,24 @@ def fsync_directory(path):
     fd=os.open(path,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC)
     try:os.fsync(fd)
     finally:os.close(fd)
+
+def initial_database():
+    """Fixed QA target only; the root capsule never selects a path or command."""
+    try:
+        from . import pg_container_bridge
+    except ImportError:
+        import pg_container_bridge
+    require(INITIAL_DATA.resolve(strict=True)==INITIAL_DATA)
+    for path in INITIAL_DATA.parents:
+        info=path.lstat()
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid==ROOT_UID and not info.st_mode&0o022)
+    info=INITIAL_DATA.lstat()
+    require(stat.S_ISDIR(info.st_mode) and info.st_uid==info.st_gid==70
+            and stat.S_IMODE(info.st_mode)==0o700)
+    container=pg_container_bridge.inspected_container('qa')
+    require(re.fullmatch(r'[a-f0-9]{64}',container) and stamp(INITIAL_DATA.lstat())==stamp(info))
+    return {'container_id':container,'data_inode':[info.st_dev,info.st_ino],
+            'data_uid':info.st_uid,'data_mode':stat.S_IMODE(info.st_mode)}
 
 class Store:
     def __init__(self,stage,*,base=None):
@@ -128,6 +155,15 @@ class Store:
                     and records.canonical_sha256(assets.manifest)==assets.migration.source_manifest_sha256
                     and type(assets.origin) is migration_transport.Verified)
             records.validate_controller(assets.controller)
+            require(type(proofs) is dict and 'initial_baseline_origin' not in proofs)
+            proofs=copy.deepcopy(proofs)
+            if assets.origin.controller!=assets.controller and not any(
+                    r['status']=='accepted' and r['request']['controller']==assets.origin.controller
+                    and r['source_sha256']=='sha256:'+assets.origin.source_manifest_sha256
+                    for r in state.data['attempts']):
+                recovery=self.initial_origin(state,assets.migration,assets.publication,expected_prior=assets.origin)
+                require(recovery is not None)
+                proofs['initial_baseline_origin']=recovery[1]
             compose=read(assets.prepared.file)
             require(hashlib.sha256(compose).hexdigest()==assets.prepared.sha256)
             destination=self.destination(token)
@@ -172,6 +208,133 @@ class Store:
         migration_transport.application_inputs(verified)
         return verified
 
+    def initial_capsule(self):
+        """Read a separately root-reviewed, immutable first-QA recovery packet.
+
+        There is no request-selected path, automatic packet creation or implicit
+        trust in a failed bundle. Root installs the digest and complete retained
+        Verified origin only after reviewing native failure/target/release proof.
+        """
+        if self.stage!='qa':return None
+        root=INITIAL_BASELINE_ROOT
+        if not root.exists() and not root.is_symlink():return None
+        require(os.geteuid()==ROOT_UID and self.stage=='qa');directory(root)
+        if ROOT_UID==0:
+            for parent in root.parents:
+                info=parent.lstat()
+                require(stat.S_ISDIR(info.st_mode) and info.st_uid==0 and not info.st_mode&0o022)
+        raw=read(root/'capsule.json');digest=hashlib.sha256(raw).hexdigest()
+        require(read(root/'capsule.sha256')==(digest+'\n').encode())
+        value=records.strict_json(raw.decode())
+        require(type(value) is dict and set(value)=={'schema_version','artifact_kind','stage',
+            'failed_record_sha256','state_sha256','origin_controller','origin_source_manifest_sha256',
+            'baseline_sha256','database','native_proof_sha256','successor','files'}
+            and type(value['schema_version']) is int and value['schema_version']==1
+            and value['artifact_kind']=='qa-failed-initial-baseline' and value['stage']=='qa')
+        for key in ('failed_record_sha256','state_sha256','origin_source_manifest_sha256',
+                    'baseline_sha256','native_proof_sha256'):
+            require(type(value[key]) is str and re.fullmatch(r'[a-f0-9]{64}',value[key]))
+        records.validate_controller(value['origin_controller'])
+        successor=value['successor']
+        require(type(successor) is dict and set(successor)=={'controller','publication','source_manifest_sha256'})
+        records.validate_controller(successor['controller'])
+        require(type(successor['source_manifest_sha256']) is str
+                and re.fullmatch(r'[a-f0-9]{64}',successor['source_manifest_sha256'])
+                and successor['controller']!=value['origin_controller'])
+        publication=successor['publication']
+        require(type(publication) is dict and set(publication)=={'id','digest'}
+                and type(publication['id']) is int and publication['id']>0
+                and type(publication['digest']) is str and re.fullmatch(r'sha256:[a-f0-9]{64}',publication['digest']))
+        database=value['database']
+        require(type(database) is dict and set(database)=={'container_id','data_inode','data_uid','data_mode'}
+                and type(database['container_id']) is str and re.fullmatch(r'[a-f0-9]{64}',database['container_id'])
+                and type(database['data_inode']) is list and len(database['data_inode'])==2
+                and all(type(n) is int and n>0 for n in database['data_inode'])
+                and type(database['data_uid']) is int and database['data_uid']==70
+                and type(database['data_mode']) is int and database['data_mode']==0o700)
+        expected={'origin/'+name for name in migration_transport.expected_files()}
+        require(type(value['files']) is dict and set(value['files'])==expected)
+        actual=set();directories={str(p) for name in expected for p in Path(name).parents if str(p)!='.'}
+        for path in root.rglob('*'):
+            if path.is_dir():directory(path);require(path.relative_to(root).as_posix() in directories)
+            else:actual.add(path.relative_to(root).as_posix())
+        require(actual==expected|{'capsule.json','capsule.sha256'})
+        for name,binding in value['files'].items():
+            require(type(binding) is dict and set(binding)=={'size','sha256'} and type(binding['size']) is int)
+            content=read(root/name,limit=migration_transport.MAX_FILE)
+            require(len(content)==binding['size'] and hashlib.sha256(content).hexdigest()==binding['sha256'])
+        origin=self._verified(root,'origin')
+        require(origin.controller==value['origin_controller']
+                and origin.controller['commit']==INITIAL_ORIGIN_COMMIT
+                and origin.source_manifest_sha256==value['origin_source_manifest_sha256']==INITIAL_ORIGIN_MANIFEST)
+        units,_=migration_transport.application_inputs(origin)
+        try:
+            from . import host_migrate
+        except ImportError:
+            import host_migrate
+        require(len(units)==40 and host_migrate.baseline(units)==value['baseline_sha256']==INITIAL_ORIGIN_BASELINE)
+        return value,origin,{'capsule_sha256':digest,'origin_source_manifest_sha256':origin.source_manifest_sha256}
+
+    def initial_origin(self,state,current,publication,*,expected_prior=None):
+        """Authorize one initial successor, then its genuinely accepted lineage."""
+        packet=self.initial_capsule()
+        if packet is None:
+            if self.stage=='qa':
+                # This known interrupted baseline must not fall back to fresh
+                # SQL application merely because its root packet is absent.
+                require(not any(r['status']=='failed'
+                    and r['request']['controller']['commit']==INITIAL_ORIGIN_COMMIT
+                    and r['request']['deployment']==INITIAL_FAILED_DEPLOYMENT
+                    and r['source_sha256']=='sha256:'+INITIAL_ORIGIN_MANIFEST
+                    for r in state.data['attempts']))
+            return None
+        value,origin,proof=packet
+        require(type(state) is host_release_state.ReleaseState and state.owner_uid==ROOT_UID
+                and state.stage==self.stage=='qa' and state._read()==state.data
+                and type(current) is migration_transport.Verified and current.deployable is False)
+        failures=[r for r in state.data['attempts'] if r['status']=='failed'
+                  and hashlib.sha256(encode(r)).hexdigest()==value['failed_record_sha256']]
+        require(len(failures)==1 and failures[0]['request']['controller']==origin.controller
+                and failures[0]['request']['deployment']==INITIAL_FAILED_DEPLOYMENT
+                and failures[0]['request']['publication']==INITIAL_FAILED_PUBLICATION
+                and failures[0]['source_sha256']=='sha256:'+origin.source_manifest_sha256)
+        require(not any(r['status']=='accepted' and r['request']['controller']==origin.controller
+                        for r in state.data['attempts']))
+        old,_=migration_transport.application_inputs(origin);now,_=migration_transport.application_inputs(current)
+        bindings=lambda units:{(u['owner'],u['path']):u['sha256'] for u in units}
+        require(len(old)==len(now)==40 and bindings(old)==bindings(now))
+        if expected_prior is not None:
+            require(type(expected_prior) is migration_transport.Verified
+                    and expected_prior.controller==origin.controller
+                    and expected_prior.source_manifest_sha256==origin.source_manifest_sha256
+                    and expected_prior.files==origin.files)
+        successor=value['successor']
+        anchors=[r for r in state.data['attempts'] if r['status']=='accepted'
+                 and r['request']['controller']==successor['controller']
+                 and r['request']['publication']==successor['publication']
+                 and r['source_sha256']=='sha256:'+successor['source_manifest_sha256']]
+        if anchors:
+            require(len(anchors)==1)
+            retained,_=self.original(anchors[0])
+            meta=records.strict_json(read(self.destination(anchors[0]['token'])/'asset-record.json').decode())
+            require(meta['proofs'].get('initial_baseline_origin')==proof
+                    and retained.origin.controller==origin.controller
+                    and retained.origin.source_manifest_sha256==origin.source_manifest_sha256)
+        else:
+            require(initial_database()==value['database'])
+            require(state.data['current'] is None and state.data['previous'] is None
+                    and not any(r['status']=='accepted' for r in state.data['attempts'])
+                    and current.controller==successor['controller'] and publication==successor['publication']
+                    and current.source_manifest_sha256==successor['source_manifest_sha256'])
+            before=copy.deepcopy(state.data);pending=state.read_pending()
+            if pending is not None:
+                require(before['attempts'][-1]==pending and pending['request']['controller']==current.controller
+                        and pending['request']['publication']==publication
+                        and pending['source_sha256']=='sha256:'+current.source_manifest_sha256)
+                before['attempts'].pop()
+            require(hashlib.sha256(host_release_state.encode(before)).hexdigest()==value['state_sha256'])
+        return origin,proof
+
     def _load(self,destination,meta):
         require(type(meta) is dict and set(meta)==META_KEYS and type(meta['schema_version']) is int
                 and meta['schema_version']==1 and meta['artifact_kind']=='durable-release-assets'
@@ -195,6 +358,13 @@ class Store:
         manifest=records.read_json(destination/'manifest.json');public=records.read_json(destination/'public.json')
         receipt=records.read_json(destination/'receipt.json');verified=self._verified(destination,'migration')
         origin=self._verified(destination,'origin')
+        require(type(meta['proofs']) is dict)
+        if 'initial_baseline_origin' in meta['proofs']:
+            packet=self.initial_capsule()
+            require(packet is not None and meta['proofs']['initial_baseline_origin']==packet[2]
+                    and origin.controller==packet[1].controller
+                    and origin.source_manifest_sha256==packet[1].source_manifest_sha256
+                    and origin.files==packet[1].files)
         records.validate_controller(meta['controller'])
         require(verified.controller==meta['controller'] and verified.source_manifest_sha256==meta['source_manifest_sha256']
                 and records.canonical_sha256(manifest)==verified.source_manifest_sha256)
