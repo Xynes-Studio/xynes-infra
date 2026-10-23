@@ -47,6 +47,7 @@ POSTCONDITIONS_SQL="""SELECT json_build_object(
 );"""
 PREAMBLE='''import postgres from "postgres";
 import {drizzle} from "drizzle-orm/postgres-js";
+import {sql} from "drizzle-orm";
 const emit=console.log.bind(console);
 console.log=console.warn=console.error=()=>{};
 const client=postgres(process.env.DATABASE_URL,{max:1,connect_timeout:10,idle_timeout:10,prepare:false});
@@ -57,9 +58,10 @@ try {
  const permissions=AUTHZ_PERMISSIONS.length,roles=AUTHZ_ROLES.length;
  const mappings=AUTHZ_ROLES.reduce((n,role)=>n+new Set(role.permissions).size,0);
  if(permissions<1||permissions>2048||roles<1||roles>128||mappings<1||mappings>65536)throw new Error("seed catalog refused");
- await client.begin(async tx=>{
-  await tx`SET LOCAL lock_timeout='5s'`;await tx`SET LOCAL statement_timeout='120s'`;
-  const db=drizzle(tx,{schema});await seedAuthz({db});
+ const database=drizzle(client,{schema});
+ await database.transaction(async db=>{
+  await db.execute(sql`SET LOCAL lock_timeout='5s'`);await db.execute(sql`SET LOCAL statement_timeout='120s'`);
+  await seedAuthz({db});
  });
  emit(JSON.stringify({kind:"authz",permissions,roles,mappings}));
 } catch {process.exitCode=1;} finally {try{await client.end({timeout:5});}catch{process.exitCode=1;}}
@@ -69,11 +71,12 @@ import {seedAllDefaultTemplates,seedAllDefaultContentTypes,DEFAULT_TEMPLATE_DEFI
 try {
  if(DEFAULT_TEMPLATE_DEFINITIONS.length!==3||DEFAULT_CONTENT_TYPE_DEFINITIONS.length!==3)throw new Error("seed catalog refused");
  let workspaces=0;
- await client.begin(async tx=>{
-  await tx`SET LOCAL lock_timeout='5s'`;await tx`SET LOCAL statement_timeout='120s'`;
-  const rows=await tx`SELECT id FROM platform.workspaces ORDER BY id LIMIT 10001`;
+ const database=drizzle(client,{schema});
+ await database.transaction(async db=>{
+  await db.execute(sql`SET LOCAL lock_timeout='5s'`);await db.execute(sql`SET LOCAL statement_timeout='120s'`);
+  const rows=await db.execute(sql`SELECT id FROM platform.workspaces ORDER BY id LIMIT 10001`);
   if(rows.length>10000)throw new Error("seed workspace limit");workspaces=rows.length;
-  const db=drizzle(tx,{schema});await seedAllDefaultTemplates(db);
+  await seedAllDefaultTemplates(db);
   for(const row of rows)await seedAllDefaultContentTypes(db,row.id);
  });
  emit(JSON.stringify({kind:"cms",templates:3,workspaces,defaults:workspaces*3}));
@@ -107,6 +110,23 @@ def requirements(verified):
         require(row['bindings']==[lookup[name] for name in sorted(migration_inventory.PREREQUISITES[owner])])
     return copy.deepcopy(seeds)
 
+def network_ownership(labels,stage,name):
+    require(type(labels) is dict and all(type(key) is str and type(value) is str for key,value in labels.items()))
+    # Preserve the ownership contracts of the existing QA/prod networks and the
+    # separately provisioned staging substrate. Never recreate a data network
+    # merely to change its labels or accept a managed marker alone.
+    staging={'io.xynes.managed':'true','io.xynes.owner':'xynes-infra',
+             'io.xynes.environment':'staging','io.xynes.apex.substrate':'1'}
+    canonical=stage=='staging' and labels==staging
+    managed=(not any(key.startswith('io.xynes.') for key in labels)
+             and labels.get('com.xynes.managed')=='true'
+             and labels.get('com.xynes.environment',stage)==stage
+             and labels.get('com.xynes.network',name)==name
+             and labels.get('com.xynes.owner','xynes-infra')=='xynes-infra'
+             and (labels.get('com.xynes.environment')==stage
+                  or (stage in ('qa','prod') and labels.get('com.xynes.network')==name)))
+    require(canonical or managed)
+
 class Driver:
     def __init__(self,compose,*,verify_counts,database_loader=read_database,migration_validator=migration_transport.application_inputs):
         require(isinstance(compose,host_compose.Driver) and all(callable(f) for f in (verify_counts,database_loader,migration_validator)))
@@ -121,10 +141,8 @@ class Driver:
         require(type(network) is dict and CID.fullmatch(network.get('Id','')) and network.get('Name')==name
                 and network.get('Driver')=='bridge' and network.get('Scope')=='local'
                 and network.get('Internal') is False and network.get('Ingress') is False
-                and type(network.get('Labels')) is dict
-                and network['Labels'].get('com.xynes.managed')=='true'
-                and network['Labels'].get('com.xynes.environment')==self.compose.stage
                 and type(network.get('Containers')) is dict and 0<len(network['Containers'])<=32)
+        network_ownership(network.get('Labels'),self.compose.stage,name)
         candidates=[]
         for cid in network['Containers']:
             require(type(cid) is str and CID.fullmatch(cid))

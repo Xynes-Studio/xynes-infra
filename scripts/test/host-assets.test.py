@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Actual private release file persistence; no native approval or host deploy."""
-import copy,hashlib,importlib.util,json,os,sys,tempfile,time,unittest
+import copy,hashlib,importlib.util,json,os,subprocess,sys,tempfile,time,unittest
 from pathlib import Path
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT/'scripts/release'))
@@ -11,6 +11,17 @@ class Tests(unittest.TestCase):
  def setUpClass(cls):
   cls.fixture=load('asset_transport_fixture',ROOT/'scripts/test/migration-transport.test.py').Tests();cls.fixture.setUp();cls.addClassCleanup(cls.fixture.doCleanups)
   cls.fixture.receipt=cls.fixture.create();cls.verified=cls.fixture.extract()
+  repo=cls.fixture.fixture.roots['xynes-infra']
+  subprocess.run(['git','-C',str(repo),'-c','core.hooksPath=/dev/null','-c','commit.gpgsign=false','commit','--allow-empty','-qm','successor controller only'],check=True)
+  cls.fixture.controller={**cls.fixture.controller,'commit':subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD']).decode().strip()}
+  bundle=cls.fixture.work/'successor.tar';receipt=cls.fixture.create(output=bundle)
+  receiver=cls.fixture.work/'successor';receiver.mkdir(mode=0o700)
+  cls.successor=cls.fixture.extract(receipt,bundle=bundle,work=receiver)
+  subprocess.run(['git','-C',str(repo),'-c','core.hooksPath=/dev/null','-c','commit.gpgsign=false','commit','--allow-empty','-qm','later accepted upgrade'],check=True)
+  cls.fixture.controller={**cls.fixture.controller,'commit':subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD']).decode().strip()}
+  bundle=cls.fixture.work/'later.tar';receipt=cls.fixture.create(output=bundle)
+  receiver=cls.fixture.work/'later';receiver.mkdir(mode=0o700)
+  cls.later=cls.fixture.extract(receipt,bundle=bundle,work=receiver)
  def setUp(self):
   self.assertTrue((ROOT/'scripts/release/host_assets.py').is_file(),'durable release store is missing')
   self.m=load('host_assets',ROOT/'scripts/release/host_assets.py');self.uid=patch.object(self.m,'ROOT_UID',os.getuid());self.uid.start();self.addCleanup(self.uid.stop)
@@ -209,4 +220,132 @@ class Tests(unittest.TestCase):
     'artifact_kind':'rollback-operational-head','stage':'qa','accepted_token':accepted['token'],
     'latest_token':None,'record_sha256':'a'*64}));head.chmod(0o600)
   with self.assertRaises(self.m.AssetError):self.store.load_release('qa',accepted)
+ def initial_fixture(self):
+  self.state.fail(self.token,reason='interrupted',failed_at=int(time.time()))
+  failed=copy.deepcopy(self.state.data['attempts'][-1])
+  root=self.root/'initial';root.mkdir(mode=0o700)
+  for patcher in (patch.object(self.m,'INITIAL_BASELINE_ROOT',root),
+    patch.object(self.m,'initial_database',return_value={'container_id':'a'*64,'data_inode':[7,11],'data_uid':70,'data_mode':448})):
+   patcher.start();self.addCleanup(patcher.stop)
+  catalog={};self.store.migration(root,'origin',self.verified,catalog)
+  publication={'id':457,'digest':'sha256:'+'c'*64}
+  import host_migrate
+  units,_=self.m.migration_transport.application_inputs(self.verified)
+  capsule={'schema_version':1,'artifact_kind':'qa-failed-initial-baseline','stage':'qa',
+    'failed_record_sha256':hashlib.sha256(self.m.encode(failed)).hexdigest(),
+    'state_sha256':hashlib.sha256(self.m.host_release_state.encode(self.state.data)).hexdigest(),
+    'origin_controller':self.verified.controller,'origin_source_manifest_sha256':self.verified.source_manifest_sha256,
+    'baseline_sha256':host_migrate.baseline(units),'database':self.m.initial_database(),
+    'native_proof_sha256':'d'*64,
+    'successor':{'controller':self.successor.controller,'publication':publication,'source_manifest_sha256':self.successor.source_manifest_sha256},'files':catalog}
+  def seal():
+   raw=self.m.encode(capsule)
+   for name,data in [('capsule.json',raw),('capsule.sha256',(hashlib.sha256(raw).hexdigest()+'\n').encode())]:
+    path=root/name;path.write_bytes(data);path.chmod(0o600)
+  for name,value in [('INITIAL_ORIGIN_COMMIT',self.verified.controller['commit']),
+    ('INITIAL_ORIGIN_MANIFEST',self.verified.source_manifest_sha256),('INITIAL_ORIGIN_BASELINE',capsule['baseline_sha256']),
+    ('INITIAL_FAILED_DEPLOYMENT',self.request['deployment']),('INITIAL_FAILED_PUBLICATION',self.request['publication'])]:
+   patcher=patch.object(self.m,name,value);patcher.start();self.addCleanup(patcher.stop)
+  seal()
+  return root,capsule,publication,seal
+ def test_failed_initial_capsule_authorizes_only_exact_successor_and_preserves_old_rows(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  result=self.store.initial_origin(self.state,self.successor,publication)
+  self.assertEqual(result[0].controller,self.verified.controller)
+  self.assertEqual(result[1]['capsule_sha256'],hashlib.sha256((root/'capsule.json').read_bytes()).hexdigest())
+  self.assertEqual(self.state.read_accepted(),{'current':None,'previous':None})
+  request={**self.request,'controller':self.successor.controller,'publication':publication,'deployment':{'run_id':790,'run_attempt':1,'job_id':902}}
+  token=self.state.begin(request,source_sha256='sha256:'+self.successor.source_manifest_sha256,started_at=int(time.time()))
+  self.assertEqual(self.store.initial_origin(self.state,self.successor,publication)[0].controller,self.verified.controller)
+  assets=self.m.replace(self.assets,migration=self.successor,controller=self.successor.controller,
+    publication=publication,manifest=json.loads((self.successor.directory/'source-manifest.json').read_bytes()),origin=result[0])
+  restored=self.store.persist(assets,token=token,proofs={},state=self.state)
+  meta=json.loads((self.base/token/'asset-record.json').read_bytes())
+  self.assertEqual(meta['proofs']['initial_baseline_origin'],result[1])
+  self.state.accept(token,smoke={'stage':'qa','publication':publication,'source_sha256':'sha256:'+self.successor.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  # A real accepted successor is the anchor; the failed origin is never accepted.
+  self.assertEqual(len([r for r in self.state.data['attempts'] if r['status']=='accepted']),1)
+  with patch.object(self.m,'initial_database',side_effect=AssertionError('historical CID must not constrain a genuinely accepted upgrade')):
+   self.assertEqual(self.store.initial_origin(self.state,self.later,{'id':458,'digest':'sha256:'+'e'*64},expected_prior=restored.origin)[0].controller,self.verified.controller)
+  laterpub={'id':458,'digest':'sha256:'+'e'*64}
+  request={**request,'controller':self.later.controller,'publication':laterpub,'deployment':{'run_id':791,'run_attempt':1,'job_id':903}}
+  nexttoken=self.state.begin(request,source_sha256='sha256:'+self.later.source_manifest_sha256,started_at=int(time.time()))
+  laterassets=self.m.replace(assets,migration=self.later,controller=self.later.controller,publication=laterpub,manifest=json.loads((self.later.directory/'source-manifest.json').read_bytes()))
+  self.store.persist(laterassets,token=nexttoken,proofs={},state=self.state)
+  self.state.accept(nexttoken,smoke={'stage':'qa','publication':laterpub,'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.assertEqual(self.store.load_release('qa',self.state.read_accepted()['current']).origin.controller,self.verified.controller)
+  self.assertEqual(len([r for r in self.state.data['attempts'] if r['status']=='accepted']),2)
+  (root/'capsule.json').write_bytes(b'{}')
+  with self.assertRaises(self.m.AssetError):self.store.load_release('qa',self.state.read_accepted()['current'])
+ def test_initial_capsule_denies_tampering_wrong_successor_db_history_and_stage(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  good=copy.deepcopy(capsule)
+  mutations=[lambda c:c.update(stage='prod'),lambda c:c.update(state_sha256='f'*64),
+    lambda c:c.update(failed_record_sha256='f'*64),lambda c:c.update(baseline_sha256='f'*64),
+    lambda c:c['successor']['publication'].update(id=999),lambda c:c['database'].update(container_id='b'*64),
+    lambda c:c.update(origin_source_manifest_sha256='f'*64)]
+  for mutate in mutations:
+   capsule.clear();capsule.update(copy.deepcopy(good));mutate(capsule);seal()
+   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+  capsule.clear();capsule.update(good);seal();(root/'capsule.sha256').write_text('f'*64+'\n')
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+  seal();(root/'capsule.json').chmod(0o640)
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+  (root/'capsule.json').chmod(0o600)
+  for stage in ('staging','prod'):
+   self.assertIsNone(self.m.Store(stage,base=self.base).initial_origin(self.state,self.successor,publication))
+ def test_initial_resume_executes_only_native_ledger_query_and_keeps_pending(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  origin=self.store.initial_origin(self.state,self.successor,publication)[0]
+  request={**self.request,'controller':self.successor.controller,'publication':publication,'deployment':{'run_id':790,'run_attempt':1,'job_id':902}}
+  token=self.state.begin(request,source_sha256='sha256:'+self.successor.source_manifest_sha256,started_at=int(time.time()))
+  import host_migrate
+  units,_=self.m.migration_transport.application_inputs(origin)
+  ledger={'database':'postgres','user':'postgres','in_recovery':False,'migration_count':40,
+    'bootstrap':[{'environment':'qa','baseline_sha256':capsule['baseline_sha256'],'completed':True}],'migrations':units}
+  with patch.object(host_migrate,'ROOT_UID',os.getuid()),patch.object(host_migrate.pg_container_bridge,'stage_environment',return_value={'XYNES_ENV':'qa','POSTGRES_PASSWORD':'inert'}),patch.object(host_migrate.pg_container_bridge,'inspected_container',return_value='a'*64),patch.object(host_migrate,'_execute',return_value=json.dumps(ledger).encode()) as execute:
+   result=host_migrate.apply(self.successor,self.state,prior_verified=origin)
+   self.assertFalse(result['schema_sql_applied']);self.assertEqual(result['migration_count'],40)
+   execute.assert_called_once_with('a'*64,'inert')
+  self.assertEqual(self.state.read_pending()['token'],token)
+  self.assertIsNone(self.state.read_accepted()['current'])
+  # The coordinator selects exactly the same retained Verified origin.
+  selected=self.m.root_executor.origin_bundle(None,self.state,self.successor,publication)
+  self.assertEqual(selected.controller,origin.controller)
+ def test_extant_qa_capsule_does_not_block_other_stages_fresh_or_accepted(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  for stage in ('staging','prod'):
+   path=self.root/stage;path.mkdir(mode=0o700)
+   with self.m.host_release_state.ReleaseState(path,stage=stage,owner_uid=os.getuid()) as state:
+    self.assertIsNone(self.m.root_executor.origin_bundle(None,state,self.successor,publication))
+    token=state.begin(self.request,source_sha256='sha256:'+self.verified.source_manifest_sha256,started_at=100)
+    state.accept(token,smoke={'stage':stage,'publication':self.request['publication'],'source_sha256':'sha256:'+self.verified.source_manifest_sha256,'result':'passed','observed_at':101},accepted_at=102)
+    self.assertEqual(self.m.root_executor.origin_bundle(self.assets,state,self.successor,publication).controller,self.verified.controller)
+ def test_known_failed_origin_with_missing_capsule_refuses_coordinator_before_begin(self):
+  root,capsule,publication,seal=self.initial_fixture();root.rename(root.with_name('retained'))
+  with self.assertRaises(self.m.AssetError):self.m.root_executor.origin_bundle(None,self.state,self.successor,publication)
+  self.assertIsNone(self.state.read_pending())
+ def test_unrelated_accepted_release_cannot_anchor_failed_origin(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  request={**self.request,'controller':self.later.controller,'publication':publication,'deployment':{'run_id':790,'run_attempt':1,'job_id':902}}
+  token=self.state.begin(request,source_sha256='sha256:'+self.later.source_manifest_sha256,started_at=100)
+  self.state.accept(token,smoke={'stage':'qa','publication':publication,'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':101},accepted_at=102)
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+ def test_capsule_complete_origin_and_private_regular_files_are_required(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.later,publication)
+  file=root/next(iter(capsule['files']));raw=file.read_bytes()
+  file.write_bytes(raw+b' ')
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+  file.write_bytes(raw);file.chmod(0o600)
+  alias=self.root/'alias';os.link(file,alias)
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+  alias.unlink();extra=root/'unknown';extra.write_text('retained')
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+  self.assertEqual(extra.read_text(),'retained');extra.unlink()
+  outside=self.root/'outside';outside.write_bytes(raw);outside.chmod(0o600);file.unlink();file.symlink_to(outside)
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+ def test_missing_capsule_never_adopts_unaccepted_origin(self):
+  root=self.root/'absent';patcher=patch.object(self.m,'INITIAL_BASELINE_ROOT',root);patcher.start();self.addCleanup(patcher.stop)
+  self.assertIsNone(self.store.initial_origin(self.state,self.successor,{'id':457,'digest':'sha256:'+'c'*64}))
 if __name__=='__main__':unittest.main()

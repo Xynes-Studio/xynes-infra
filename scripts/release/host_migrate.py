@@ -13,6 +13,10 @@ Its controller and canonical manifest hash must match that accepted attempt; all
 40 owner/path/hash bindings must match the current baseline. Retain the first
 accepted origin bundle alongside current/previous releases. Unknown origins fail
 closed rather than rewriting provenance or adopting caller-provided ledger rows.
+The sole exception is the fixed, root-reviewed first-QA recovery capsule in
+host_assets. It binds one proven failed origin and one exact successor; subsequent
+use requires that successor's real accepted asset/capsule lineage. This remains
+the same read-only prior_verified path and never rewrites existing SQL origins.
 """
 import copy
 import hashlib
@@ -80,13 +84,21 @@ def bound_state(state,verified):
     return pending
 
 
-def origins(prior_verified,state,units):
+def origins(prior_verified,state,units,*,current_verified=None):
     if prior_verified is None:return {}
     require(type(prior_verified) is migration_transport.Verified and prior_verified.deployable is False)
     accepted=[record for record in state.data['attempts'] if record['status']=='accepted'
               and record['request']['controller']==prior_verified.controller
               and record['source_sha256']=='sha256:'+prior_verified.source_manifest_sha256]
-    require(accepted)
+    if not accepted:
+        try:
+            from . import host_assets
+        except ImportError:
+            import host_assets
+        pending=state.read_pending();require(pending is not None)
+        recovery=host_assets.Store(state.stage).initial_origin(state,current_verified,
+            pending['request']['publication'],expected_prior=prior_verified)
+        require(recovery is not None)
     prior_units,_=migration_transport.application_inputs(prior_verified)
     require(len(prior_units)==40)
     old={(unit['owner'],unit['path']):unit for unit in prior_units}
@@ -172,7 +184,7 @@ def ledger(raw,*,stage,units,prior):
 
 
 def verify_existing(verified,state,*,prior_verified):
-    """Read-only qualification of an unchanged, independently accepted catalog.
+    """Read-only qualification of an unchanged, independently authorized catalog.
 
     Never bootstrap or repair an unknown ledger. The coordinator can use this
     native readback before maintenance as evidence that no schema SQL is needed.
@@ -192,7 +204,7 @@ def apply(verified,state,*,prior_verified=None):
         pending=bound_state(state,verified);stage=state.stage
         units,payloads=migration_transport.application_inputs(verified)
         require(len(units)==len(payloads)==40)
-        prior=origins(prior_verified,state,units)
+        prior=origins(prior_verified,state,units,current_verified=verified)
         environment=pg_container_bridge.stage_environment(stage)
         require(type(environment) is dict and environment.get('XYNES_ENV')==stage)
         password=environment.get('POSTGRES_PASSWORD')
