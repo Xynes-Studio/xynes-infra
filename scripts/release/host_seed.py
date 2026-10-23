@@ -33,6 +33,7 @@ PEER_INSPECT=('{"id":{{json .Id}},"image":{{json .Config.Image}},"labels":{{json
 SEED_INSPECT=('{"id":{{json .Id}},"image":{{json .Config.Image}},"labels":{{json .Config.Labels}},'
               '"user":{{json .Config.User}},"readonly":{{json .HostConfig.ReadonlyRootfs}},'
               '"cap_drop":{{json .HostConfig.CapDrop}},"security_opt":{{json .HostConfig.SecurityOpt}},'
+              '"network_mode":{{json .HostConfig.NetworkMode}},'
               '"networks":{{json .NetworkSettings.Networks}},"state":{{json .State.Status}},"exit_code":{{json .State.ExitCode}}}')
 IMAGE_INSPECT='{"os":{{json .Os}},"architecture":{{json .Architecture}},"labels":{{json .Config.Labels}}}'
 POSTCONDITIONS_SQL="""SELECT json_build_object(
@@ -187,7 +188,10 @@ class Driver:
                 and row.get('user')=='1001:1001' and row.get('readonly') is True
                 and row.get('cap_drop')==['ALL'] and row.get('security_opt')==['no-new-privileges:true']
                 and type(row.get('networks')) is dict and set(row['networks'])=={network[0]}
-                and row['networks'][network[0]].get('NetworkID')==network[1])
+                # Docker leaves NetworkID empty until start; the create-time binding is NetworkMode.
+                and row.get('network_mode')==network[1]
+                and type(row['networks'][network[0]]) is dict
+                and row['networks'][network[0]].get('NetworkID') in ('',network[1]))
         return row
 
     def oneoff(self,kind,image,code,file,network,controller):
