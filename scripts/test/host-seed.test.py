@@ -78,8 +78,11 @@ class Tests(unittest.TestCase):
             file=Path(argv[argv.index('--env-file')+1]);self.assertEqual(file.stat().st_mode&0o777,0o600)
             self.env_contents.append(file.read_text());self.assertEqual(file.read_text(),'DATABASE_URL='+self.database+'\n')
             image=argv[argv.index('--entrypoint')+2]
+            # Real Docker (28.1/29.5): a created, never-started container reports an empty
+            # NetworkID; the requested network is only HostConfig.NetworkMode until start.
             self.created[cid]={'id':cid,'image':image,'labels':labels,'user':'1001:1001','readonly':True,'cap_drop':['ALL'],
-                'security_opt':['no-new-privileges:true'],'networks':{'xynes_qa_net':{'NetworkID':self.network_id}},'state':'created','exit_code':0}
+                'security_opt':['no-new-privileges:true'],'network_mode':argv[argv.index('--network')+1],
+                'networks':{'xynes_qa_net':{'NetworkID':''}},'state':'created','exit_code':0}
             return (cid+'\n').encode()
         if argv[5]=='inspect':
             row=copy.deepcopy(self.db if argv[-1]==self.database_id else self.created[argv[-1]])
@@ -88,6 +91,8 @@ class Tests(unittest.TestCase):
         if argv[5]=='start':
             if self.fail_start:raise RuntimeError('inert-private-child-error')
             cid=argv[-1];row=self.created[cid];row['state']='exited'
+            # Attachment populates NetworkID at start; Docker keeps it after exit.
+            row['networks']['xynes_qa_net']['NetworkID']=row['network_mode']
             kind=row['labels']['com.xynes.apex.seed']
             return json.dumps({'kind':'authz','permissions':200,'roles':5,'mappings':650} if kind=='authz'
                               else {'kind':'cms','templates':3,'workspaces':2,'defaults':6}).encode()
@@ -177,6 +182,24 @@ class Tests(unittest.TestCase):
             return value
         self.compose.runner=hostile;before=len(self.commands);self.refused(self.execute)
         self.assertFalse(any(a[5]=='create' for a in self.commands[before:]))
+
+    def test_created_seed_network_binding_is_create_time_network_mode(self):
+        # Empty pre-start NetworkID is accepted only with the exact create-time NetworkMode;
+        # any other mode, a foreign attachment or a missing mode is never started or removed.
+        for name,mutate in (('foreign_mode',lambda row:row.update(network_mode='c'*64)),('missing_mode',lambda row:row.pop('network_mode')),
+                            ('name_mode',lambda row:row.update(network_mode='xynes_qa_net')),
+                            ('foreign_attachment',lambda row:row['networks']['xynes_qa_net'].update(NetworkID='c'*64)),
+                            ('null_attachment',lambda row:row['networks'].update(xynes_qa_net=None))):
+            with self.subTest(name=name):
+                native=self.native;before=len(self.commands)
+                def hostile(argv,**kwargs):
+                    value=native(argv,**kwargs)
+                    if argv[5]=='inspect' and argv[-1] in self.created:
+                        row=json.loads(value);mutate(row);return json.dumps(row).encode()
+                    return value
+                self.compose.runner=hostile;self.refused(self.execute)
+                self.assertFalse(any(a[5] in ('start','rm') for a in self.commands[before:]))
+                self.compose.runner=native
 
     def test_child_failure_cleans_only_exact_owned_container_and_redacts(self):
         self.fail_start=True;self.refused(self.execute)
