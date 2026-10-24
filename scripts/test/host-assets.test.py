@@ -17,6 +17,16 @@ class Tests(unittest.TestCase):
   bundle=cls.fixture.work/'successor.tar';receipt=cls.fixture.create(output=bundle)
   receiver=cls.fixture.work/'successor';receiver.mkdir(mode=0o700)
   cls.successor=cls.fixture.extract(receipt,bundle=bundle,work=receiver)
+  # Genuine fresh builds of the successor commit with new run ids. (The transport
+  # itself already refuses any run_attempt other than 1.)
+  successor_controller=cls.fixture.controller;cls.rebuilds={}
+  for name,changes in (('retry',{'run_id':successor_controller['run_id']+77}),('second',{'run_id':successor_controller['run_id']+78}),
+                       ('proof',{'run_id':successor_controller['run_id']+79})):
+   cls.fixture.controller={**successor_controller,**changes}
+   bundle=cls.fixture.work/(name+'.tar');receipt=cls.fixture.create(output=bundle)
+   receiver=cls.fixture.work/name;receiver.mkdir(mode=0o700)
+   cls.rebuilds[name]=cls.fixture.extract(receipt,bundle=bundle,work=receiver)
+  cls.fixture.controller=successor_controller
   subprocess.run(['git','-C',str(repo),'-c','core.hooksPath=/dev/null','-c','commit.gpgsign=false','commit','--allow-empty','-qm','later accepted upgrade'],check=True)
   cls.fixture.controller={**cls.fixture.controller,'commit':subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD']).decode().strip()}
   bundle=cls.fixture.work/'later.tar';receipt=cls.fixture.create(output=bundle)
@@ -280,13 +290,24 @@ class Tests(unittest.TestCase):
  def test_initial_capsule_denies_tampering_wrong_successor_db_history_and_stage(self):
   root,capsule,publication,seal=self.initial_fixture()
   good=copy.deepcopy(capsule)
-  mutations=[lambda c:c.update(stage='prod'),lambda c:c.update(state_sha256='f'*64),
+  # state_sha256 is no longer compared with the live ledger (see the relaxed
+  # initial-origin tests below); it must still be present and hex-shaped.
+  mutations=[lambda c:c.update(stage='prod'),lambda c:c.update(state_sha256='not-a-ledger-digest'),
+    lambda c:c.pop('state_sha256'),
     lambda c:c.update(failed_record_sha256='f'*64),lambda c:c.update(baseline_sha256='f'*64),
-    lambda c:c['successor']['publication'].update(id=999),lambda c:c['database'].update(container_id='b'*64),
+    # successor publication/run id are informational now; commit and manifest bind.
+    lambda c:c['successor']['controller'].update(commit='f'*40),lambda c:c['successor'].update(source_manifest_sha256='f'*64),
+    lambda c:c['successor']['publication'].update(id='999'),lambda c:c['successor'].pop('publication'),
+    lambda c:c['successor']['controller'].update(commit=c['origin_controller']['commit']),
+    lambda c:c['database'].update(container_id='b'*64),
     lambda c:c.update(origin_source_manifest_sha256='f'*64)]
   for mutate in mutations:
    capsule.clear();capsule.update(copy.deepcopy(good));mutate(capsule);seal()
    with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+  # The failed origin build can never be presented as its own successor.
+  capsule.clear();capsule.update(copy.deepcopy(good))
+  capsule['successor'].update(controller=copy.deepcopy(capsule['origin_controller']),source_manifest_sha256=self.verified.source_manifest_sha256);seal()
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.verified,publication)
   capsule.clear();capsule.update(good);seal();(root/'capsule.sha256').write_text('f'*64+'\n')
   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
   seal();(root/'capsule.json').chmod(0o640)
@@ -345,6 +366,148 @@ class Tests(unittest.TestCase):
   self.assertEqual(extra.read_text(),'retained');extra.unlink()
   outside=self.root/'outside';outside.write_bytes(raw);outside.chmod(0o600);file.unlink();file.symlink_to(outside)
   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+ def other_attempt(self,run,*,controller=None,source=None,publication=None):
+  request={**self.request,'controller':controller or self.later.controller,
+    'publication':publication or {'id':run,'digest':'sha256:'+'e'*64},'deployment':{'run_id':run,'run_attempt':1,'job_id':run+1000}}
+  return request,self.state.begin(request,source_sha256='sha256:'+(source or self.later.source_manifest_sha256),started_at=int(time.time()))
+ def successor_request(self,publication,run=790):
+  return {**self.request,'controller':self.successor.controller,'publication':publication,'deployment':{'run_id':run,'run_attempt':1,'job_id':run+112}}
+ def test_capsule_from_older_ledger_authorizes_after_only_failed_attempts_were_appended(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  # Two later failed attempts (another controller, and the successor build under
+  # another publication; the ledger never reuses a publication id) change the
+  # ledger hash that this capsule recorded.
+  _,token=self.other_attempt(800);self.state.fail(token,reason='runtime',failed_at=int(time.time()))
+  _,token=self.other_attempt(795,controller=self.successor.controller,source=self.successor.source_manifest_sha256)
+  self.state.fail(token,reason='migration',failed_at=int(time.time()))
+  self.assertNotEqual(hashlib.sha256(self.m.host_release_state.encode(self.state.data)).hexdigest(),capsule['state_sha256'])
+  self.assertEqual(self.store.initial_origin(self.state,self.successor,publication)[0].controller,self.verified.controller)
+  self.assertEqual(self.m.root_executor.origin_bundle(None,self.state,self.successor,publication).controller,self.verified.controller)
+  # The current request may be pending, as during migration and persistence.
+  self.state.begin(self.successor_request(publication,796),source_sha256='sha256:'+self.successor.source_manifest_sha256,started_at=int(time.time()))
+  self.assertEqual(self.store.initial_origin(self.state,self.successor,publication)[0].controller,self.verified.controller)
+ def test_relaxed_initial_origin_refuses_accepted_foreign_pending_and_identity_drift(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  def refused(successor=None,pub=None):
+   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,successor or self.successor,pub or publication)
+  # A pending attempt for any other request is not the current one.
+  for controller,source,pub in ((self.later.controller,self.later.source_manifest_sha256,None),
+      (self.successor.controller,self.successor.source_manifest_sha256,{'id':991,'digest':'sha256:'+'c'*64})):
+   _,token=self.other_attempt(801 if pub is None else 802,controller=controller,source=source,publication=pub);refused()
+   self.state.fail(token,reason='interrupted',failed_at=int(time.time()))
+  self.assertIsNotNone(self.store.initial_origin(self.state,self.successor,publication))
+  # Successor, publication and DB identity bindings are unchanged.
+  refused(self.later)
+  # With no pending attempt the publication is no longer bound (a fresh build has a new one).
+  self.assertIsNotNone(self.store.initial_origin(self.state,self.successor,{'id':999,'digest':'sha256:'+'c'*64}))
+  with patch.object(self.m,'initial_database',return_value={'container_id':'b'*64,'data_inode':[7,11],'data_uid':70,'data_mode':448}):refused()
+  # Any accepted attempt ends the no-anchor bridge (an unrelated one cannot anchor).
+  request,token=self.other_attempt(803)
+  self.state.accept(token,smoke={'stage':'qa','publication':request['publication'],'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  refused()
+ def test_relaxed_initial_origin_requires_the_exact_origin_failure_once_and_empty_pointers(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  good=copy.deepcopy(self.state.data)
+  def refused(data):
+   self.state.data=data
+   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+  with patch.object(self.state,'_read',side_effect=lambda *args:self.state.data):
+   missing=copy.deepcopy(good);missing['attempts']=[];refused(missing)
+   changed=copy.deepcopy(good);changed['attempts'][0]['failure_reason']='smoke';refused(changed)
+   duplicate=copy.deepcopy(good);duplicate['attempts'].append(copy.deepcopy(good['attempts'][0]));refused(duplicate)
+   for key in ('current','previous'):
+    pointer=copy.deepcopy(good);pointer[key]=good['attempts'][0]['token'];refused(pointer)
+   self.state.data=copy.deepcopy(good)
+   self.assertIsNotNone(self.store.initial_origin(self.state,self.successor,publication))
+ def rebuilt(self,name):
+  # Same commit/manifest, new build run: only informational controller fields differ.
+  build=self.rebuilds[name]
+  self.assertEqual(build.controller['commit'],self.successor.controller['commit'])
+  self.assertEqual(build.source_manifest_sha256,self.successor.source_manifest_sha256)
+  return build
+ def test_fresh_build_of_same_successor_commit_is_authorized_after_failed_successor_attempt(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  token=self.state.begin(self.successor_request(publication),source_sha256='sha256:'+self.successor.source_manifest_sha256,started_at=int(time.time()))
+  self.state.fail(token,reason='runtime',failed_at=int(time.time()))
+  retry=self.rebuilt('retry');retrypub={'id':460,'digest':'sha256:'+'9'*64}
+  self.assertEqual(self.store.initial_origin(self.state,retry,retrypub)[0].controller,self.verified.controller)
+  self.assertEqual(self.m.root_executor.origin_bundle(None,self.state,retry,retrypub).controller,self.verified.controller)
+  request={**self.successor_request(retrypub,797),'controller':retry.controller}
+  token=self.state.begin(request,source_sha256='sha256:'+retry.source_manifest_sha256,started_at=int(time.time()))
+  result=self.store.initial_origin(self.state,retry,retrypub)
+  self.assertEqual(result[1]['capsule_sha256'],hashlib.sha256((root/'capsule.json').read_bytes()).hexdigest())
+  # Pending binding is still exact: another publication or run of the same commit is not this request.
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,retry,publication)
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.rebuilt('second'),retrypub)
+  assets=self.m.replace(self.assets,migration=retry,controller=retry.controller,publication=retrypub,
+    manifest=json.loads((self.successor.directory/'source-manifest.json').read_bytes()),origin=result[0])
+  restored=self.store.persist(assets,token=token,proofs={},state=self.state)
+  self.assertEqual(json.loads((self.base/token/'asset-record.json').read_bytes())['proofs']['initial_baseline_origin'],result[1])
+  self.state.accept(token,smoke={'stage':'qa','publication':retrypub,'source_sha256':'sha256:'+retry.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  # The accepted retry is the single anchor for the later lineage.
+  with patch.object(self.m,'initial_database',side_effect=AssertionError('anchored lineage must not reread the DB')):
+   self.assertEqual(self.store.initial_origin(self.state,self.later,{'id':461,'digest':'sha256:'+'8'*64},expected_prior=restored.origin)[0].controller,self.verified.controller)
+  # A second accepted build of the successor commit does not lock QA out;
+  # the earliest accepted one stays the anchor.
+  second=self.rebuilt('second');secondpub={'id':462,'digest':'sha256:'+'7'*64}
+  request={**self.successor_request(secondpub,798),'controller':second.controller}
+  secondtoken=self.state.begin(request,source_sha256='sha256:'+second.source_manifest_sha256,started_at=int(time.time()))
+  self.store.persist(self.m.replace(assets,migration=second,controller=second.controller,publication=secondpub),token=secondtoken,proofs={},state=self.state)
+  self.state.accept(secondtoken,smoke={'stage':'qa','publication':secondpub,'source_sha256':'sha256:'+second.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  used=[];native_original=self.store.original
+  def original(record):used.append(record['token']);return native_original(record)
+  with patch.object(self.store,'original',side_effect=original):
+   self.assertEqual(self.store.initial_origin(self.state,self.later,{'id':463,'digest':'sha256:'+'6'*64},expected_prior=restored.origin)[0].controller,self.verified.controller)
+  self.assertEqual(used,[token])
+  # A bad earliest anchor refuses even though the later accepted build is valid: no fallback.
+  record=self.base/token/'asset-record.json';good=record.read_bytes()
+  for change in (lambda m:m['proofs'].pop('initial_baseline_origin'),lambda m:m['proofs']['initial_baseline_origin'].update(capsule_sha256='0'*64)):
+   meta=json.loads(good);change(meta);record.write_bytes(self.m.encode(meta))
+   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.later,{'id':463,'digest':'sha256:'+'6'*64},expected_prior=restored.origin)
+  record.write_bytes(good)
+  self.assertIsNotNone(self.store.load_release('qa',self.state.read_accepted()['current']))
+ def test_accepted_anchor_must_carry_the_capsule_proof(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  retry=self.rebuilt('proof');retrypub={'id':464,'digest':'sha256:'+'5'*64}
+  request={**self.successor_request(retrypub,799),'controller':retry.controller}
+  token=self.state.begin(request,source_sha256='sha256:'+retry.source_manifest_sha256,started_at=int(time.time()))
+  origin=self.store.initial_origin(self.state,retry,retrypub)[0]
+  assets=self.m.replace(self.assets,migration=retry,controller=retry.controller,publication=retrypub,
+    manifest=json.loads((self.successor.directory/'source-manifest.json').read_bytes()),origin=origin)
+  restored=self.store.persist(assets,token=token,proofs={},state=self.state)
+  self.state.accept(token,smoke={'stage':'qa','publication':retrypub,'source_sha256':'sha256:'+retry.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  record=self.base/token/'asset-record.json';good=record.read_bytes()
+  # A changed proof (also refused by _load) or an absent one (only the anchor check refuses it).
+  for change in (lambda m:m['proofs']['initial_baseline_origin'].update(capsule_sha256='0'*64),lambda m:m['proofs'].pop('initial_baseline_origin')):
+   meta=json.loads(good);change(meta);record.write_bytes(self.m.encode(meta))
+   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.later,{'id':465,'digest':'sha256:'+'4'*64},expected_prior=restored.origin)
+  record.write_bytes(good)
+  self.assertIsNotNone(self.store.initial_origin(self.state,self.later,{'id':465,'digest':'sha256:'+'4'*64},expected_prior=restored.origin))
+ def test_accepted_release_without_matching_successor_anchor_refuses(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  request,token=self.other_attempt(805)
+  self.state.accept(token,smoke={'stage':'qa','publication':request['publication'],'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  for current,pub in ((self.successor,publication),(self.later,{'id':806,'digest':'sha256:'+'3'*64}),(self.rebuilds['retry'],{'id':807,'digest':'sha256:'+'2'*64})):
+   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,current,pub)
+   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,current,pub,expected_prior=self.verified)
+ def test_successor_identity_is_repository_workflow_commit_first_attempt_and_manifest(self):
+  root,capsule,publication,seal=self.initial_fixture()
+  successor=capsule['successor'];controller=successor['controller'];source=successor['source_manifest_sha256']
+  build=self.m.successor_build
+  self.assertTrue(build({**controller,'run_id':controller['run_id']+5},source,successor))
+  for change in ({'commit':'f'*40},{'repository':'Xynes-Studio/other'},{'workflow':'other.yml'},{'run_attempt':2},
+                 {'run_attempt':True},{'commit':None}):
+   self.assertFalse(build({**controller,**change},source,successor),change)
+  self.assertFalse(build(controller,'f'*64,successor));self.assertFalse(build(None,source,successor))
+  # Integrated: a different commit or a different source manifest of the same commit refuses.
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.later,publication)
+  with patch.object(self.m,'successor_build',side_effect=lambda c,s,x:build(c,'f'*64,x)):
+   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+  # run_attempt 2 is refused above at unit level; the transport and the ledger's
+  # request parser already refuse it, so no integrated Verified/record can carry it.
+  with self.assertRaises(self.m.host_release_state.StateError):
+   self.state.begin({**self.successor_request(publication,804),'controller':{**self.successor.controller,'run_attempt':2}},
+                    source_sha256='sha256:'+self.successor.source_manifest_sha256,started_at=int(time.time()))
  def test_missing_capsule_never_adopts_unaccepted_origin(self):
   root=self.root/'absent';patcher=patch.object(self.m,'INITIAL_BASELINE_ROOT',root);patcher.start();self.addCleanup(patcher.stop)
   self.assertIsNone(self.store.initial_origin(self.state,self.successor,{'id':457,'digest':'sha256:'+'c'*64}))

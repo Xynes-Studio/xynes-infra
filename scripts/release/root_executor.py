@@ -17,13 +17,15 @@ no broad removal, database reset, caller-selected operation or synthetic CLI ack
 """
 import copy
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 import re
 import stat
 import sys
 import time
+import traceback
 
 try:
     from . import deploy_admission, deploy_request, deployment_candidate, host_compose
@@ -36,12 +38,22 @@ except ImportError:
 
 ERROR='Root deployment execution refused'
 ROOT_UID=0
+DIAGNOSTICS=Path('/var/lib/xynes/deploy/diagnostics')
+MAX_DIAGNOSTIC=65536
+RELEASE_DIRECTORY=os.path.dirname(os.path.abspath(__file__))
+LABEL=re.compile(r'[a-z][a-z0-9-]{0,39}')
+CLASS=re.compile(r'[A-Za-z_][A-Za-z0-9_]{0,127}')
+FRAME_FILE=re.compile(r'[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}\.py')
+FRAME_FUNCTION=re.compile(r'<?[A-Za-z_][A-Za-z0-9_]{0,127}>?')
+DIAGNOSTIC_NAME=re.compile(r'[a-z0-9][a-z0-9-]{0,127}\.json')
 
 
 class ExecutorError(ValueError):
-    def __init__(self,*,reconciliation_required=False):
+    def __init__(self,*,reconciliation_required=False,diagnosed=False):
         super().__init__(ERROR)
         self.reconciliation_required=reconciliation_required
+        # True once a private diagnostic write was attempted for this failure.
+        self.diagnosed=diagnosed
 
 
 def require(value):
@@ -133,6 +145,122 @@ class Operations:
     seed_factory:object=None
     clock:object=lambda:int(time.time())
     guard_factory:object=host_quiescence.Guard
+
+
+def chain(error):
+    """Explicit causes and implicit contexts, including ones hidden by `from None`."""
+    found=[];queue=[(error,'raised')]
+    while queue and len(found)<16:
+        item,relation=queue.pop(0)
+        if not isinstance(item,BaseException) or any(item is old for old,_ in found):continue
+        found.append((item,relation));queue.extend(((item.__cause__,'cause'),(item.__context__,'context')))
+    return found
+
+
+def frames(error):
+    # Only (file name, line, function) of installed release modules: frames carry
+    # no values, unlike messages/args, which may contain secrets and are omitted.
+    rows=[]
+    for frame,line in traceback.walk_tb(error.__traceback__):
+        path=os.path.abspath(frame.f_code.co_filename);name=os.path.basename(path);function=frame.f_code.co_name
+        if (os.path.dirname(path)==RELEASE_DIRECTORY and FRAME_FILE.fullmatch(name)
+                and type(function) is str and FRAME_FUNCTION.fullmatch(function) and type(line) is int):
+            rows.append([name,line,function])
+    return rows[-48:]
+
+
+def identity_fields(request):
+    controller=deployment=None
+    value=request.get('controller') if type(request) is dict else None
+    if (type(value) is dict and type(value.get('commit')) is str and re.fullmatch(r'[a-f0-9]{40}',value['commit'])
+            and all(type(value.get(key)) is int and 0<value[key]<=9007199254740991 for key in ('run_id','run_attempt'))):
+        controller={key:value[key] for key in ('commit','run_id','run_attempt')}
+    value=request.get('deployment') if type(request) is dict else None
+    if type(value) is dict and all(type(value.get(key)) is int and 0<value[key]<=9007199254740991
+                                   for key in ('run_id','run_attempt','job_id')):
+        deployment={key:value[key] for key in ('run_id','run_attempt','job_id')}
+    return controller,deployment
+
+
+def diagnostic(error,*,stage,scope,phase=None,step=None,token=None,request=None,flags=None):
+    """Sanitized private failure record: fixed labels, class names and frames only."""
+    require(stage in host_release_state.STAGES and LABEL.fullmatch(scope)
+            and all(value is None or (type(value) is str and LABEL.fullmatch(value)) for value in (phase,step))
+            and (token is None or (type(token) is str and re.fullmatch(r'[a-f0-9]{64}',token)))
+            and all(type(key) is str and LABEL.fullmatch(key) and type(value) is bool for key,value in (flags or {}).items()))
+    controller,deployment=identity_fields(request)
+    exceptions=[]
+    for item,relation in chain(error):
+        name=type(item).__name__
+        row={'class':name if CLASS.fullmatch(name) else 'unnamed','relation':relation,'frames':frames(item)}
+        native=host_compose.native_failure(getattr(item,'native',None))
+        if native is not None:row['native']=native
+        exceptions.append(row)
+    record={'schema_version':1,'artifact_kind':'root-deployment-diagnostic','stage':stage,'scope':scope,
+            'token':token,'controller':controller,'deployment':deployment,'phase':phase,'last_step':step,
+            'recorded_at':datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'flags':dict(flags or {}),'exceptions':exceptions}
+    for frames_kept,exceptions_kept in ((48,16),(8,16),(8,4),(0,4)):
+        bounded={**record,'exceptions':[{**row,'frames':row['frames'][-frames_kept:] if frames_kept else []}
+                                        for row in exceptions[:exceptions_kept]]}
+        raw=(json.dumps(bounded,sort_keys=True,separators=(',',':'),allow_nan=False)+'\n').encode('ascii')
+        if len(raw)<=MAX_DIAGNOSTIC:return raw
+    require(False)
+
+
+def write_diagnostic(stage,name,raw):
+    """Exclusive root-only 0600 file under fixed 0700 directories; never follows links."""
+    require(os.geteuid()==ROOT_UID and stage in host_release_state.STAGES and type(name) is str
+            and DIAGNOSTIC_NAME.fullmatch(name) and type(raw) is bytes and 0<len(raw)<=MAX_DIAGNOSTIC)
+    parent=DIAGNOSTICS.parent
+    require(DIAGNOSTICS.is_absolute() and DIAGNOSTICS.name=='diagnostics')
+    if ROOT_UID==0:
+        for path in parent.parents:
+            info=path.lstat()
+            require(stat.S_ISDIR(info.st_mode) and info.st_uid==0 and not info.st_mode&0o022)
+    flags=os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW|os.O_CLOEXEC;opened=[]
+    try:
+        current=os.open(parent,flags);opened.append(current);info=os.fstat(current)
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid==ROOT_UID and not info.st_mode&0o022)
+        for component in (DIAGNOSTICS.name,stage):
+            created=False
+            try:os.mkdir(component,0o700,dir_fd=current);created=True
+            except FileExistsError:pass
+            child=os.open(component,flags,dir_fd=current);opened.append(child)
+            if created:os.fchmod(child,0o700);os.fsync(current)
+            info=os.fstat(child)
+            require(stat.S_ISDIR(info.st_mode) and info.st_uid==ROOT_UID and stat.S_IMODE(info.st_mode)==0o700)
+            current=child
+        descriptor=os.open(name,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600,dir_fd=current)
+        written=False;info=None
+        try:
+            info=os.fstat(descriptor)
+            require(stat.S_ISREG(info.st_mode) and info.st_uid==ROOT_UID and info.st_nlink==1)
+            os.fchmod(descriptor,0o600);view=memoryview(raw)
+            while view:
+                count=os.write(descriptor,view);require(count>0);view=view[count:]
+            os.fsync(descriptor);written=True
+        finally:
+            os.close(descriptor)
+            if not written and info is not None:
+                try:
+                    if os.path.samestat(info,os.stat(name,dir_fd=current,follow_symlinks=False)):os.unlink(name,dir_fd=current)
+                except Exception:pass
+        os.fsync(current)
+    finally:
+        for descriptor in reversed(opened):os.close(descriptor)
+
+
+def diagnose(error,*,stage,scope,name=None,**fields):
+    """Best effort only: a diagnostic failure never changes the refusal raised."""
+    try:write_diagnostic(stage,name or run_identity(fields.get('request')),diagnostic(error,stage=stage,scope=scope,**fields))
+    except Exception:pass
+
+
+def run_identity(request):
+    _,deployment=identity_fields(request)
+    if deployment is None:return 'run-unidentified-'+str(int(time.time()))+'-'+os.urandom(4).hex()+'.json'
+    return 'run-'+'-'.join(str(deployment[key]) for key in ('run_id','run_attempt','job_id'))+'.json'
 
 
 def private_work(work):
@@ -292,69 +420,76 @@ def execute_locked(*,stage,request,work,state,native,operations,current,driver):
     started_at=clock(operations)
     token=state.begin(request,source_sha256='sha256:'+current.migration.source_manifest_sha256,started_at=started_at)
     context=None;guard=None;entered=False;released=False;mutated=False;warm_uncertain=False;phase='runtime'
+    # Last completed step, recorded only in the private root diagnostic.
+    step='begin'
     try:
         guard=operations.guard_factory(stage,state)
         require(getattr(guard,'stage',None)==stage and all(callable(getattr(guard,key,None))
                     for key in ('assert_sql_safe','resume')) and callable(getattr(driver,'bind_guard',None)))
-        driver.bind_guard(guard)
+        driver.bind_guard(guard);step='guard'
         proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
         context=operations.warm(stage,current,previous)
         require(hasattr(context,'__enter__') and hasattr(context,'__exit__'))
-        context.__enter__();entered=True
+        context.__enter__();entered=True;step='warm'
         if audit['database_state']=='existing':
             proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
             proofs['backups'].append(backup(operations.backup(stage,phase='before-bootstrap',current=current,previous=previous,state=state,token=token),
-                stage=stage,started_at=started_at,now=clock(operations)))
+                stage=stage,started_at=started_at,now=clock(operations)));step='backup-before-bootstrap'
         proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256));mutated=True
         result=driver.bootstrap(current.prepared,previous=previous.prepared if previous else None)
-        require(type(result) is dict and result.get('stage')==stage and result.get('services_ready')==2)
+        require(type(result) is dict and result.get('stage')==stage and result.get('services_ready')==2);step='bootstrap'
         proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
         proofs['backups'].append(backup(operations.backup(stage,phase='before-sql',current=current,previous=previous,state=state,token=token),
-            stage=stage,started_at=started_at,now=clock(operations)))
+            stage=stage,started_at=started_at,now=clock(operations)));step='backup-before-sql'
         phase='migration';proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
         proofs['storage_sql']=guard.assert_sql_safe(current.migration,prior_verified=prior)
-        require(type(proofs['storage_sql']) is dict and proofs['storage_sql'].get('stage')==stage)
+        require(type(proofs['storage_sql']) is dict and proofs['storage_sql'].get('stage')==stage);step='storage-sql'
         migration=host_migrate.apply(current.migration,state,prior_verified=prior)
         require(type(migration) is dict and migration.get('stage')==stage
                 and migration.get('controller')==request['controller']
                 and migration.get('source_manifest_sha256')==current.migration.source_manifest_sha256
                 and migration.get('migration_count')==40 and migration.get('migration_ledger_verified') is True
                 and migration.get('deployable') is False)
-        proofs['migration']=migration
+        proofs['migration']=migration;step='migration'
         proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
         seeder=operations.seed_factory(driver) if operations.seed_factory else host_seed.Driver(driver,verify_counts=operations.seed_counts)
         seeded=seeder.run(current.prepared,current.migration,work=work)
         require(type(seeded) is dict and seeded.get('stage')==stage and seeded.get('seeds_applied') is True)
-        proofs['seeds']=seeded
+        proofs['seeds']=seeded;step='seeds'
         phase='runtime';proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
         result=driver.start(current.prepared,previous=previous.prepared if previous else None)
-        require(type(result) is dict and result.get('stage')==stage and result.get('services_ready')==14)
+        require(type(result) is dict and result.get('stage')==stage and result.get('services_ready')==14);step='start'
         phase='smoke'
         observed=smoke(operations.product_smoke(current,phase='current'),current,stage=stage,
-                       started_at=started_at,now=clock(operations));proofs['smoke']=observed
+                       started_at=started_at,now=clock(operations));proofs['smoke']=observed;step='smoke'
         phase='runtime'
         proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
         persisted=validate_assets(operations.persist(current,token=token,proofs=copy.deepcopy(proofs),state=state),
                                    stage=stage,driver=driver,expected=current)
         require(persisted.prepared.file!=current.prepared.file and work not in persisted.prepared.file.parents
                 and work!=persisted.migration.directory and work not in persisted.migration.directory.parents
-                and work!=persisted.origin.directory and work not in persisted.origin.directory.parents)
+                and work!=persisted.origin.directory and work not in persisted.origin.directory.parents);step='persist'
         # Recheck after persistence and release while still holding the host lock.
         proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
         try:guard.resume();context.__exit__(None,None,None);released=True
         except Exception:warm_uncertain=True;raise
+        step='release'
         proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
         state.accept(token,smoke=observed,accepted_at=clock(operations))
         return {'artifact_kind':'root-deployment-result','stage':stage,'token':token,
                 'controller':copy.deepcopy(request['controller']),'publication':copy.deepcopy(request['publication']),
                 'source_manifest_sha256':current.migration.source_manifest_sha256,'deployment_accepted':True}
-    except Exception:
+    except Exception as failure:
+        # Record first, before any recovery work that could hang or be killed.
+        diagnose(failure,stage=stage,scope='execute',name=token+'.json',phase=phase,step=step,token=token,
+                 request=request,flags={'mutated':mutated,'lease-entered':entered,'lease-released':released,
+                                        'previous-accepted':previous is not None})
         # Uncertain ledger replacement/fsync must never trigger a blind rollback
         # of a release that may already be atomically accepted on disk.
         try:pending=state.read_pending()
-        except Exception:raise ExecutorError(reconciliation_required=True) from None
+        except Exception:raise ExecutorError(reconciliation_required=True,diagnosed=True) from None
         if pending is None or pending['token']!=token:
-            raise ExecutorError(reconciliation_required=True) from None
+            raise ExecutorError(reconciliation_required=True,diagnosed=True) from None
         restored=not mutated
         if mutated and previous is not None:
             try:
@@ -379,11 +514,12 @@ def execute_locked(*,stage,request,work,state,native,operations,current,driver):
         if reconciled:
             try:state.fail(token,reason=phase,failed_at=clock(operations))
             except Exception:reconciled=False
-        raise ExecutorError(reconciliation_required=not reconciled) from None
+        raise ExecutorError(reconciliation_required=not reconciled,diagnosed=True) from None
 
 
 def run(raw,*,stage,work,state_directory,native,operations):
     """Only installed root integration code supplies settings and adapters."""
+    request=None;step='entry'
     try:
         require(os.geteuid()==ROOT_UID and type(native) is NativeAdapters and type(operations) is Operations)
         require(all(callable(value) for value in native.__dict__.values())
@@ -392,7 +528,7 @@ def run(raw,*,stage,work,state_directory,native,operations):
                 and (operations.seed_factory is None or callable(operations.seed_factory)))
         private_work(work)
         request=deploy_request.parse(raw,stage=stage)
-        request={key:value for key,value in request.items() if key!='stage'}
+        request={key:value for key,value in request.items() if key!='stage'};step='request'
         candidate=deployment_candidate.acquire(raw,stage=stage,work=work,read=native.read,download=native.download,verify=native.verify)
         require(type(candidate) is dict and candidate.get('artifact_kind')=='verified-deployment-candidate'
                 and candidate.get('stage')==stage and candidate.get('controller')==request['controller']
@@ -403,21 +539,28 @@ def run(raw,*,stage,work,state_directory,native,operations):
         receipt=records.read_json(work/'publication/published-receipt.json')
         qualified=publication_record.qualify(receipt=receipt,manifest=manifest,public=public,controller=request['controller'])
         require(qualified['source_manifest_sha256']==candidate['source_manifest_sha256']
-                and qualified['receipt_sha256']==candidate['receipt_sha256'])
+                and qualified['receipt_sha256']==candidate['receipt_sha256']);step='candidate'
         verified=deployment_candidate.acquire_migration(controller=request['controller'],manifest_bytes=manifest_bytes,
                 work=work,read=native.read,download=native.download)
         require(type(verified) is migration_transport.Verified and verified.controller==request['controller']
                 and verified.source_manifest_sha256==candidate['source_manifest_sha256'])
-        migration_transport.application_inputs(verified)
+        migration_transport.application_inputs(verified);step='migration-transport'
         with host_release_state.ReleaseState(state_directory,stage=stage,owner_uid=ROOT_UID) as state:
-            driver=operations.compose_factory(stage)
+            step='ledger-lock';driver=operations.compose_factory(stage)
             prepared=driver.prepare(receipt=receipt,manifest=manifest,public=public,controller=request['controller'],work=work)
+            step='prepare'
             current=validate_assets(ReleaseAssets(prepared,verified,request['controller'],request['publication'],manifest,public,receipt),
-                                    stage=stage,driver=driver)
+                                    stage=stage,driver=driver);step='qualified'
             return execute_locked(stage=stage,request=request,work=work,state=state,native=native,
                                   operations=operations,current=current,driver=driver)
-    except ExecutorError:raise
-    except Exception:raise ExecutorError() from None
+    except Exception as error:
+        # execute_locked records attempt failures itself; everything earlier
+        # (including its pre-begin checks) is recorded here under the run identity.
+        if not (isinstance(error,ExecutorError) and error.diagnosed is True):
+            diagnose(error,stage=stage,scope='run',step=step,request=request)
+        if isinstance(error,ExecutorError):
+            error.diagnosed=True;raise
+        raise ExecutorError(diagnosed=True) from None
 
 
 def main():

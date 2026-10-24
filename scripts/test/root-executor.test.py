@@ -68,6 +68,14 @@ class Tests(unittest.TestCase):
             patch.object(self.m.publication_record,'qualify',self.qualify),
             patch.object(self.m.host_migrate,'apply',self.migrate))
         for patcher in patches:patcher.start();self.addCleanup(patcher.stop)
+        self.deploy=self.root/'deploy';self.deploy.mkdir(mode=0o700)
+        self.diagnostics=self.deploy/'diagnostics'
+        patcher=patch.object(self.m,'DIAGNOSTICS',self.diagnostics);patcher.start();self.addCleanup(patcher.stop)
+
+    def records(self):
+        directory=self.diagnostics/self.stage
+        if not directory.exists():return {}
+        return {path.name:path for path in directory.iterdir()}
 
     def event(self,name):
         self.events.append(name)
@@ -405,6 +413,169 @@ class Tests(unittest.TestCase):
         self.assertIsNone(pending)
         self.assertIsNotNone(accepted['current'])
         self.assertNotIn('rollback',self.events,'uncertain atomic acceptance must not trigger a blind rollback')
+
+    SECRET='ghp_'+'Z'*36
+
+    def secret_failure(self,name):
+        # Secret-shaped values in the exception message/args, environment and argv.
+        original=self.event
+        def event(value):
+            original(value)
+            if value==name:
+                raise KeyError('INERT_SECRET_SENTINEL '+self.SECRET,{'password':self.SECRET})
+        self.event=event
+
+    def assert_private_record(self,path,*,scope):
+        raw=path.read_bytes();record=json.loads(raw)
+        self.assertEqual(path.stat().st_mode&0o777,0o600);self.assertEqual(path.parent.stat().st_mode&0o777,0o700)
+        self.assertEqual(path.parent.parent.stat().st_mode&0o777,0o700)
+        for forbidden in (self.SECRET,'INERT_SECRET_SENTINEL','password',str(self.root),'unknown'):
+            self.assertNotIn(forbidden.encode(),raw)
+        self.assertLessEqual(len(raw),self.m.MAX_DIAGNOSTIC)
+        self.assertEqual(set(record),{'schema_version','artifact_kind','stage','scope','token','controller','deployment',
+                                      'phase','last_step','recorded_at','flags','exceptions'})
+        self.assertEqual((record['schema_version'],record['artifact_kind'],record['stage'],record['scope']),
+                         (1,'root-deployment-diagnostic',self.stage,scope))
+        self.assertEqual(record['controller'],{key:self.request['controller'][key] for key in ('commit','run_id','run_attempt')})
+        self.assertEqual(record['deployment'],self.request['deployment'])
+        for row in record['exceptions']:
+            self.assertEqual(set(row)-{'native'},{'class','relation','frames'})
+            for name,line,function in row['frames']:
+                self.assertTrue((ROOT/'scripts/release'/name).is_file());self.assertIsInstance(line,int)
+        return record
+
+    def test_attempt_failure_records_phase_step_classes_and_frames_without_secrets(self):
+        self.secret_failure('migrate')
+        with patch.dict(os.environ,{'POSTGRES_PASSWORD':self.SECRET}):
+            with self.assertRaises(self.m.ExecutorError) as caught:self.execute()
+        self.assertTrue(caught.exception.reconciliation_required);self.assertEqual(str(caught.exception),self.m.ERROR)
+        pending,_=self.read_state();files=self.records()
+        self.assertEqual(set(files),{pending['token']+'.json'})
+        record=self.assert_private_record(files[pending['token']+'.json'],scope='execute')
+        self.assertEqual((record['token'],record['phase'],record['last_step']),(pending['token'],'migration','storage-sql'))
+        self.assertEqual(record['flags'],{'mutated':True,'lease-entered':True,'lease-released':False,'previous-accepted':False})
+        self.assertEqual(record['exceptions'][0]['class'],'KeyError')
+        self.assertIn(['root_executor.py',record['exceptions'][0]['frames'][0][1],'execute_locked'],record['exceptions'][0]['frames'])
+
+    def test_each_representative_phase_records_last_completed_step(self):
+        cases=[('bootstrap','runtime','warm'),('seed','migration','migration'),('start','runtime','seeds'),
+               ('smoke-current','smoke','start'),('persist','runtime','smoke')]
+        for failure,phase,step in cases:
+            with self.subTest(failure=failure):
+                self.setUp();self.failure=failure
+                with self.assertRaises(self.m.ExecutorError):self.execute()
+                (path,)=self.records().values()
+                record=self.assert_private_record(path,scope='execute')
+                self.assertEqual((record['phase'],record['last_step']),(phase,step))
+                self.assertEqual(record['exceptions'][0]['class'],'RuntimeError')
+
+    def test_native_compose_classification_reaches_the_record_through_suppressed_context(self):
+        import subprocess
+        real_popen=subprocess.Popen;compose=self.m.host_compose
+        def flood(argv,**kwargs):
+            return real_popen([sys.executable,'-c',"import sys;sys.stderr.write('"+self.SECRET+"\\n'*3000)"],**kwargs)
+        def start(current,*,previous=None):
+            self.event('start')
+            try:
+                with patch.object(compose.subprocess,'Popen',flood):
+                    compose.run_command(compose.BASE+['compose','--env-file','/srv/'+self.SECRET,'up','-d','gateway'],
+                                        env={**compose.CLEAN_ENV,'TOKEN':self.SECRET},timeout=30,limit=65536)
+            except Exception:raise compose.ComposeError(compose.ERROR) from None
+        self.driver.start=start
+        with self.assertRaises(self.m.ExecutorError):self.execute()
+        (path,)=self.records().values()
+        record=self.assert_private_record(path,scope='execute')
+        self.assertEqual(record['last_step'],'seeds')
+        natives=[row['native'] for row in record['exceptions'] if 'native' in row]
+        self.assertEqual(len(natives),1)
+        self.assertEqual({key:natives[0][key] for key in ('command','outcome','exit_code','stdout_bytes')},
+                         {'command':'compose up','outcome':'stderr-limit','exit_code':None,'stdout_bytes':0})
+        self.assertEqual([row['relation'] for row in record['exceptions']][:2],['raised','context'])
+
+    def test_pre_attempt_failure_is_recorded_under_run_identity_once(self):
+        self.failure='admit'
+        with self.assertRaises(self.m.ExecutorError) as caught:self.execute()
+        self.assertFalse(caught.exception.reconciliation_required)
+        files=self.records();self.assertEqual(set(files),{'run-789-1-901.json'})
+        record=self.assert_private_record(files['run-789-1-901.json'],scope='run')
+        self.assertEqual((record['token'],record['phase'],record['last_step']),(None,None,'qualified'))
+        self.assertIn('admission',[function for _,_,function in record['exceptions'][0]['frames']])
+        # Exclusive create: an existing record is never replaced and never changes the refusal.
+        files['run-789-1-901.json'].write_bytes(b'retained\n');self.events=[]
+        another=self.root/'again';another.mkdir(mode=0o700);self.work=another
+        with self.assertRaises(self.m.ExecutorError) as again:self.execute()
+        self.assertFalse(again.exception.reconciliation_required)
+        self.assertEqual(files['run-789-1-901.json'].read_bytes(),b'retained\n')
+
+    def test_diagnostic_write_failures_never_change_refusal_or_ledger(self):
+        def outcome():
+            self.setUp();self.failure='start'
+            with self.assertRaises(self.m.ExecutorError) as caught:self.execute()
+            pending,accepted=self.read_state()
+            return caught.exception.reconciliation_required,pending is not None,accepted['current'] is None,str(caught.exception)
+        expected=outcome();self.assertEqual(len(self.records()),1)
+        breakers=[lambda:patch.object(self.m,'write_diagnostic',side_effect=OSError('INERT_SECRET_SENTINEL')),
+                  lambda:patch.object(self.m,'diagnostic',side_effect=MemoryError()),
+                  lambda:patch.object(self.m,'DIAGNOSTICS',self.root/'absent'/'diagnostics'),
+                  lambda:patch.object(self.m,'MAX_DIAGNOSTIC',8)]
+        for breaker in breakers:
+            with self.subTest(breaker=breaker):
+                self.setUp()
+                with breaker():
+                    self.failure='start'
+                    with self.assertRaises(self.m.ExecutorError) as caught:self.execute()
+                pending,accepted=self.read_state()
+                self.assertEqual((caught.exception.reconciliation_required,pending is not None,accepted['current'] is None,str(caught.exception)),expected)
+        # Unsafe directories are refused (nothing written) without changing the refusal.
+        for unsafe in ('parent-mode','stage-mode','stage-symlink','diagnostics-symlink','file-symlink'):
+            with self.subTest(unsafe=unsafe):
+                self.setUp();outside=self.root/'outside';outside.mkdir(mode=0o700)
+                if unsafe=='parent-mode':self.deploy.chmod(0o777)
+                elif unsafe=='stage-mode':(self.diagnostics/self.stage).mkdir(parents=True,mode=0o700);(self.diagnostics/self.stage).chmod(0o755)
+                elif unsafe=='stage-symlink':self.diagnostics.mkdir(mode=0o700);(self.diagnostics/self.stage).symlink_to(outside)
+                elif unsafe=='diagnostics-symlink':self.diagnostics.symlink_to(outside)
+                self.failure='start'
+                if unsafe=='file-symlink':
+                    original=self.m.diagnose
+                    def plant(error,**kwargs):
+                        (self.diagnostics/self.stage).mkdir(parents=True,mode=0o700)
+                        (self.diagnostics/self.stage/(kwargs['token']+'.json')).symlink_to(outside/'target')
+                        return original(error,**kwargs)
+                    with patch.object(self.m,'diagnose',plant):
+                        with self.assertRaises(self.m.ExecutorError) as caught:self.execute()
+                else:
+                    with self.assertRaises(self.m.ExecutorError) as caught:self.execute()
+                pending,accepted=self.read_state()
+                self.assertEqual((caught.exception.reconciliation_required,pending is not None,accepted['current'] is None,str(caught.exception)),expected)
+                self.assertEqual(list(outside.iterdir()),[])
+                stage=self.diagnostics/self.stage
+                if unsafe in ('parent-mode','stage-mode'):
+                    self.assertFalse(stage.exists() and any(stage.iterdir()))
+        self.deploy.chmod(0o700)
+
+    def test_record_is_bounded_and_drops_frames_before_exceeding_limit(self):
+        def deep(depth):
+            if depth:return deep(depth-1)
+            raise ValueError('INERT_SECRET_SENTINEL')
+        errors=[]
+        for index in range(20):
+            try:
+                try:deep(200)
+                except ValueError as inner:
+                    raise RuntimeError('INERT_SECRET_SENTINEL') from (errors[-1] if errors else inner)
+            except RuntimeError as outer:errors.append(outer)
+        with patch.object(self.m,'MAX_DIAGNOSTIC',4096),patch.object(self.m,'RELEASE_DIRECTORY',str(Path(__file__).resolve().parent)):
+            raw=self.m.diagnostic(errors[-1],stage='qa',scope='execute',phase='runtime',step='begin',token='a'*64,request=self.request)
+            self.assertLessEqual(len(raw),4096)
+        record=json.loads(raw);self.assertLessEqual(len(record['exceptions']),16)
+        self.assertNotIn(b'INERT_SECRET_SENTINEL',raw)
+        for bad in (dict(scope='Execute'),dict(phase='x'*41),dict(token='g'*64),dict(flags={'mutated':'yes'}),dict(stage='dev')):
+            arguments=dict(stage='qa',scope='execute',phase=None,step=None,token=None,request=None);arguments.update(bad)
+            with self.assertRaises(self.m.ExecutorError):self.m.diagnostic(errors[-1],**arguments)
+        identity=self.m.identity_fields({'controller':{'commit':self.SECRET,'run_id':1,'run_attempt':1},
+                                         'deployment':{'run_id':True,'run_attempt':1,'job_id':2}})
+        self.assertEqual(identity,(None,None))
+        with self.assertRaises(self.m.ExecutorError):self.m.write_diagnostic('qa','../escape.json',b'{}\n')
 
 
 if __name__=='__main__':unittest.main()
