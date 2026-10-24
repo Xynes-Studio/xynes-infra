@@ -94,6 +94,21 @@ def initial_database():
     return {'container_id':container,'data_inode':[info.st_dev,info.st_ino],
             'data_uid':info.st_uid,'data_mode':stat.S_IMODE(info.st_mode)}
 
+def successor_build(controller,source_sha256,successor):
+    """A capsule successor is its reviewed commit plus source manifest.
+
+    successor.controller run_id/run_attempt and successor.publication stay in the
+    capsule schema (shape-validated) but are informational for authorization: a
+    fresh first-attempt build of the same commit/manifest, with a new run and a
+    new publication, is the same successor. Its candidate, publication and
+    attestations are still fully verified by the executor.
+    """
+    expected=successor['controller']
+    return (type(controller) is dict and type(source_sha256) is str
+            and all(controller.get(key)==expected[key] for key in ('repository','workflow','commit'))
+            and type(controller.get('run_attempt')) is int and controller['run_attempt']==1
+            and source_sha256==successor['source_manifest_sha256'])
+
 class Store:
     def __init__(self,stage,*,base=None):
         require(stage in ('qa','staging','prod'))
@@ -240,7 +255,7 @@ class Store:
         records.validate_controller(successor['controller'])
         require(type(successor['source_manifest_sha256']) is str
                 and re.fullmatch(r'[a-f0-9]{64}',successor['source_manifest_sha256'])
-                and successor['controller']!=value['origin_controller'])
+                and successor['controller']['commit']!=value['origin_controller']['commit'])
         publication=successor['publication']
         require(type(publication) is dict and set(publication)=={'id','digest'}
                 and type(publication['id']) is int and publication['id']>0
@@ -310,11 +325,12 @@ class Store:
                     and expected_prior.files==origin.files)
         successor=value['successor']
         anchors=[r for r in state.data['attempts'] if r['status']=='accepted'
-                 and r['request']['controller']==successor['controller']
-                 and r['request']['publication']==successor['publication']
-                 and r['source_sha256']=='sha256:'+successor['source_manifest_sha256']]
+                 and r['source_sha256'].startswith('sha256:')
+                 and successor_build(r['request']['controller'],r['source_sha256'][7:],successor)]
         if anchors:
-            require(len(anchors)==1)
+            # The earliest accepted successor build in ledger order is the anchor.
+            # Later accepted builds of the same commit never lock QA out, and a
+            # bad earliest anchor never falls back to a later one.
             retained,_=self.original(anchors[0])
             meta=records.strict_json(read(self.destination(anchors[0]['token'])/'asset-record.json').decode())
             require(meta['proofs'].get('initial_baseline_origin')==proof
@@ -324,15 +340,25 @@ class Store:
             require(initial_database()==value['database'])
             require(state.data['current'] is None and state.data['previous'] is None
                     and not any(r['status']=='accepted' for r in state.data['attempts'])
-                    and current.controller==successor['controller'] and publication==successor['publication']
-                    and current.source_manifest_sha256==successor['source_manifest_sha256'])
-            before=copy.deepcopy(state.data);pending=state.read_pending()
+                    and successor_build(current.controller,current.source_manifest_sha256,successor)
+                    and type(publication) is dict)
+            # Before the first acceptance the ledger may only have grown by FAILED
+            # attempts (each already reconciled by root) plus this exact pending
+            # request. capsule['state_sha256'] stays a required, hex-validated
+            # historical binding of the reviewed ledger, so installed capsules still
+            # parse, but no longer has to equal the live ledger: requiring that
+            # invalidated the capsule on every failed attempt. The DB identity,
+            # origin catalog, successor commit/manifest and anchor lineage remain exact.
+            attempts=state.data['attempts'];pending=state.read_pending()
+            pendings=[r for r in attempts if r['status']=='pending']
+            require(all(r['status'] in ('failed','pending') for r in attempts) and len(pendings)<=1
+                    and sum(r['token']==failures[0]['token'] for r in attempts)==1
+                    and (pending is None)==(not pendings))
             if pending is not None:
-                require(before['attempts'][-1]==pending and pending['request']['controller']==current.controller
+                require(attempts[-1]==pending==pendings[0] and pending['token']!=failures[0]['token']
+                        and pending['request']['controller']==current.controller
                         and pending['request']['publication']==publication
                         and pending['source_sha256']=='sha256:'+current.source_manifest_sha256)
-                before['attempts'].pop()
-            require(hashlib.sha256(host_release_state.encode(before)).hexdigest()==value['state_sha256'])
         return origin,proof
 
     def _load(self,destination,meta):

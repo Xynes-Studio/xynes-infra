@@ -358,5 +358,45 @@ if control.get('activation_ack'):unit_path.with_suffix('.output').touch()
             changed={**self.request,'deployment':{**self.request['deployment'],'job_id':902}}
             self.refuse(lambda:self.m.observe_accepted(result,changed,'qa'))
 
+    def test_worker_failure_writes_private_record_once_without_secrets(self):
+        import root_executor,host_runtime
+        secret='ghp_'+'Y'*36;deploy=self.root/'deploy';deploy.mkdir(mode=0o700);diagnostics=deploy/'diagnostics'
+        read,write=os.pipe();self.addCleanup(os.close,read);self.addCleanup(os.close,write)
+        parsed={**self.request,'stage':'qa'}
+        def runtime(diagnosed):
+            class Runtime:
+                def __init__(self,stage):pass
+                def execute(self,raw):
+                    try:raise root_executor.ExecutorError(diagnosed=diagnosed)
+                    except Exception:raise ValueError(secret) from None
+            return Runtime
+        common=(patch.object(self.m,'ROOT_UID',os.getuid()),patch.object(root_executor,'ROOT_UID',os.getuid()),
+                patch.object(root_executor,'DIAGNOSTICS',diagnostics),patch.object(self.m.os,'isatty',return_value=False))
+        with contextlib.ExitStack() as stack:
+            for item in common:stack.enter_context(item)
+            with patch.object(self.m,'worker_binding',side_effect=ValueError(secret)):
+                self.refuse(lambda:self.m.worker('qa',901,os.getpid(),12345,fd=read))
+            path=diagnostics/'qa'/'worker-901.json';raw=path.read_bytes();record=json.loads(raw)
+            self.assertNotIn(secret.encode(),raw);self.assertEqual(path.stat().st_mode&0o777,0o600)
+            self.assertEqual((record['scope'],record['controller'],record['exceptions'][0]['class']),('worker',None,'ValueError'))
+            path.unlink()
+            stack.enter_context(patch.object(self.m,'worker_binding',return_value=('a'*32,'1','/system.slice/x')))
+            stack.enter_context(patch.object(self.m.deploy_request,'receive',return_value=parsed))
+            stack.enter_context(patch.object(self.m,'parent_watchdog',lambda *args:contextlib.nullcontext()))
+            # The executor already recorded this failure: the worker adds nothing.
+            with patch.object(host_runtime,'Runtime',runtime(True)):
+                self.refuse(lambda:self.m.worker('qa',901,os.getpid(),12345,fd=read))
+            self.assertEqual(list((diagnostics/'qa').iterdir()),[])
+            with patch.object(host_runtime,'Runtime',runtime(False)):
+                self.refuse(lambda:self.m.worker('qa',901,os.getpid(),12345,fd=read))
+            record=json.loads(path.read_bytes())
+            self.assertEqual(record['deployment'],self.request['deployment'])
+            self.assertEqual([row['class'] for row in record['exceptions']],['ValueError','ExecutorError'])
+            # A failing record write never changes the supervisor refusal.
+            path.unlink();(diagnostics/'qa').chmod(0o755)
+            with patch.object(host_runtime,'Runtime',runtime(False)):
+                self.refuse(lambda:self.m.worker('qa',901,os.getpid(),12345,fd=read))
+            self.assertFalse(path.exists())
+
 
 if __name__=='__main__':unittest.main()

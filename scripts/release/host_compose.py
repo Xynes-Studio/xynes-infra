@@ -54,11 +54,30 @@ BASE = ['/usr/bin/docker', '--host', 'unix:///var/run/docker.sock',
 CLEAN_ENV = {'PATH':'/usr/bin:/bin', 'HOME':'/nonexistent', 'LANG':'C', 'LC_ALL':'C'}
 MAX_CONFIG = 1024 * 1024
 CID = re.compile(r'[a-f0-9]{64}')
+# Pull progress must never reach run_command's 64 KiB stderr bound: each pulled
+# layer emits progress lines, so a many-image up would be killed mid-pull.
+# --quiet-pull suppresses only that progress; errors still fail the command.
+UP = ('up','-d','--no-build','--no-deps','--pull','always','--quiet-pull','--wait','--wait-timeout','180')
 INSPECT = ('{"id":{{json .Id}},"image":{{json .Config.Image}},"labels":{{json .Config.Labels}},'
            '"state":{{json .State.Status}},"health":{{if .State.Health}}{{json .State.Health.Status}}{{else}}null{{end}}}')
 
+# Fixed labels for the root-only diagnostic record; never argv values or output.
+COMPOSE_COMMANDS=('config','up','ps','pull','run','create','start','stop','exec')
+DOCKER_COMMANDS=('ps','inspect','pull','create','start','wait','rm','exec','logs','version','cp','kill','stop',
+                 'image','network','container','volume')
+NATIVE_COMMANDS=frozenset({'compose '+name for name in COMPOSE_COMMANDS+('other',)}
+                          |{'docker '+name for name in DOCKER_COMMANDS+('other',)}
+                          |{'systemctl show','systemctl start','systemctl stop','refused'})
+NATIVE_OUTCOMES=frozenset({'refused','spawn','io','timeout','stdout-limit','stderr-limit','exit'})
+NATIVE_KEYS=frozenset({'command','outcome','exit_code','stdout_bytes','stderr_bytes','killed'})
+
 class ComposeError(ValueError):
-    """Diagnostics contain neither paths, rejected values nor command output."""
+    """Diagnostics contain neither paths, rejected values nor command output.
+
+    native is set only by run_command: a fixed command label, outcome class,
+    exit code and byte counts. It never carries argv values, output or messages.
+    """
+    native=None
 
 def require(condition):
     if not condition:
@@ -120,9 +139,30 @@ def image_pointers(*, stage, receipt, manifest, public, controller):
     except Exception:
         raise ComposeError(ERROR) from None
 
+def command_label(argv):
+    """Map an allowlisted argv shape to a fixed label; values never pass through."""
+    if type(argv) is not list or not all(type(item) is str for item in argv):return 'refused'
+    if argv[:5]==BASE and len(argv)>5:
+        if argv[5]=='compose':
+            return 'compose '+next((item for item in argv[6:] if item in COMPOSE_COMMANDS),'other')
+        return 'docker '+(argv[5] if argv[5] in DOCKER_COMMANDS else 'other')
+    if len(argv)>=3 and argv[0]=='/usr/bin/systemctl' and argv[1] in ('show','start','stop'):
+        return 'systemctl '+argv[1]
+    return 'refused'
+
+def native_failure(value):
+    """Return a revalidated copy of a run_command classification, else None."""
+    if (type(value) is not dict or set(value)!=NATIVE_KEYS or value['command'] not in NATIVE_COMMANDS
+            or value['outcome'] not in NATIVE_OUTCOMES or type(value['killed']) is not bool
+            or not (value['exit_code'] is None or (type(value['exit_code']) is int and -256<value['exit_code']<256))
+            or not all(type(value[key]) is int and 0<=value[key]<=2*MAX_CONFIG for key in ('stdout_bytes','stderr_bytes'))):
+        return None
+    return dict(value)
+
 def run_command(argv, *, env, timeout, limit):
     """Bound both streams while reading, kill only our own process group on refusal."""
     process = None
+    outcome='refused'; code=None; killed=False; output=bytearray(); errors=0
     try:
         readonly_idle=(type(argv) is list and len(argv)==5
             and argv[:4]==['/usr/bin/systemctl','show','--property=ActiveState','--value']
@@ -134,15 +174,18 @@ def run_command(argv, *, env, timeout, limit):
         require(type(argv) is list and (argv[:5] == BASE or readonly_idle or idle_lifecycle)
                 and type(timeout) is int and 0 < timeout <= 600
                 and type(limit) is int and 0 < limit <= MAX_CONFIG)
+        outcome='spawn'
         process = subprocess.Popen(argv, env=env, cwd='/', stdin=subprocess.DEVNULL,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        outcome='io'
         streams = selectors.DefaultSelector()
         streams.register(process.stdout, selectors.EVENT_READ, 'stdout')
         streams.register(process.stderr, selectors.EVENT_READ, 'stderr')
-        output = bytearray(); errors = 0; deadline = time.monotonic()+timeout
+        deadline = time.monotonic()+timeout
         with streams:
             while streams.get_map():
                 remaining = deadline-time.monotonic()
+                if remaining <= 0: outcome='timeout'
                 require(remaining > 0)
                 events = streams.select(min(remaining, 1))
                 for event, _ in events:
@@ -150,15 +193,28 @@ def run_command(argv, *, env, timeout, limit):
                     if not data:
                         streams.unregister(event.fileobj); continue
                     if event.data == 'stdout':
-                        output.extend(data); require(len(output) <= limit)
+                        output.extend(data)
+                        if len(output) > limit: outcome='stdout-limit'
+                        require(len(output) <= limit)
                     else:
-                        errors += len(data); require(errors <= 65536)
-            require(process.wait(timeout=max(0.001,deadline-time.monotonic())) == 0)
+                        errors += len(data)
+                        if errors > 65536: outcome='stderr-limit'
+                        require(errors <= 65536)
+            outcome='timeout'
+            code = process.wait(timeout=max(0.001,deadline-time.monotonic()))
+            outcome='exit'
+            require(code == 0)
         return bytes(output)
     except Exception:
         if process is not None and process.poll() is None:
-            os.killpg(process.pid, signal.SIGKILL); process.wait()
-        raise ComposeError(ERROR) from None
+            os.killpg(process.pid, signal.SIGKILL); process.wait(); killed=True
+        error=ComposeError(ERROR)
+        try:
+            error.native={'command':command_label(argv),'outcome':outcome,
+                          'exit_code':code if outcome=='exit' and type(code) is int else None,
+                          'stdout_bytes':min(len(output),2*MAX_CONFIG),'stderr_bytes':min(errors,2*MAX_CONFIG),'killed':killed}
+        except Exception:pass
+        raise error from None
     finally:
         if process is not None:
             for file in (process.stdout, process.stderr):
@@ -360,8 +416,7 @@ class Driver:
             inventory=self.inspect(allowed)
             self.before(prepared,previous,inventory,set())
             infrastructure={'supabase-db','supabase-auth'}
-            self.call(self.compose(prepared.file)+['up','-d','--no-build','--no-deps','--pull','always',
-                      '--wait','--wait-timeout','180',*sorted(infrastructure)],timeout=600,limit=65536)
+            self.call(self.compose(prepared.file)+list(UP)+sorted(infrastructure),timeout=600,limit=65536)
             # Existing owned apps can remain stopped/unready while migrations run.
             # Still inspect their ownership/image bindings; never adopt strangers.
             for service in infrastructure:
@@ -391,7 +446,7 @@ class Driver:
         replacing=selected-unchanged
         if self.idle_control is not None:self.idle_control.before_replace()
         self.before(prepared,previous,inventory,replacing)
-        common=['up','-d','--no-build','--no-deps','--pull','always','--wait','--wait-timeout','180']
+        common=list(UP)
         if unchanged:
             self.call(self.compose(prepared.file)+common[:3]+['--no-recreate']+common[3:]+sorted(unchanged),timeout=600,limit=65536)
             preserved=self.inspect(allowed,ready=True,required=unchanged)

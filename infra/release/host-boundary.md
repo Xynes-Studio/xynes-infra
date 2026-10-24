@@ -124,6 +124,24 @@ generic-command, Docker/socket, secret-file and sudo denial. Retain the prior
 immutable library and protected convergence ledger for recovery. Fixture-root
 execution exercises file transactions without granting live-host readiness.
 
+## Private failure diagnostics
+
+The SSH/workflow output stays the fixed `Deployment dispatch refused`. On any
+executor, runtime or worker failure the root worker first tries to write one
+record to `/var/lib/xynes/deploy/diagnostics/<stage>/`: `<token>.json` for a
+begun attempt, `run-<run>-<attempt>-<job>.json` before `begin`, or
+`worker-<job>.json` for supervisor-level failures. The directories are root
+`0700` and are created only beneath a root-owned, non-group/other-writable
+parent; files are `0600`, exclusively created, fsynced and at most 64 KiB.
+Symlinks, foreign owners or wrong modes refuse the write. A record holds only
+fixed labels: stage, token, controller/deployment ids, phase, last completed
+step, UTC time, exception class names along the cause/context chain, release
+module frames as (file name, line, function), and for native commands the
+fixed subcommand label, outcome class, exit code and stream byte counts. It
+never contains exception messages or arguments, environment, argv values,
+command output, SQL, paths or credentials. Writing is best effort and never
+changes the refusal, ledger reconciliation or rollback behavior.
+
 ## Scheduled encrypted backups and failure alerts
 
 Install the reviewed `xynes-backup@.service`, `xynes-backup@.timer` and

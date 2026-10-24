@@ -306,7 +306,8 @@ class Tests(unittest.TestCase):
     def test_start_fixed_services_and_readiness_and_no_destructive_operation(self):
         prepared=self.prepare();result=self.driver.start(prepared)
         argv=next(args for args,_,_,_ in self.commands if 'up' in args)
-        self.assertEqual(argv[argv.index('up')+1:argv.index('up')+8], ['-d','--no-build','--no-deps','--pull','always','--wait','--wait-timeout'])
+        # --quiet-pull is now part of the fixed up shape (pull progress cannot reach stderr).
+        self.assertEqual(argv[argv.index('up')+1:argv.index('up')+9], ['-d','--no-build','--no-deps','--pull','always','--quiet-pull','--wait','--wait-timeout'])
         self.assertEqual(set(argv[argv.index('180')+1:]),self.module.SERVICES)
         self.assertEqual(result['services_ready'],14)
         self.assertFalse(result['product_accepted'])
@@ -443,6 +444,90 @@ class Tests(unittest.TestCase):
                 return value
             self.driver.runner=bootstrap_runner
             self.refused(lambda:self.driver.bootstrap(prepared))
+
+    def ups(self):
+        return [args for args,_,_,_ in self.commands if 'up' in args]
+
+    def test_every_driver_up_pulls_quietly_for_bootstrap_unchanged_replace_and_rollback(self):
+        original=self.runner
+        def bootstrap_runner(argv,**kwargs):
+            value=original(argv,**kwargs)
+            if 'up' in argv and set(argv[argv.index('180')+1:])=={'supabase-db','supabase-auth'} and not self.containers[2:]:
+                self.containers=[r for r in self.containers if r['labels']['com.docker.compose.service'] in {'supabase-db','supabase-auth'}]
+            return value
+        self.driver.runner=bootstrap_runner
+        first=self.prepare();self.driver.bootstrap(first)
+        self.driver.runner=original;self.driver.start(first)
+        second=self.prepare();self.driver.start(second,previous=first)
+        self.driver.rollback(first,current=second)
+        ups=self.ups()
+        self.assertTrue(any('--no-recreate' in argv for argv in ups),'unchanged processor path not exercised')
+        self.assertTrue(any(set(argv[argv.index('180')+1:])=={'supabase-db','supabase-auth'} for argv in ups))
+        self.assertGreaterEqual(len(ups),5)
+        for argv in ups:
+            self.assertEqual(argv.count('--quiet-pull'),1)
+            self.assertLess(argv.index('--quiet-pull'),argv.index('--wait-timeout'))
+            self.assertEqual(argv[argv.index('--pull')+1],'always')
+            self.assertTrue(set(argv[argv.index('180')+1:])<=self.module.SERVICES)
+
+    def pull_child(self,stderr_without_quiet=200000):
+        real_popen=subprocess.Popen
+        # Emulates Compose pull progress on stderr unless --quiet-pull is present.
+        code=("import sys\nquiet='--quiet-pull' in sys.argv\n"
+              "sys.stderr.write(('Pulling layer inert-secret-ghp_'+'A'*36+'\\n')*(4 if quiet else "+str(stderr_without_quiet)+"//60))\n")
+        def spawn(argv,**kwargs):
+            self.assertEqual(kwargs['env']['PATH'],'/usr/bin:/bin')
+            return real_popen([sys.executable,'-c',code,*argv],**kwargs)
+        return spawn
+
+    def test_real_bounded_runner_admits_quiet_up_and_refuses_progress_flood(self):
+        concrete=self.module.run_command;emulated=self.run_command
+        def runner(argv,**kwargs):
+            if 'up' in argv:
+                with patch.object(self.module.subprocess,'Popen',self.pull_child()):
+                    concrete(argv,**kwargs)
+            return emulated(argv,**kwargs)
+        self.driver.runner=runner
+        self.assertEqual(self.driver.start(self.prepare())['services_ready'],14)
+        # RED: the previous argv shape (no --quiet-pull) floods stderr and is killed.
+        previous=tuple(item for item in self.module.UP if item!='--quiet-pull')
+        with patch.object(self.module,'UP',previous):
+            self.refused(lambda:self.driver.start(self.prepare()))
+        with patch.object(self.module.subprocess,'Popen',self.pull_child()):
+            with self.assertRaises(self.module.ComposeError) as caught:
+                concrete(self.module.BASE+['compose','--project-name','xynes-qa',*previous,'gateway'],
+                         env=self.module.CLEAN_ENV,timeout=30,limit=65536)
+        native=caught.exception.native
+        self.assertEqual((native['command'],native['outcome'],native['exit_code']),('compose up','stderr-limit',None))
+        self.assertGreater(native['stderr_bytes'],65536);self.assertEqual(native['stdout_bytes'],0)
+        self.assertEqual(str(caught.exception),'Hosted Compose operation refused')
+        self.assertNotIn('inert',json.dumps(native));self.assertEqual(self.module.native_failure(native),native)
+
+    def test_native_failure_classification_is_fixed_labels_and_counts_only(self):
+        real_popen=subprocess.Popen;secret='ghp_'+'B'*36
+        cases=[("import sys;sys.stdout.write('x'*100)",2,32,'stdout-limit',None),
+               ("import time;time.sleep(3)",1,32,'timeout',None),
+               ("import sys;sys.stderr.write('inert-"+secret+"');sys.exit(3)",2,32,'exit',3)]
+        for code,timeout,limit,outcome,exit_code in cases:
+            def spawn(argv,**kwargs):return real_popen([sys.executable,'-c',code],**kwargs)
+            with patch.object(self.module.subprocess,'Popen',spawn):
+                with self.assertRaises(self.module.ComposeError) as caught:
+                    self.module.run_command(self.module.BASE+['inspect','--format',secret,'a'*64],env=self.module.CLEAN_ENV,timeout=timeout,limit=limit)
+            native=caught.exception.native
+            self.assertEqual((native['command'],native['outcome'],native['exit_code']),('docker inspect',outcome,exit_code))
+            self.assertNotIn(secret,json.dumps(native));self.assertNotIn('inert',json.dumps(native))
+        with self.assertRaises(self.module.ComposeError) as caught:
+            self.module.run_command(['/bin/sh','-c',secret],env=self.module.CLEAN_ENV,timeout=1,limit=1)
+        self.assertEqual(caught.exception.native['command'],'refused');self.assertEqual(caught.exception.native['outcome'],'refused')
+        label=self.module.command_label
+        self.assertEqual(label(self.module.BASE+['compose','--project-name','xynes-qa','-f','/x','config','--hash','gateway']),'compose config')
+        self.assertEqual(label(self.module.BASE+['compose','-f',secret]),'compose other')
+        self.assertEqual(label(self.module.BASE+[secret]),'docker other')
+        self.assertEqual(label(['/usr/bin/systemctl','stop','xynes-idle-qa-auth.service']),'systemctl stop')
+        good={'command':'compose up','outcome':'exit','exit_code':1,'stdout_bytes':0,'stderr_bytes':5,'killed':False}
+        self.assertEqual(self.module.native_failure(good),good)
+        for change in ({'command':secret},{'outcome':secret},{'exit_code':'1'},{'stdout_bytes':-1},{'killed':1},{'extra':secret}):
+            self.assertIsNone(self.module.native_failure({**good,**change}))
 
     def test_private_environment_reader_rejects_symlink_hardlink_permissions_and_change(self):
         file=self.work/'fixture.env';file.write_text('INERT=value\n');file.chmod(0o640)

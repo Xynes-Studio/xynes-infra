@@ -14,7 +14,7 @@ Its controller and canonical manifest hash must match that accepted attempt; all
 accepted origin bundle alongside current/previous releases. Unknown origins fail
 closed rather than rewriting provenance or adopting caller-provided ledger rows.
 The sole exception is the fixed, root-reviewed first-QA recovery capsule in
-host_assets. It binds one proven failed origin and one exact successor; subsequent
+host_assets. It binds one proven failed origin and one successor commit/manifest; subsequent
 use requires that successor's real accepted asset/capsule lineage. This remains
 the same read-only prior_verified path and never rewrites existing SQL origins.
 """

@@ -399,7 +399,19 @@ def parent_watchdog(stage,job,parent,ticks,owned):
         if fd is not None:os.close(fd)
 
 
+def diagnose_worker(error,stage,job,request):
+    """Private root record for worker failures the executor did not already record."""
+    try:
+        try:from . import root_executor
+        except ImportError:import root_executor
+        if type(job) is int and not any(type(item).__name__=='ExecutorError' and getattr(item,'diagnosed',None) is True
+                                        for item,_ in root_executor.chain(error)):
+            root_executor.diagnose(error,stage=stage,scope='worker',name='worker-'+str(job)+'.json',request=request)
+    except Exception:pass
+
+
 def worker(stage,job,parent,ticks,*,fd=0):
+    request=None
     try:
         require(os.geteuid()==ROOT_UID and not any(os.isatty(item) for item in (fd,1,2)))
         owned=worker_binding(stage,job,parent,ticks)
@@ -412,7 +424,9 @@ def worker(stage,job,parent,ticks,*,fd=0):
             result=Runtime(stage).execute(canonical(request))
             result=accepted_result(canonical(result),request,stage);observe_accepted(result,request,stage)
             return result
-    except Exception:raise SupervisorError(ERROR) from None
+    except Exception as error:
+        diagnose_worker(error,stage,job,request)
+        raise SupervisorError(ERROR) from None
 
 
 @contextmanager
