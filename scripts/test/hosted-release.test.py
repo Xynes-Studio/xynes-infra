@@ -20,6 +20,14 @@ IMAGE_KEYS = [
 
 
 class HostedReleaseTests(unittest.TestCase):
+    def test_freshclam_memory_ceiling_and_cpu_are_consistent_in_all_hosted_stacks(self):
+        for stage in ('qa','staging','prod'):
+            with self.subTest(stage=stage):
+                config=self.render(stage);updater=config['services']['clamav-freshclam']
+                self.assertEqual(int(updater['mem_limit']),768*1024*1024)
+                self.assertEqual(float(updater['cpus']),0.25)
+                self.assertEqual(int(config['services']['clamav-clamd']['mem_limit']),2*1024*1024*1024)
+
     def test_storage_has_bounded_runtime_healthcheck_for_host_readiness(self):
         config=self.render('qa')
         health=config['services']['storage-service'].get('healthcheck',{})

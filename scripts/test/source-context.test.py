@@ -24,6 +24,64 @@ def git(path, *args):
     return subprocess.check_output(['git', '-C', str(path), *args], stderr=subprocess.DEVNULL).decode().strip()
 
 
+class AccountsSourceModuleTest(unittest.TestCase):
+    PATHS = ('src/infra/secrets/index.ts', 'src/infra/secrets/SecretManagerClient.ts')
+
+    def test_allows_only_the_two_accounts_runtime_source_paths(self):
+        for path in self.PATHS:
+            self.assertTrue(source_context.safe_source_file('xynes-accounts-service', path), path)
+
+    def test_does_not_open_other_owners_aliases_or_secret_paths(self):
+        self.assertIn('secrets', source_context.DENIED_PARTS)
+        for owner in SOURCES + ['accounts-service', 'accounts', 'xynes-accounts-service/', 'XYNES-ACCOUNTS-SERVICE']:
+            if owner == 'xynes-accounts-service':
+                continue
+            for path in self.PATHS:
+                self.assertFalse(source_context.safe_source_file(owner, path), (owner, path))
+        neighbours = ['src/infra/secrets/extra.ts', 'src/infra/secrets/private.key',
+                      'src/infra/secrets/index.ts.pem', 'src/infra/secrets/index.ts.key',
+                      'src/infra/secrets/.env', 'src/infra/secrets/.env.local',
+                      'src/infra/secrets/index.test.ts', 'src/infra/secrets/subdir/index.ts',
+                      'secrets/index.ts', 'scripts/secrets/index.ts', 'src/secrets/index.ts',
+                      'src/infra/secrets/SecretManagerClient.ts.bak',
+                      'src/infra/secrets/SecretManagerClient.ts/extra.ts',
+                      'src//infra/secrets/index.ts', 'src/infra/secrets/INDEX.ts']
+        for path in neighbours:
+            self.assertFalse(source_context.safe_source_file('xynes-accounts-service', path), path)
+
+    def fixture(self):
+        temp = tempfile.TemporaryDirectory(); self.addCleanup(temp.cleanup)
+        repo = Path(temp.name)
+        git(repo, 'init', '-q'); git(repo, 'config', 'commit.gpgsign', 'false')
+        git(repo, 'config', 'user.name', 'Fixture'); git(repo, 'config', 'user.email', 'fixture@example.invalid')
+        (repo / 'package.json').write_text('{}')
+        contents = {path: ('export const fixture' + str(i) + ' = true;\n').encode()
+                    for i, path in enumerate(self.PATHS)}
+        for path, raw in contents.items():
+            target = repo / path; target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(raw)
+        git(repo, 'add', '.'); git(repo, 'commit', '-qm', 'Public runtime source fixture')
+        return repo, git(repo, 'rev-parse', 'HEAD'), contents
+
+    def test_tracked_export_keeps_exact_committed_source_bytes(self):
+        repo, commit, contents = self.fixture()
+        (repo / self.PATHS[0]).write_text('DIRTY_PRIVATE_PAYLOAD')
+        (repo / 'src/infra/secrets/untracked.ts').write_text('UNTRACKED_PRIVATE_PAYLOAD')
+        exported = {path: (mode, raw) for path, mode, raw in
+                    source_context.tracked_files(repo, commit, 'xynes-accounts-service')}
+        for path, raw in contents.items():
+            self.assertIn(path, exported)
+            self.assertEqual(exported[path], ('100644', raw))
+        self.assertNotIn('src/infra/secrets/untracked.ts', exported)
+
+    def test_selected_runtime_module_symlinks_are_still_refused(self):
+        for path in self.PATHS:
+            repo, _, _ = self.fixture(); target = repo / path
+            target.unlink(); target.symlink_to('../../outside')
+            git(repo, 'add', path); git(repo, 'commit', '-qm', 'Hostile selected symlink')
+            with self.assertRaises(source_context.ContextError):
+                list(source_context.tracked_files(repo, git(repo, 'rev-parse', 'HEAD'), 'xynes-accounts-service'))
+
+
 class ContextTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -158,6 +216,32 @@ class ContextTest(unittest.TestCase):
             self.assertEqual((self.output / 'backends/xynes-gateway/src/index.ts').read_text(), 'export const original = true;\n', kind)
             shutil.rmtree(self.output)
             git(repo, 'replace', '-d', old)
+
+    def test_accounts_runtime_source_files_survive_preparation_and_remain_scanned(self):
+        for marker in (False, True):
+            repo = self.workspace / 'xynes/xynes-accounts-service'
+            for index, path in enumerate(AccountsSourceModuleTest.PATHS):
+                target = repo / path; target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_text('-----BEGIN PRIVATE KEY-----fixture' if marker else
+                                  'export const publicSource' + str(index) + ' = true;\n')
+            git(repo, 'add', 'src/infra/secrets'); git(repo, 'commit', '-qm', 'Runtime source fixture')
+            manifest = copy.deepcopy(self.manifest)
+            manifest['sources']['xynes-accounts-service']['commit'] = git(repo, 'rev-parse', 'HEAD')
+            result = self.run_context(manifest)
+            if marker:
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(self.output.exists())
+                self.assertNotIn('PRIVATE KEY', result.stdout + result.stderr)
+            else:
+                self.assertEqual(result.returncode, 0, result.stderr)
+                record = json.loads((self.output / 'source-record.json').read_text())
+                for path in AccountsSourceModuleTest.PATHS:
+                    exported = self.output / 'backends/xynes-accounts-service' / path
+                    self.assertTrue(exported.is_file())
+                    self.assertEqual(exported.read_bytes(), (repo / path).read_bytes())
+                    self.assertEqual(record['files']['backends/xynes-accounts-service/' + path],
+                                     hashlib.sha256(exported.read_bytes()).hexdigest())
+                shutil.rmtree(self.output)
 
     def test_reads_original_committed_files_and_excludes_private_noise(self):
         result = self.run_context()
