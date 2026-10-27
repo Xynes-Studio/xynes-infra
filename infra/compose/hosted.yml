@@ -576,7 +576,7 @@
           "max-file": "5"
         }
       },
-      "mem_limit": "256m",
+      "mem_limit": "768m",
       "cpus": 0.25,
       "image": "${IMAGE_FRESHCLAM:?Set immutable FRESHCLAM image digest}",
       "volumes": [

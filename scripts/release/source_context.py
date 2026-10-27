@@ -50,6 +50,9 @@ DENIED_PARTS = {'.git', '.github', '.claude', '.entire', '.agents', '.codex', 'n
                 '.pnpm-store', '.next', '.turbo', '.vercel', 'dist', 'coverage', 'test', 'tests',
                 '__tests__', '__mocks__', 'e2e', 'playwright-report', 'test-results', 'docs',
                 '.DS_Store', '.ssh', '.aws', '.tmp', 'secrets'}
+# Tracked public runtime code, not credential material. Keep all other secrets paths denied.
+ACCOUNTS_PUBLIC_SECRET_MODULES = {'src/infra/secrets/index.ts',
+                                  'src/infra/secrets/SecretManagerClient.ts'}
 URL_KEYS = {'NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_API_URL', 'NEXT_PUBLIC_APP_URL',
             'NEXT_PUBLIC_AUTH_APP_URL'}
 REQUIRED = URL_KEYS | {'NEXT_PUBLIC_SUPABASE_ANON_KEY', 'NEXT_PUBLIC_ALLOWED_REDIRECT_DOMAINS'}
@@ -204,7 +207,9 @@ def safe_source_file(name, path):
     parts = PurePosixPath(path).parts
     require(parts and not path.startswith('/') and all(p not in ('', '.', '..') for p in parts)
             and not any(ord(c) < 32 for c in path), 'Unsafe tracked source path')
-    if any(p in DENIED_PARTS or p.startswith('.env') for p in parts):
+    public_accounts_module = name == 'xynes-accounts-service' and path in ACCOUNTS_PUBLIC_SECRET_MODULES
+    if any((p in DENIED_PARTS and not (p == 'secrets' and public_accounts_module))
+           or p.startswith('.env') for p in parts):
         return False
     if any(re.search(r'(?:\.(?:test|spec)\.[^/]+$|\.(?:pem|key|p12|pfx|age|dump|bak|log|tsbuildinfo)$)', p, re.I) for p in parts):
         return False
