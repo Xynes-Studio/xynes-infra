@@ -273,7 +273,9 @@ class Flow:
         self.resources['document']=docid
         doc=self.api('document-read','GET',prefix+'/documents/'+docid)
         require(doc.get('id')==docid and doc.get('workspaceId')==cfg['workspace_id'] and doc.get('content')==document_body['content'])
-        created=self.api('cms-entry-create','POST',prefix+'/content/entries',{'directoryId':did,'title':title,'body':document_body['content']})
+        # CMS entry bodies are Lexical editor documents; publication refuses other shapes (e.g. the doc-service content above).
+        entry_body={'root':{'type':'root','version':1,'children':[{'type':'paragraph','version':1,'children':[{'type':'text','version':1,'text':name}]}]}}
+        created=self.api('cms-entry-create','POST',prefix+'/content/entries',{'directoryId':did,'title':title,'body':entry_body})
         eid=identifier(created['entry']['id']);self.entry(created,eid,title,did,'draft');self.resources['entry']=eid
         self.entry(self.api('cms-entry-read','GET',prefix+'/content/entries/'+eid),eid,title,did,'draft')
         items=self.api('cms-directory-list','GET',prefix+'/content/entries?directoryId='+did+'&limit=20&offset=0')

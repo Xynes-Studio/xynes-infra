@@ -120,6 +120,8 @@ class Tests(unittest.TestCase):
         if path.startswith(prefix+'/content/entries?'):return envelope({'items':[{'id':self.entry,'directoryId':self.directory}]})
         if path.endswith('/publish'):
             if self.mode=='publish-failure':return response({'error':{'code':'UNAVAILABLE'}},503)
+            # cms-core publication requires a Lexical editor document ({root:...}); anything else is PUBLICATION_INVALID.
+            if not self.lexical(self.state['entry'].get('body')):return response({'error':{'code':'PUBLICATION_INVALID'}},400)
             self.state['status']='published';return envelope({'entry':{'id':self.entry,'workspaceId':self.workspace,'status':'published','publishedAt':'2023-11-14T22:13:20Z',**self.state['entry']}})
         if path==prefix+'/storage/uploads' and method=='POST':
             if self.mode=='storage-failure':return response({'error':{'code':'NO_PROVIDER'}},503)
@@ -137,6 +139,14 @@ class Tests(unittest.TestCase):
         if path.endswith('/abort'):return envelope({'session':{'id':self.upload,'status':'aborted'}})
         return response({'error':{'code':'UNIMPLEMENTED'}},501)
 
+    @staticmethod
+    def lexical(body):
+        if body is None:return True
+        def node(value):
+            return (type(value) is dict and value.get('version')==1 and value.get('type') in ('root','paragraph','text')
+                    and all(node(child) for child in value.get('children',[])))
+        return type(body) is dict and set(body)=={'root'} and node(body['root']) and body['root']['type']=='root'
+
     def execute(self):return self.module.run(stage='qa',publication=self.publication,source_sha256=self.source,work=self.work,
         transport=self.transport,config_loader=lambda stage:copy.deepcopy(self.config),keys_loader=self.keys,clock=lambda:self.now,sleep=lambda value:None)
 
@@ -148,6 +158,7 @@ class Tests(unittest.TestCase):
         result=self.execute();self.assertEqual(result,{'stage':'qa','publication':self.publication,'source_sha256':self.source,'result':'passed','observed_at':self.now})
         self.assertEqual(self.state['bytes'],self.module.PNG)
         self.assertNotIn('contentTypeId',self.state['entry']);self.assertEqual(self.state['entry']['directoryId'],self.directory)
+        self.assertEqual(self.state['entry']['body']['root']['children'][0]['children'][0]['text'],self.state['directory_name'])
         self.assertEqual(self.state['status'],'published')
         evidence=list(self.work.glob('smoke-evidence-*.json'));self.assertEqual(len(evidence),1)
         text=evidence[0].read_text()
