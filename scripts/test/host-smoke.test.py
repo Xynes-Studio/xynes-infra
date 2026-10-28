@@ -38,7 +38,7 @@ class Tests(unittest.TestCase):
         self.forbidden='33333333-3333-4333-8333-333333333333';self.directory='44444444-4444-4444-8444-444444444444'
         self.entry='55555555-5555-4555-8555-555555555555';self.document='66666666-6666-4666-8666-666666666666'
         self.object='77777777-7777-4777-8777-777777777777';self.upload='88888888-8888-4888-8888-888888888888'
-        self.storage_host='a'*32+'.r2.cloudflarestorage.com';self.bucket='apex-qa-smoke';self.secrets={'qa':'a'*64,'staging':'b'*64,'prod':'c'*64}
+        self.storage_host='a'*32+'.r2.cloudflarestorage.com';self.bucket='apex-qa-smoke';self.virtual=self.bucket+'.'+self.storage_host;self.secrets={'qa':'a'*64,'staging':'b'*64,'prod':'c'*64}
         self.keys=lambda stage:(self.secrets[stage],self.module.origins(stage)['auth']+'/auth/v1')
         self.current=self.jwt('qa');self.foreign=self.module.mint_foreign_probe('qa','staging',self.user,email='apex-smoke-qa@example.invalid',keys_loader=self.keys,clock=lambda:self.now)
         self.config={'schema_version':1,'stage':'qa','account_kind':'dedicated-deployment-smoke',
@@ -49,7 +49,7 @@ class Tests(unittest.TestCase):
         self.publication={'id':123,'digest':'sha256:'+'d'*64};self.source='sha256:'+'e'*64
         self.calls=[];self.state={};self.mode=None;self.threads=[]
         certificate=self.work/'certificate.pem';key=self.work/'key.pem'
-        hosts=['api.qa.xynes.com','supabase.qa.xynes.com',self.storage_host]
+        hosts=['api.qa.xynes.com','supabase.qa.xynes.com',self.storage_host,self.virtual]
         result=subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(key),'-out',str(certificate),
                                '-days','1','-subj','/CN=apex-local-fixture','-addext','subjectAltName='+','.join('DNS:'+h for h in hosts)],capture_output=True,timeout=15)
         self.assertEqual(result.returncode,0,'TLS fixture certificate preparation refused');key.chmod(0o600)
@@ -91,8 +91,11 @@ class Tests(unittest.TestCase):
     def handle(self,host,method,path,headers,raw):
         self.calls.append((host,method,path,headers,raw));body=json.loads(raw) if raw and headers.get('content-type')=='application/json' else None
         def response(value,status=200):return status,json.dumps(value).encode(),'application/json'
-        def envelope(value,status=200):return response({'ok':True,'data':value},status)
-        if host==self.storage_host:
+        # Gateway wrapResponse wraps the service's own {ok,data,meta} success envelope.
+        def envelope(value,status=200):
+            if self.mode=='single-envelope':return response({'ok':True,'data':value},status)
+            return response({'ok':True,'data':{'ok':True,'data':value,'meta':{'requestId':'service'}},'meta':{'requestId':'gateway'}},status)
+        if host==self.virtual:
             if method=='PUT':self.state['bytes']=raw;return 200,b'','application/octet-stream'
             if method=='GET':return 200,self.module.PNG,'image/png'
         if host.startswith('supabase.'):
@@ -110,7 +113,7 @@ class Tests(unittest.TestCase):
         if path==prefix+'/content-directories' and method=='POST':self.state['directory_name']=body['name'];return envelope({'id':self.directory,'name':body['name'],'parentId':None})
         if path==prefix+'/documents' and method=='POST':
             self.state['document']=body
-            return envelope({'id':self.document,'workspaceId':self.workspace,'createdBy':self.user,**body})
+            return envelope({'id':self.document,'workspaceId':self.workspace,'createdBy':self.user,**body},201)
         if path==prefix+'/documents/'+self.document:return envelope({'id':self.document,'workspaceId':self.workspace,**self.state['document']})
         if path==prefix+'/content/entries' and method=='POST':self.state['entry']=body;return envelope({'entry':{'id':self.entry,'workspaceId':self.workspace,'status':'draft',**body}})
         if path==prefix+'/content/entries/'+self.entry and method=='GET':return envelope({'entry':{'id':self.entry,'workspaceId':self.workspace,'status':self.state.get('status','draft'),**self.state['entry']}})
@@ -121,14 +124,15 @@ class Tests(unittest.TestCase):
         if path==prefix+'/storage/uploads' and method=='POST':
             if self.mode=='storage-failure':return response({'error':{'code':'NO_PROVIDER'}},503)
             self.state['filename']=body['filename']
-            url='https://'+self.storage_host+'/'+self.bucket+'/fixture.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature='+'a'*64
-            if self.mode=='foreign-provider':url=url.replace(self.storage_host,'evil.example.invalid')
+            url='https://'+self.virtual+'/fixture.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature='+'a'*64
+            if self.mode=='foreign-provider':url=url.replace(self.virtual,'evil.example.invalid')
+            if self.mode=='path-style':url=url.replace(self.virtual+'/',self.storage_host+'/'+self.bucket+'/')
             return envelope({'uploadId':self.upload,'objectId':self.object,'uploadMethod':'single','uploadUrl':url,'uploadHeaders':({'content-type':'image/png','content-length':str(len(self.module.PNG))} if self.mode=='actual-upload-headers' else {'Content-Type':'image/png'}),'dedupHit':False,
                 'object':{'id':self.object,'workspaceId':self.workspace,'filename':body['filename'],'createdBy':self.user}})
         if path.endswith('/complete'):return envelope({'object':{'id':self.object,'status':'processing'}})
         if '/storage/objects/'+self.object in path and method=='GET':
             return envelope({'object':{'id':self.object,'workspaceId':self.workspace,'filename':self.state['filename'],'status':'failed' if self.mode=='processing-failure' else 'ready'}})
-        if path.endswith('/download-url'):return envelope({'objectId':self.object,'url':'https://'+self.storage_host+'/'+self.bucket+'/fixture.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature='+'b'*64,'expiresAt':'2023-11-14T22:28:20Z'})
+        if path.endswith('/download-url'):return envelope({'objectId':self.object,'url':'https://'+self.virtual+'/fixture.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature='+'b'*64,'expiresAt':'2023-11-14T22:28:20Z'})
         if method=='DELETE':return envelope({'success':True,'entryId':self.entry,'object':{'id':self.object,'status':'deleted'}})
         if path.endswith('/abort'):return envelope({'session':{'id':self.upload,'status':'aborted'}})
         return response({'error':{'code':'UNIMPLEMENTED'}},501)
@@ -162,6 +166,23 @@ class Tests(unittest.TestCase):
     def test_foreign_signed_url_is_refused_before_any_external_provider_request(self):
         self.mode='foreign-provider';self.refused(self.execute)
         self.assertFalse(any(host=='evil.example.invalid' for host,_,_,_,_ in self.calls))
+
+    def test_gateway_response_without_service_envelope_is_refused(self):
+        self.mode='single-envelope';self.refused(self.execute)
+
+    def test_gateway_data_requires_exact_gateway_and_service_envelopes(self):
+        inner={'user':{'id':self.user}}
+        for value in ({'ok':True,'data':{'ok':True,'data':inner}},{'ok':True,'data':{'ok':True,'data':inner,'meta':{}},'meta':{}}):
+            self.assertEqual(self.module.gateway_data(value),inner)
+        for value in (inner,{'data':inner},{'ok':True,'data':inner},{'data':{'data':inner}},{'ok':True,'data':{'data':inner}},
+                      {'data':{'ok':True,'data':inner}},{'ok':False,'data':{'ok':True,'data':inner}},
+                      {'ok':True,'data':{'ok':True,'data':inner,'error':{'code':'X'}}},{'ok':True,'success':False,'data':{'ok':True,'data':inner}},
+                      {'ok':True,'data':[{'ok':True,'data':inner}]},['ok']):
+            self.refused(lambda:self.module.gateway_data(value))
+
+    def test_path_style_r2_url_is_refused_before_any_external_provider_request(self):
+        self.mode='path-style';self.refused(self.execute)
+        self.assertFalse(any(host in (self.storage_host,self.virtual) for host,_,_,_,_ in self.calls))
 
     def test_arbitrary_or_expired_synthetic_probe_is_refused_before_http(self):
         for value in ('pasted-token',self.current):
@@ -212,7 +233,7 @@ class Tests(unittest.TestCase):
 
     def test_actual_s3_upload_headers_include_exact_signed_length_once(self):
         self.mode='actual-upload-headers';self.assertEqual(self.execute()['result'],'passed')
-        upload=[headers for host,method,_,headers,_ in self.calls if host==self.storage_host and method=='PUT'][0]
+        upload=[headers for host,method,_,headers,_ in self.calls if host==self.virtual and method=='PUT'][0]
         self.assertEqual(upload['content-length'],str(len(self.module.PNG)))
         self.assertEqual(upload['content-type'],'image/png')
 

@@ -43,6 +43,13 @@ class SmokeError(ValueError):pass
 def require(value):
     if not value:raise SmokeError(ERROR)
 
+def gateway_data(value):
+    # Gateway wrapResponse wraps the service's own success envelope: exactly two {ok,data,meta} layers.
+    for _ in range(2):
+        require(type(value) is dict and value.get('ok') is True and 'data' in value and set(value)<={'ok','data','meta'})
+        value=value['data']
+    return value
+
 def origins(stage):
     require(stage in ('qa','staging','prod'))
     suffix={'qa':'qa','staging':'staging','prod':'erp'}[stage]+'.xynes.com'
@@ -219,9 +226,7 @@ class Flow:
         return records.strict_json(data.decode())
 
     def api(self,label,method,path,body=None,*,expected=(200,),token=None):
-        value=self.request(label,method,self.base['gateway']+path,body,token=self.token if token is None else token,expected=expected)
-        require(type(value) is dict and value.get('error') in (None,False) and value.get('ok',True) is True and value.get('success',True) is True)
-        return value['data'] if 'data' in value else value
+        return gateway_data(self.request(label,method,self.base['gateway']+path,body,token=self.token if token is None else token,expected=expected))
 
     def entry(self,value,identifier_value,title,directory,status):
         require(type(value) is dict and type(value.get('entry')) is dict)
@@ -232,9 +237,10 @@ class Flow:
 
     def signed(self,url):
         parsed=urlsplit(url)
-        require(parsed.scheme=='https' and parsed.hostname==self.config['storage_host'] and parsed.port is None
+        # R2 presigned URLs are virtual-hosted: https://<bucket>.<account>.r2.cloudflarestorage.com/<key>.
+        require(parsed.scheme=='https' and parsed.hostname==self.config['storage_bucket']+'.'+self.config['storage_host'] and parsed.port is None
                 and not parsed.username and not parsed.password and not parsed.fragment
-                and parsed.path.startswith('/'+self.config['storage_bucket']+'/'))
+                and parsed.path.startswith('/') and len(parsed.path)>1)
         query=parse_qs(parsed.query,strict_parsing=True)
         require(query.get('X-Amz-Algorithm')==['AWS4-HMAC-SHA256'] and len(query.get('X-Amz-Signature',[]))==1
                 and re.fullmatch(r'[a-f0-9]{64}',query['X-Amz-Signature'][0]))
@@ -262,7 +268,7 @@ class Flow:
         did=identifier(directory['id']);require(directory.get('name')==name and directory.get('parentId') is None)
         self.resources['directory']=did
         document_body={'title':title,'type':'doc','status':'draft','content':{'type':'doc','content':[{'type':'paragraph','content':[{'type':'text','text':name}]}]}}
-        document=self.api('document-create','POST',prefix+'/documents',document_body)
+        document=self.api('document-create','POST',prefix+'/documents',document_body,expected=(200,201))
         docid=identifier(document['id']);require(document.get('workspaceId')==cfg['workspace_id'] and document.get('createdBy')==cfg['user_id'] and document.get('title')==title)
         self.resources['document']=docid
         doc=self.api('document-read','GET',prefix+'/documents/'+docid)
