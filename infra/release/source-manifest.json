@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "approved",
-  "approval_reference": "https://github.com/Xynes-Studio/xynes-infra/pull/16",
+  "approval_reference": "https://github.com/Xynes-Studio/xynes-infra/pull/17",
   "sources": {
     "xynes-gateway": {
       "repository": "Xynes-Studio/xynes-gateway",
@@ -17,7 +17,7 @@
     },
     "xynes-cms-core": {
       "repository": "Xynes-Studio/xynes-cms-core",
-      "commit": "314d84e325f5796585e98c4d1bbc63d8599059d8"
+      "commit": "52812f9c22e690ce582176645213f4043df196e9"
     },
     "xynes-doc-service": {
       "repository": "Xynes-Studio/xynes-doc-service",
