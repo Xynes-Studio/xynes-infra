@@ -55,23 +55,27 @@ class Server:
             return self.response(200,{'user':user,'access_token':token,'refresh_token':'INERT_REFRESH'})
         claims=json.loads(base64.urlsafe_b64decode(bearer.split('.')[1]+'='*(-len(bearer.split('.')[1])%4)))
         user=next(item['user'] for item in self.users.values() if item['user']['id']==claims['sub'])
-        if path=='/me':return self.response(200,{'data':{'user':{'id':user['id'],'email':user['email']}}})
+        if path=='/me':return self.gateway(200,{'user':{'id':user['id'],'email':user['email']},'workspaces':[]})
         if path=='/workspaces' and method=='GET':
             rows=[dict(row,role='workspace_owner') for row in self.workspaces.values() if row['createdBy']==user['id']]
             if self.mode=='customer_workspace':rows.append({'id':str(uuid.uuid4()),'slug':'customer-data','name':'Customer','role':'workspace_owner'})
             if self.mode=='wrong_role' and rows:rows[0]['role']='workspace_member'
-            return self.response(200,{'data':{'workspaces':rows}})
+            return self.gateway(200,{'workspaces':rows})
         if path=='/workspaces' and method=='POST':
             assert set(body)=={'name','slug'}
             if body['slug'] in self.workspaces:return self.response(409,{'error':'duplicate slug'})
             row=dict(body,id=str(uuid.uuid4()),createdBy=user['id'],planType='free');self.workspaces[row['slug']]=row
             if self.lost=='workspace':self.lost=None;raise OSError('lost workspace response')
-            return self.response(200,{'data':row})
+            return self.gateway(201,row)
         if path.endswith('/content-directories'):
             wid=path.split('/')[2];row=next(row for row in self.workspaces.values() if row['id']==wid)
             return self.response(200 if self.mode=='denial_bypass' or row['createdBy']==user['id'] else 403,{'error':'forbidden'})
         raise AssertionError('unexpected fixture request')
     def response(self,status,value):return status,{'content-type':'application/json'},json.dumps(value).encode()
+    def gateway(self,status,value):
+        # Gateway wrapResponse wraps the Accounts service's own {ok,data,meta} success envelope.
+        if self.mode=='single_envelope':return self.response(status,{'ok':True,'data':value})
+        return self.response(status,{'ok':True,'data':{'ok':True,'data':value,'meta':{'requestId':'service'}},'meta':{'requestId':'gateway'}})
 
 class Tests(unittest.TestCase):
     def setUp(self):
@@ -114,6 +118,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(len(self.server.workspaces),1)
         self.run_setup();self.assertEqual(len(self.server.workspaces),2)
         self.assertEqual(sum(method=='POST' and path=='/workspaces' for method,path,_ in self.server.calls),2)
+    def test_gateway_response_without_service_envelope_is_refused(self):
+        self.server.mode='single_envelope'
+        with self.assertRaises(self.module.SetupError):self.run_setup()
+        self.assertFalse((self.directory/'qa.json').exists())
     def test_unknown_workspace_never_adopted_deleted_or_completed(self):
         self.server.mode='customer_workspace'
         with self.assertRaises(self.module.SetupError):self.run_setup()

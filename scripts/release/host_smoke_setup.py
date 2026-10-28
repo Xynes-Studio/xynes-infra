@@ -139,8 +139,7 @@ class Provision:
         value=records.strict_json(data.decode());require(type(value) is dict);return status,value
     def api(self,method,path,token,body=None):
         _,value=self.request(method,self.base['gateway']+path,body,token=token,expected=(200,201))
-        require(value.get('error') in (None,False) and value.get('ok',True) is True and value.get('success',True) is True)
-        return value['data'] if 'data' in value else value
+        return smoke.gateway_data(value)
     def marker(self,role):return {'version':1,'stage':self.stage,'nonce':self.journal['nonce'],'identity':role}
     def user(self,role):
         row=self.journal['accounts'][role];session=None
