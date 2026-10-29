@@ -19,7 +19,7 @@ class Tests(unittest.TestCase):
     def accepted(self,pending=False):
         with host_release_state.ReleaseState(self.directory,stage='qa',owner_uid=os.geteuid()) as state:
             token=state.begin(self.request,source_sha256='sha256:'+'c'*64,started_at=int(time.time())-1)
-            if not pending:state.accept(token,smoke=dict(stage='qa',publication=self.request['publication'],source_sha256='sha256:'+'c'*64,result='passed',observed_at=int(time.time())),accepted_at=int(time.time()))
+            if not pending:state.accept(token,smoke=dict(storage_verified=True,stage='qa',publication=self.request['publication'],source_sha256='sha256:'+'c'*64,result='passed',observed_at=int(time.time())),accepted_at=int(time.time()))
     def test_schedule_requires_real_accepted_ledger_without_inventing_attempt(self):
         self.accepted();before=(self.directory/'qa.json').read_bytes();seen=[]
         def capture(state,token,**kwargs):

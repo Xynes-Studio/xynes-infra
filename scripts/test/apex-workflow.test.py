@@ -8,13 +8,30 @@ ROOT=Path(__file__).resolve().parents[2]
 
 class Tests(unittest.TestCase):
  def setUp(self):self.value=json.loads((ROOT/'.github/workflows/apex-build.yml').read_text());self.jobs=self.value['jobs']
+ def test_real_product_smoke_precedes_publication_approval_without_provider_secrets(self):
+  self.assertIn('product-smoke',self.jobs)
+  smoke=self.jobs['product-smoke']
+  self.assertEqual(smoke['needs'],['admission','build-images'])
+  self.assertEqual(smoke['permissions'],{'contents':'read','actions':'read'})
+  self.assertNotIn('environment',smoke)
+  self.assertNotIn('secrets.',json.dumps(smoke))
+  invoke=next(step for step in smoke['steps'] if 'run' in step)
+  self.assertIn('/usr/bin/python3 scripts/release/ci_smoke.py',invoke['run'])
+  self.assertNotIn('docker build',invoke['run'])
+  self.assertEqual(invoke['env']['APEX_BUILD_RECEIPT'],'${{ needs.build-images.outputs.receipt }}')
+  self.assertEqual(invoke['env']['APEX_MIGRATION_RECEIPT'],'${{ needs.build-images.outputs.migration_receipt }}')
+  self.assertIn('steps.migrations.outputs.artifact-digest',self.jobs['build-images']['outputs']['migration_receipt'])
+  self.assertEqual(self.jobs['publish-images']['needs'],['admission','build-images','product-smoke'])
+  upload=next(step for step in smoke['steps'] if step.get('id')=='smoke-result')
+  self.assertEqual(upload['if'],'always()')
+  self.assertEqual(upload['with']['path'],'${{ runner.temp }}/apex-ci-smoke/result.json')
  def test_only_manual_protected_main_can_build_publish_and_sign(self):
   self.assertEqual(self.value['on'],{'workflow_dispatch':{}});self.assertEqual(self.value['permissions'],{'contents':'read'})
-  self.assertFalse(self.value['concurrency']['cancel-in-progress']);self.assertEqual(set(self.jobs),{'admission','build-images','publish-images','attest-images'})
+  self.assertFalse(self.value['concurrency']['cancel-in-progress']);self.assertEqual(set(self.jobs),{'admission','build-images','product-smoke','publish-images','attest-images'})
   for job in self.jobs.values():
    self.assertIn("github.event_name == 'workflow_dispatch'",job['if']);self.assertIn("github.ref == 'refs/heads/main'",job['if']);self.assertIn('github.ref_protected',job['if'])
   self.assertEqual(self.jobs['build-images']['needs'],['admission'])
-  self.assertEqual(self.jobs['publish-images']['needs'],['admission','build-images'])
+  self.assertEqual(self.jobs['publish-images']['needs'],['admission','build-images','product-smoke'])
   self.assertEqual(self.jobs['attest-images']['needs'],['publish-images'])
  def test_data_only_admission_and_complete_oci_build_artifacts(self):
   for id in ('admission','build-images'):

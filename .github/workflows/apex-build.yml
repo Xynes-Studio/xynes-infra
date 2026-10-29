@@ -75,7 +75,8 @@
         "actions": "read"
       },
       "outputs": {
-        "receipt": "{\"id\":${{ steps.bundle.outputs.artifact-id }},\"digest\":\"sha256:${{ steps.bundle.outputs.artifact-digest }}\"}"
+        "receipt": "{\"id\":${{ steps.bundle.outputs.artifact-id }},\"digest\":\"sha256:${{ steps.bundle.outputs.artifact-digest }}\"}",
+        "migration_receipt": "{\"id\":${{ steps.migrations.outputs.artifact-id }},\"digest\":\"sha256:${{ steps.migrations.outputs.artifact-digest }}\"}"
       },
       "steps": [
         {
@@ -118,12 +119,59 @@
         }
       ]
     },
+    "product-smoke": {
+      "name": "product-smoke",
+      "if": "github.repository == 'Xynes-Studio/xynes-infra' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected",
+      "needs": [
+        "admission",
+        "build-images"
+      ],
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 30,
+      "permissions": {
+        "contents": "read",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683",
+          "with": {
+            "ref": "${{ github.sha }}",
+            "persist-credentials": false,
+            "fetch-depth": 0
+          }
+        },
+        {
+          "run": "sudo --preserve-env=GITHUB_ACTIONS,GITHUB_REPOSITORY,GITHUB_SHA,GITHUB_REF,GITHUB_REF_PROTECTED,GITHUB_EVENT_NAME,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_JOB,GITHUB_ACTOR,GITHUB_API_URL,GITHUB_SERVER_URL,GITHUB_WORKFLOW_REF,APEX_REGISTRY_PREFIX,GH_TOKEN,RUNNER_TEMP,APEX_ADMISSION_RECEIPT,APEX_BUILD_RECEIPT,APEX_MIGRATION_RECEIPT /usr/bin/python3 scripts/release/ci_smoke.py",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "APEX_REGISTRY_PREFIX": "ghcr.io/xynes-studio/apex",
+            "APEX_ADMISSION_RECEIPT": "${{ needs.admission.outputs.receipt }}",
+            "APEX_BUILD_RECEIPT": "${{ needs.build-images.outputs.receipt }}",
+            "APEX_MIGRATION_RECEIPT": "${{ needs.build-images.outputs.migration_receipt }}"
+          }
+        },
+        {
+          "id": "smoke-result",
+          "if": "always()",
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "with": {
+            "name": "apex-smoke-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": "${{ runner.temp }}/apex-ci-smoke/result.json",
+            "if-no-files-found": "error",
+            "retention-days": 14,
+            "compression-level": 0
+          }
+        }
+      ]
+    },
     "publish-images": {
       "name": "publish-images",
       "if": "github.repository == 'Xynes-Studio/xynes-infra' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected",
       "needs": [
         "admission",
-        "build-images"
+        "build-images",
+        "product-smoke"
       ],
       "runs-on": "ubuntu-24.04",
       "timeout-minutes": 60,

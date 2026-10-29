@@ -71,7 +71,7 @@ class Tests(unittest.TestCase):
  def persist(self,**changes):
   kw=dict(token=self.token,proofs={'local_fixture':True},state=self.state);kw.update(changes);return self.store.persist(self.assets,**kw)
  def accept(self):
-  self.state.accept(self.token,smoke={'stage':'qa','publication':self.request['publication'],'source_sha256':'sha256:'+self.verified.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.state.accept(self.token,smoke={'storage_verified':True,'stage':'qa','publication':self.request['publication'],'source_sha256':'sha256:'+self.verified.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
   return self.state.read_accepted()['current']
  def test_all_assets_and_origin_are_durable_and_load_only_after_accept(self):
   result=self.persist();self.assertNotEqual(result.prepared.file,self.compose)
@@ -272,7 +272,7 @@ class Tests(unittest.TestCase):
   restored=self.store.persist(assets,token=token,proofs={},state=self.state)
   meta=json.loads((self.base/token/'asset-record.json').read_bytes())
   self.assertEqual(meta['proofs']['initial_baseline_origin'],result[1])
-  self.state.accept(token,smoke={'stage':'qa','publication':publication,'source_sha256':'sha256:'+self.successor.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.state.accept(token,smoke={'storage_verified':True,'stage':'qa','publication':publication,'source_sha256':'sha256:'+self.successor.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
   # A real accepted successor is the anchor; the failed origin is never accepted.
   self.assertEqual(len([r for r in self.state.data['attempts'] if r['status']=='accepted']),1)
   with patch.object(self.m,'initial_database',side_effect=AssertionError('historical CID must not constrain a genuinely accepted upgrade')):
@@ -282,7 +282,7 @@ class Tests(unittest.TestCase):
   nexttoken=self.state.begin(request,source_sha256='sha256:'+self.later.source_manifest_sha256,started_at=int(time.time()))
   laterassets=self.m.replace(assets,migration=self.later,controller=self.later.controller,publication=laterpub,manifest=json.loads((self.later.directory/'source-manifest.json').read_bytes()))
   self.store.persist(laterassets,token=nexttoken,proofs={},state=self.state)
-  self.state.accept(nexttoken,smoke={'stage':'qa','publication':laterpub,'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.state.accept(nexttoken,smoke={'storage_verified':True,'stage':'qa','publication':laterpub,'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
   self.assertEqual(self.store.load_release('qa',self.state.read_accepted()['current']).origin.controller,self.verified.controller)
   self.assertEqual(len([r for r in self.state.data['attempts'] if r['status']=='accepted']),2)
   (root/'capsule.json').write_bytes(b'{}')
@@ -340,7 +340,7 @@ class Tests(unittest.TestCase):
    with self.m.host_release_state.ReleaseState(path,stage=stage,owner_uid=os.getuid()) as state:
     self.assertIsNone(self.m.root_executor.origin_bundle(None,state,self.successor,publication))
     token=state.begin(self.request,source_sha256='sha256:'+self.verified.source_manifest_sha256,started_at=100)
-    state.accept(token,smoke={'stage':stage,'publication':self.request['publication'],'source_sha256':'sha256:'+self.verified.source_manifest_sha256,'result':'passed','observed_at':101},accepted_at=102)
+    state.accept(token,smoke={'storage_verified':True,'stage':stage,'publication':self.request['publication'],'source_sha256':'sha256:'+self.verified.source_manifest_sha256,'result':'passed','observed_at':101},accepted_at=102)
     self.assertEqual(self.m.root_executor.origin_bundle(self.assets,state,self.successor,publication).controller,self.verified.controller)
  def test_known_failed_origin_with_missing_capsule_refuses_coordinator_before_begin(self):
   root,capsule,publication,seal=self.initial_fixture();root.rename(root.with_name('retained'))
@@ -350,7 +350,7 @@ class Tests(unittest.TestCase):
   root,capsule,publication,seal=self.initial_fixture()
   request={**self.request,'controller':self.later.controller,'publication':publication,'deployment':{'run_id':790,'run_attempt':1,'job_id':902}}
   token=self.state.begin(request,source_sha256='sha256:'+self.later.source_manifest_sha256,started_at=100)
-  self.state.accept(token,smoke={'stage':'qa','publication':publication,'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':101},accepted_at=102)
+  self.state.accept(token,smoke={'storage_verified':True,'stage':'qa','publication':publication,'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':101},accepted_at=102)
   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
  def test_capsule_complete_origin_and_private_regular_files_are_required(self):
   root,capsule,publication,seal=self.initial_fixture()
@@ -403,7 +403,7 @@ class Tests(unittest.TestCase):
   with patch.object(self.m,'initial_database',return_value={'container_id':'b'*64,'data_inode':[7,11],'data_uid':70,'data_mode':448}):refused()
   # Any accepted attempt ends the no-anchor bridge (an unrelated one cannot anchor).
   request,token=self.other_attempt(803)
-  self.state.accept(token,smoke={'stage':'qa','publication':request['publication'],'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.state.accept(token,smoke={'storage_verified':True,'stage':'qa','publication':request['publication'],'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
   refused()
  def test_relaxed_initial_origin_requires_the_exact_origin_failure_once_and_empty_pointers(self):
   root,capsule,publication,seal=self.initial_fixture()
@@ -443,7 +443,7 @@ class Tests(unittest.TestCase):
     manifest=json.loads((self.successor.directory/'source-manifest.json').read_bytes()),origin=result[0])
   restored=self.store.persist(assets,token=token,proofs={},state=self.state)
   self.assertEqual(json.loads((self.base/token/'asset-record.json').read_bytes())['proofs']['initial_baseline_origin'],result[1])
-  self.state.accept(token,smoke={'stage':'qa','publication':retrypub,'source_sha256':'sha256:'+retry.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.state.accept(token,smoke={'storage_verified':True,'stage':'qa','publication':retrypub,'source_sha256':'sha256:'+retry.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
   # The accepted retry is the single anchor for the later lineage.
   with patch.object(self.m,'initial_database',side_effect=AssertionError('anchored lineage must not reread the DB')):
    self.assertEqual(self.store.initial_origin(self.state,self.later,{'id':461,'digest':'sha256:'+'8'*64},expected_prior=restored.origin)[0].controller,self.verified.controller)
@@ -453,7 +453,7 @@ class Tests(unittest.TestCase):
   request={**self.successor_request(secondpub,798),'controller':second.controller}
   secondtoken=self.state.begin(request,source_sha256='sha256:'+second.source_manifest_sha256,started_at=int(time.time()))
   self.store.persist(self.m.replace(assets,migration=second,controller=second.controller,publication=secondpub),token=secondtoken,proofs={},state=self.state)
-  self.state.accept(secondtoken,smoke={'stage':'qa','publication':secondpub,'source_sha256':'sha256:'+second.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.state.accept(secondtoken,smoke={'storage_verified':True,'stage':'qa','publication':secondpub,'source_sha256':'sha256:'+second.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
   used=[];native_original=self.store.original
   def original(record):used.append(record['token']);return native_original(record)
   with patch.object(self.store,'original',side_effect=original):
@@ -475,7 +475,7 @@ class Tests(unittest.TestCase):
   assets=self.m.replace(self.assets,migration=retry,controller=retry.controller,publication=retrypub,
     manifest=json.loads((self.successor.directory/'source-manifest.json').read_bytes()),origin=origin)
   restored=self.store.persist(assets,token=token,proofs={},state=self.state)
-  self.state.accept(token,smoke={'stage':'qa','publication':retrypub,'source_sha256':'sha256:'+retry.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.state.accept(token,smoke={'storage_verified':True,'stage':'qa','publication':retrypub,'source_sha256':'sha256:'+retry.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
   record=self.base/token/'asset-record.json';good=record.read_bytes()
   # A changed proof (also refused by _load) or an absent one (only the anchor check refuses it).
   for change in (lambda m:m['proofs']['initial_baseline_origin'].update(capsule_sha256='0'*64),lambda m:m['proofs'].pop('initial_baseline_origin')):
@@ -486,7 +486,7 @@ class Tests(unittest.TestCase):
  def test_accepted_release_without_matching_successor_anchor_refuses(self):
   root,capsule,publication,seal=self.initial_fixture()
   request,token=self.other_attempt(805)
-  self.state.accept(token,smoke={'stage':'qa','publication':request['publication'],'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.state.accept(token,smoke={'storage_verified':True,'stage':'qa','publication':request['publication'],'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
   for current,pub in ((self.successor,publication),(self.later,{'id':806,'digest':'sha256:'+'3'*64}),(self.rebuilds['retry'],{'id':807,'digest':'sha256:'+'2'*64})):
    with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,current,pub)
    with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,current,pub,expected_prior=self.verified)

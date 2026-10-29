@@ -15,8 +15,9 @@ function fixture(): any {
   return { name: 'Inert publisher policy fixture', on: { workflow_dispatch: {} }, permissions: { contents: 'read' }, jobs: {
     admission: { 'runs-on': 'ubuntu-24.04', 'timeout-minutes': 10, steps: [{ run: 'true' }] },
     'build-images': { 'runs-on': 'ubuntu-24.04', 'timeout-minutes': 45, needs: ['admission'], steps: [{ run: 'true' }] },
+    'product-smoke': JSON.parse(readFileSync(new URL('../../.github/workflows/apex-build.yml', import.meta.url),'utf8')).jobs['product-smoke'],
     'publish-images': { name: 'Publish qualified OCI archives', 'runs-on': 'ubuntu-24.04', 'timeout-minutes': 30,
-      needs: ['admission', 'build-images'], if: guard, environment: 'release',
+      needs: ['admission', 'build-images', 'product-smoke'], if: guard, environment: 'release',
       permissions: { contents: 'read', actions: 'read', packages: 'write' }, steps: [
         { uses: checkout, with: { ref: '${{ github.sha }}', 'persist-credentials': false,
           'sparse-checkout': '/scripts/release/\n/scripts/lib/\n/infra/release/', 'sparse-checkout-cone-mode': false } },
@@ -36,6 +37,24 @@ async function check(value: unknown, policy: unknown = context(), approvedPins =
 function publisher(value: any) { return value.jobs['publish-images']; }
 
 describe('isolated infra package publisher configuration, never approval', () => {
+  test('refuses publication without a real preapproval product-smoke dependency', async () => {
+    const v=fixture();
+    delete v.jobs['product-smoke'];
+    expect(await check(v)).not.toEqual([]);
+  });
+  test('product smoke cannot skip, inherit release secrets, replace inputs or execute another command', async () => {
+    for (const mutate of [
+      (v:any)=>{v.jobs['product-smoke'].if='false';},
+      (v:any)=>{v.jobs['product-smoke'].environment='release';},
+      (v:any)=>{v.jobs['product-smoke']['continue-on-error']=true;},
+      (v:any)=>{v.jobs['product-smoke'].permissions.packages='write';},
+      (v:any)=>{v.jobs['product-smoke'].steps[1].run+=' || true';},
+      (v:any)=>{v.jobs['product-smoke'].steps[1].env.APEX_BUILD_RECEIPT='${{ inputs.build }}';},
+      (v:any)=>{v.jobs['product-smoke'].steps[1].env.CREDENTIAL='${{ secrets.ANY }}';},
+      (v:any)=>{v.jobs['product-smoke'].steps[0].with['persist-credentials']=true;},
+      (v:any)=>{v.jobs['product-smoke'].steps[2].with.path='${{ github.workspace }}/**';},
+    ]) { const v=fixture();mutate(v);expect(await check(v)).not.toEqual([]); }
+  });
   test('only a fixed pinned publication-receipt upload and exact output bindings may extend the publisher', async () => {
     const v=fixture();const job=publisher(v);
     job.outputs={subjects:'${{ steps.publish.outputs.subjects }}',receipt:'{"id":${{ steps.publication.outputs.artifact-id }},"digest":"sha256:${{ steps.publication.outputs.artifact-digest }}"}'};

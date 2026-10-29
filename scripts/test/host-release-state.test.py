@@ -56,7 +56,8 @@ class Tests(unittest.TestCase):
 
     def smoke(self, stage='qa', request=None, source=None):
         return {'stage': stage, 'publication': (request or self.request)['publication'],
-                'source_sha256': source or self.source, 'result': 'passed', 'observed_at': 90000}
+                'source_sha256': source or self.source, 'result': 'passed', 'observed_at': 90000,
+                'storage_verified': True}
 
     def soak(self, stage='staging'):
         return {'stage': stage, 'publication': self.request['publication'],
@@ -164,14 +165,62 @@ class Tests(unittest.TestCase):
             self.refuse(lambda: state.fail(token, reason='runtime', failed_at=90002))
             self.refuse(lambda: state.accept(token, smoke=self.smoke(), accepted_at=90002))
 
-    def test_smoke_storage_verification_flag_is_bounded_by_stage(self):
+    def test_new_accept_requires_explicit_storage_verification_for_every_stage(self):
+        for stage in ('qa', 'staging', 'prod'):
+            with self.subTest(stage=stage):
+                directory = self.path.parent / stage
+                directory.mkdir(mode=0o700)
+                with self.state(stage, path=directory) as state:
+                    token = self.begin(state)
+                    smoke = self.smoke(stage)
+                    del smoke['storage_verified']
+                    original = (directory / (stage + '.json')).read_bytes()
+                    self.refuse(lambda: state.accept(token, smoke=smoke, accepted_at=90001))
+                    self.assertEqual((directory / (stage + '.json')).read_bytes(), original)
+                    self.assertEqual(state.read_pending()['token'], token)
+
+    def test_legacy_accepted_records_without_storage_verification_remain_readable(self):
+        for stage in ('qa', 'staging', 'prod'):
+            with self.subTest(stage=stage):
+                directory = self.path.parent / stage
+                directory.mkdir(mode=0o700)
+                with self.state(stage, path=directory) as state:
+                    token = self.begin(state)
+                    state.accept(token, smoke=self.smoke(stage), accepted_at=90001)
+                ledger = directory / (stage + '.json')
+                data = json.loads(ledger.read_bytes())
+                del data['attempts'][0]['smoke']['storage_verified']
+                ledger.write_text(json.dumps(data))
+                with self.state(stage, path=directory) as state:
+                    current = state.read_accepted()['current']
+                    self.assertEqual(current['token'], token)
+                    self.assertNotIn('storage_verified', current['smoke'])
+
+    def test_legacy_staging_smoke_without_storage_verification_cannot_promote(self):
         with self.state('staging') as state:
             token = self.begin(state)
-            smoke = self.smoke('staging'); smoke['storage_verified'] = False
-            self.refuse(lambda: state.accept(token, smoke=smoke, accepted_at=90001))
-            smoke['storage_verified'] = True
-            state.accept(token, smoke=smoke, accepted_at=90001)
-        os.remove(self.path / 'staging.json') if (self.path / 'staging.json').exists() else None
+            state.accept(token, smoke=self.smoke('staging'), accepted_at=90001)
+            state.record_soak(token, soak=self.soak(), recorded_at=176402)
+        ledger = self.path / 'staging.json'
+        data = json.loads(ledger.read_bytes())
+        del data['attempts'][0]['smoke']['storage_verified']
+        ledger.write_text(json.dumps(data))
+        with self.state('prod') as state:
+            self.refuse(lambda: state.read_staging_for_promotion(
+                publication=self.request['publication'], source_sha256=self.source,
+                controller=self.request['controller']))
+
+    def test_smoke_storage_verification_flag_is_bounded_by_stage(self):
+        for stage in ('staging', 'prod'):
+            with self.subTest(stage=stage):
+                directory = self.path.parent / stage
+                directory.mkdir(mode=0o700)
+                with self.state(stage, path=directory) as state:
+                    token = self.begin(state)
+                    for bad in (False, 1, None, 'true'):
+                        smoke = self.smoke(stage); smoke['storage_verified'] = bad
+                        self.refuse(lambda: state.accept(token, smoke=smoke, accepted_at=90001))
+                    state.accept(token, smoke=self.smoke(stage), accepted_at=90001)
         with self.state() as state:
             token = self.begin(state)
             for bad in (1, None, 'false'):

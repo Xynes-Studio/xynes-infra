@@ -20,6 +20,10 @@ export const publisherEnvironment = 'release' as const;
 export const publisherGuard = `github.repository == '${publisherRepository}' && ${trustedReleaseGuard}`;
 export const publisherCommand = 'python3 scripts/release/publish_images.py' as const;
 export const publisherPermissions = Object.freeze({ contents: 'read', actions: 'read', packages: 'write' } as const);
+export const productSmokeCommand = 'sudo --preserve-env=GITHUB_ACTIONS,GITHUB_REPOSITORY,GITHUB_SHA,GITHUB_REF,GITHUB_REF_PROTECTED,GITHUB_EVENT_NAME,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_JOB,GITHUB_ACTOR,GITHUB_API_URL,GITHUB_SERVER_URL,GITHUB_WORKFLOW_REF,APEX_REGISTRY_PREFIX,GH_TOKEN,RUNNER_TEMP,APEX_ADMISSION_RECEIPT,APEX_BUILD_RECEIPT,APEX_MIGRATION_RECEIPT /usr/bin/python3 scripts/release/ci_smoke.py';
+const smokeInputs = Object.freeze({GH_TOKEN:'${{ github.token }}',APEX_REGISTRY_PREFIX:publisherRegistry,
+  APEX_ADMISSION_RECEIPT:'${{ needs.admission.outputs.receipt }}',APEX_BUILD_RECEIPT:'${{ needs.build-images.outputs.receipt }}',
+  APEX_MIGRATION_RECEIPT:'${{ needs.build-images.outputs.migration_receipt }}'});
 export const controllerSparsePaths = '/scripts/release/\n/scripts/lib/\n/infra/release/' as const;
 const publisherInputs = Object.freeze({
   GH_TOKEN: '${{ github.token }}',
@@ -50,7 +54,7 @@ export type PackagePublisherJob = Readonly<{
   name?: string;
   'runs-on': string;
   'timeout-minutes': number;
-  needs: readonly ['admission', 'build-images'];
+  needs: readonly ['admission', 'build-images', 'product-smoke'];
   if: string;
   environment: typeof publisherEnvironment;
   permissions: typeof publisherPermissions;
@@ -70,8 +74,8 @@ function publisherErrors(job: unknown, pins: ReadonlySet<string>): string[] {
   if (job.name !== undefined && (typeof job.name !== 'string' || job.name.includes('${{'))) reject('publisher name must be literal');
   if (guard(job.if) !== publisherGuard) reject('publisher requires exact infra manual protected-main guard');
   if (job.environment !== publisherEnvironment) reject('publisher requires the literal release environment');
-  if (!Array.isArray(job.needs) || job.needs.length !== 2 || job.needs[0] !== 'admission' || job.needs[1] !== 'build-images')
-    reject('publisher requires admission and build-images dependencies');
+  if (!Array.isArray(job.needs) || job.needs.length !== 3 || job.needs[0] !== 'admission' || job.needs[1] !== 'build-images' || job.needs[2] !== 'product-smoke')
+    reject('publisher requires admission, build-images and product-smoke dependencies');
   if (!sameFields(job.permissions, publisherPermissions)) reject('publisher permissions must match its isolated role');
   const receiptHandoff=job.outputs!==undefined;
   if(receiptHandoff && !sameFields(job.outputs,publicationOutputs))reject('publisher output bindings must come from its checked publication steps');
@@ -93,6 +97,25 @@ function publisherErrors(job: unknown, pins: ReadonlySet<string>): string[] {
       reject('publisher may upload only its exact verified data receipt with the pinned action');
   }
   return errors;
+}
+
+function smokeErrors(job: unknown, pins: ReadonlySet<string>): string[] {
+  const failure = ['product-smoke: requires exact read-only preapproval image-smoke job'];
+  if (!exactKeys(job, ['name','if','needs','runs-on','timeout-minutes','permissions','steps'])
+    || job.name !== 'product-smoke' || guard(job.if) !== publisherGuard || job['runs-on'] !== 'ubuntu-24.04'
+    || job['timeout-minutes'] !== 30 || !Array.isArray(job.needs)
+    || job.needs.length !== 2 || job.needs[0] !== 'admission' || job.needs[1] !== 'build-images'
+    || !sameFields(job.permissions,{contents:'read',actions:'read'}) || !Array.isArray(job.steps) || job.steps.length !== 3)
+    return failure;
+  const [checkout,invoke,upload] = job.steps;
+  if (!exactKeys(checkout,['uses','with']) || checkout.uses !== 'actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683'
+    || !pins.has(String(checkout.uses)) || !sameFields(checkout.with,{ref:'${{ github.sha }}','persist-credentials':false,'fetch-depth':0})
+    || !exactKeys(invoke,['run','env']) || invoke.run !== productSmokeCommand || !sameFields(invoke.env,smokeInputs)
+    || !exactKeys(upload,['id','if','uses','with']) || upload.id !== 'smoke-result' || upload.if !== 'always()'
+    || upload.uses !== 'actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02' || !pins.has(String(upload.uses))
+    || !sameFields(upload.with,{name:'apex-smoke-${{ github.run_id }}-${{ github.run_attempt }}',
+      path:'${{ runner.temp }}/apex-ci-smoke/result.json','if-no-files-found':'error','retention-days':14,'compression-level':0})) return failure;
+  return [];
 }
 
 /** Return configuration errors only. Empty errors never prove independent approval,
@@ -121,6 +144,7 @@ export function checkApexWorkflow(value: unknown, pins: ReadonlySet<string>, con
       || (job.permissions !== undefined && (!mapping(job.permissions) || Object.values(job.permissions).some(level => level === 'write'))))
       errors.push('Apex publisher requires read-only admission and build-images jobs');
   }
+  errors.push(...smokeErrors(value.jobs['product-smoke'],pins));
   const job = value.jobs['publish-images'];
   const publisherFailures = publisherErrors(job, pins);
   errors.push(...publisherFailures);

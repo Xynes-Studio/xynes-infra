@@ -21,6 +21,7 @@ REPOSITORY = 'Xynes-Studio/xynes-infra'
 REPOSITORY_ID = 1415400917
 REVIEWER = 'xynes-admin'
 WORKFLOW = '.github/workflows/apex-build.yml'
+BUILD_GUARD = "github.repository == 'Xynes-Studio/xynes-infra' && github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.ref_protected"
 PREFIX = '/repos/' + REPOSITORY
 CHECKS = ('lint', 'test', 'coverage', 'build', 'typecheck', 'security')
 NO_BYPASS_QUERY = ('query ApexMainNoBypass { repository(owner:"Xynes-Studio",name:"xynes-infra",followRenames:false) {'
@@ -107,8 +108,13 @@ def workflow_contents(value, decode):
     job = workflow['jobs'].get('publish-images')
     require(isinstance(job, dict) and job.get('name', 'publish-images') == 'publish-images'
             and job.get('environment') == 'release' and 'uses' not in job
-            and job.get('needs') == ['admission', 'build-images']
+            and job.get('needs') == ['admission', 'build-images', 'product-smoke']
             and job.get('permissions') == {'contents': 'read', 'actions': 'read', 'packages': 'write'})
+    smoke = workflow['jobs'].get('product-smoke')
+    require(isinstance(smoke, dict) and smoke.get('name') == 'product-smoke'
+            and smoke.get('needs') == ['admission', 'build-images'] and smoke.get('if') == BUILD_GUARD
+            and smoke.get('permissions') == {'contents': 'read', 'actions': 'read'}
+            and 'environment' not in smoke and 'uses' not in smoke and 'continue-on-error' not in smoke)
     return value['sha']
 
 
