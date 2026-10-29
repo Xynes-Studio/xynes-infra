@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import types
 import tempfile
 import time
 import unittest
@@ -109,6 +110,18 @@ class Tests(unittest.TestCase):
                 'deployment':copy.deepcopy(self.request['deployment']),'admitted':True,'deployable':False,
                 'source_approval':{'source_manifest_sha256':'0'*64 if self.failure=='source-approval-hash' else self.verified.source_manifest_sha256}}
 
+    def test_smoke_storage_verification_is_required_outside_qa(self):
+        assets=types.SimpleNamespace(publication={'id':1,'digest':'sha256:'+'a'*64},migration=types.SimpleNamespace(source_manifest_sha256='b'*64))
+        def value(stage,**extra):
+            v={'stage':stage,'publication':assets.publication,'source_sha256':'sha256:'+'b'*64,'result':'passed','observed_at':5};v.update(extra);return v
+        self.assertIs(self.m.smoke(value('qa',storage_verified=False),assets,stage='qa',started_at=1,now=9)['storage_verified'],False)
+        for stage in ('qa','staging','prod'):
+            self.assertIs(self.m.smoke(value(stage,storage_verified=True),assets,stage=stage,started_at=1,now=9)['storage_verified'],True)
+            for bad in ({},{'storage_verified':1},{'storage_verified':None},{'storage_verified':'false'}):
+                with self.assertRaises(Exception):self.m.smoke(value(stage,**bad),assets,stage=stage,started_at=1,now=9)
+        for stage in ('staging','prod'):
+            with self.assertRaises(Exception):self.m.smoke(value(stage,storage_verified=False),assets,stage=stage,started_at=1,now=9)
+
     def test_source_approval_hash_mismatch_refuses_root_write_boundary(self):
         self.failure='source-approval-hash'
         with self.assertRaises(self.m.ExecutorError):
@@ -153,7 +166,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(assets.prepared.storage_generation,'4'*64)
         return {'stage':self.stage,'publication':assets.publication,
                 'source_sha256':'sha256:'+self.verified.source_manifest_sha256,
-                'result':'passed','observed_at':self.clock()}
+                'result':'passed','observed_at':self.clock(),'storage_verified':self.stage!='qa' or getattr(self,'storage_verified',True)}
 
     def load_release(self,stage,record):
         self.event('load')
@@ -239,6 +252,11 @@ class Tests(unittest.TestCase):
         self.assertNotIn('backup-before-bootstrap',self.events)
         self.assertNotIn('rollback',self.events)
         self.assertNotIn('INERT_SECRET_SENTINEL',json.dumps(result))
+
+    def test_qa_acceptance_records_storage_deferred_explicitly(self):
+        self.storage_verified=False;result=self.execute()
+        self.assertTrue(result['deployment_accepted'])
+        _,accepted=self.read_state();self.assertIs(accepted['current']['smoke']['storage_verified'],False)
 
     def test_storage_guard_is_bound_before_bootstrap_and_qualifies_sql_before_migration(self):
         self.execute()

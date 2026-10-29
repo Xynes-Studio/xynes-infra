@@ -30,6 +30,9 @@ except ImportError:
     import environment_inputs,github_read,host_compose,release_manifest as records
 
 ERROR='Hosted product smoke refused'
+# Fixed reviewed policy: QA acceptance defers storage until a workspace storage provider exists.
+# Staging and prod always verify storage; acceptance records the outcome as storage_verified.
+STORAGE_SKIP_STAGES=frozenset({'qa'})
 SMOKE_UID=0
 MAX_RESPONSE=1024*1024
 HTTP_TIMEOUT=15
@@ -283,6 +286,8 @@ class Flow:
         published=self.entry(self.api('cms-entry-publish','POST',prefix+'/content/entries/'+eid+'/publish',{}),eid,title,did,'published')
         require(type(published.get('publishedAt')) is str and published['publishedAt'])
         self.entry(self.api('cms-published-read','GET',prefix+'/content/entries/'+eid),eid,title,did,'published')
+        if self.stage in STORAGE_SKIP_STAGES:
+            self.evidence.update(storage_verified=False,storage_skip_reason='policy:'+self.stage+'-storage-provider-deferred');return
         filename=name+'.png';owner=str(uuid.uuid4())
         upload=self.api('storage-create','POST',prefix+'/storage/uploads',{'operation':'create','filename':filename,'contentType':'image/png',
                         'byteSize':len(PNG),'purpose':'cms_media','visibility':'private','compression':False,'ownerKind':'platform_generic','ownerId':owner})
@@ -307,7 +312,7 @@ class Flow:
         download=self.api('storage-download-url','POST',prefix+'/storage/objects/'+oid+'/download-url',{'operation':'download_url','objectId':oid})
         require(type(download) is dict and set(download)=={'objectId','url','expiresAt'} and download['objectId']==oid)
         returned=self.request('storage-provider-read','GET',self.signed(download['url']),binary=True)
-        require(hmac.compare_digest(returned,PNG))
+        require(hmac.compare_digest(returned,PNG));self.evidence['storage_verified']=True
 
     def cleanup(self):
         if not self.token:return
@@ -340,8 +345,10 @@ def run(*,stage,publication,source_sha256,work,transport=None,config_loader=load
                   'sibling_gotrue_session_claimed':False,'original_foreign_probe_signature_verified':True,
                   'synthetic_foreign_probe_refreshed':True,'emails_sent':0,'result':'refused'}
         flow=Flow(stage,config,transport or HTTPS(),evidence,clock,sleep);flow.execute(keys_loader);flow.cleanup();passed=True
+        require(type(evidence.get('storage_verified')) is bool and (evidence['storage_verified'] or stage in STORAGE_SKIP_STAGES))
         evidence.update(result='passed',resources=copy.deepcopy(flow.resources),observed_at=int(clock()))
-        return {'stage':stage,'publication':copy.deepcopy(publication),'source_sha256':source_sha256,'result':'passed','observed_at':evidence['observed_at']}
+        return {'stage':stage,'publication':copy.deepcopy(publication),'source_sha256':source_sha256,'result':'passed','observed_at':evidence['observed_at'],
+                'storage_verified':evidence['storage_verified']}
     except Exception:raise SmokeError(ERROR) from None
     finally:
         if evidence is not None:
