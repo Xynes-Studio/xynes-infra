@@ -56,6 +56,8 @@ class Tests(unittest.TestCase):
         self.server_ctx=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);self.server_ctx.load_cert_chain(certificate,key)
         self.client_ctx=ssl.create_default_context(cafile=str(certificate))
         self.transport=self.module.HTTPS(context=self.client_ctx,connection_factory=self.connection)
+        # Storage flows stay fully tested; production smoke stages never skip storage.
+        self.verify_storage=patch.object(self.module,'STORAGE_SKIP_STAGES',frozenset());self.verify_storage.start();self.addCleanup(self.verify_storage.stop)
 
     def jwt(self,stage):
         enc=lambda obj:base64.urlsafe_b64encode(json.dumps(obj,separators=(',',':')).encode()).decode().rstrip('=')
@@ -155,7 +157,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(str(caught.exception),'Hosted product smoke refused')
 
     def test_real_verified_tls_all_required_flows_exact_observation_and_private_redaction(self):
-        result=self.execute();self.assertEqual(result,{'stage':'qa','publication':self.publication,'source_sha256':self.source,'result':'passed','observed_at':self.now})
+        result=self.execute();self.assertEqual(result,{'stage':'qa','publication':self.publication,'source_sha256':self.source,'result':'passed','observed_at':self.now,'storage_verified':True})
         self.assertEqual(self.state['bytes'],self.module.PNG)
         self.assertNotIn('contentTypeId',self.state['entry']);self.assertEqual(self.state['entry']['directoryId'],self.directory)
         self.assertEqual(self.state['entry']['body']['root']['children'][0]['children'][0]['text'],self.state['directory_name'])
@@ -165,6 +167,19 @@ class Tests(unittest.TestCase):
         for sensitive in (self.current,self.foreign['token'],self.config['password'],'X-Amz-Signature','inert-refresh-token'):self.assertNotIn(sensitive,text)
         self.assertEqual(evidence[0].stat().st_mode&0o777,0o600)
         self.assertFalse(any('/health' in path for _,_,path,_,_ in self.calls))
+
+    def test_qa_storage_deferred_by_fixed_policy_is_recorded_unverified(self):
+        self.verify_storage.stop();self.assertEqual(self.module.STORAGE_SKIP_STAGES,frozenset({'qa'}))
+        self.mode='storage-failure';result=self.execute()
+        self.assertEqual(result['result'],'passed');self.assertIs(result['storage_verified'],False)
+        self.assertFalse(any('/storage/' in path or host==self.virtual for host,_,path,_,_ in self.calls))
+        self.assertEqual(self.state['status'],'published')
+        evidence=json.loads(next(self.work.glob('smoke-evidence-*.json')).read_text())
+        self.assertIs(evidence['storage_verified'],False);self.assertEqual(evidence['storage_skip_reason'],'policy:qa-storage-provider-deferred')
+
+    def test_storage_skip_policy_cannot_cover_staging_or_prod(self):
+        self.verify_storage.stop()
+        for stage in ('staging','prod'):self.assertNotIn(stage,self.module.STORAGE_SKIP_STAGES)
 
     def test_required_product_failures_never_return_passed(self):
         for mode in ('publish-failure','storage-failure','processing-failure'):

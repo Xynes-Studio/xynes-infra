@@ -164,6 +164,23 @@ class Tests(unittest.TestCase):
             self.refuse(lambda: state.fail(token, reason='runtime', failed_at=90002))
             self.refuse(lambda: state.accept(token, smoke=self.smoke(), accepted_at=90002))
 
+    def test_smoke_storage_verification_flag_is_bounded_by_stage(self):
+        with self.state('staging') as state:
+            token = self.begin(state)
+            smoke = self.smoke('staging'); smoke['storage_verified'] = False
+            self.refuse(lambda: state.accept(token, smoke=smoke, accepted_at=90001))
+            smoke['storage_verified'] = True
+            state.accept(token, smoke=smoke, accepted_at=90001)
+        os.remove(self.path / 'staging.json') if (self.path / 'staging.json').exists() else None
+        with self.state() as state:
+            token = self.begin(state)
+            for bad in (1, None, 'false'):
+                smoke = self.smoke(); smoke['storage_verified'] = bad
+                self.refuse(lambda: state.accept(token, smoke=smoke, accepted_at=90001))
+            smoke = self.smoke(); smoke['storage_verified'] = False
+            state.accept(token, smoke=smoke, accepted_at=90001)
+            self.assertIs(state.read_accepted()['current']['smoke']['storage_verified'], False)
+
     def test_lock_and_ledger_permissions_links_unknown_entries_and_stage_crossing(self):
         for stage in ('dev', '../prod', 'QA', None, True):
             self.refuse(lambda: self.state(stage).__enter__())

@@ -159,6 +159,11 @@ class ReleaseState:
         stage = self.stage if stage is None else stage
         keys = {'stage', 'publication', 'source_sha256', 'result'} | (
             {'started_at', 'completed_at'} if soak else {'observed_at'})
+        # storage_verified is optional for records written before it existed; when present,
+        # only QA may record storage as deferred.
+        if not soak and type(value) is dict and 'storage_verified' in value:
+            keys = keys | {'storage_verified'}
+            require(type(value['storage_verified']) is bool and (value['storage_verified'] or stage == 'qa'))
         exact(value, keys)
         require(value['stage'] == stage and encode(value['publication']) == encode(record['request']['publication'])
                 and value['source_sha256'] == record['source_sha256'] and value['result'] == 'passed')

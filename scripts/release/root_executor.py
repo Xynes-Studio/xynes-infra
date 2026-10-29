@@ -115,7 +115,8 @@ class Operations:
 
     product_smoke(assets, *, phase) executes real product flows for current or
     rollback. Return exactly stage, publication, source_sha256 (sha256: prefix),
-    result='passed', observed_at. Retain detailed private flow evidence separately.
+    result='passed', observed_at, storage_verified (bool; False only for QA, whose
+    storage smoke is deferred by policy). Retain detailed private flow evidence separately.
 
     load_release(stage, accepted_record) reads protected retained ReleaseAssets.
     persist(assets, *, token, proofs, state) atomically/fsyncs copies and returns
@@ -374,8 +375,10 @@ def backup(value,*,stage,started_at,now):
 
 
 def smoke(value,assets,*,stage,started_at,now):
-    keys={'stage','publication','source_sha256','result','observed_at'}
+    keys={'stage','publication','source_sha256','result','observed_at','storage_verified'}
     require(type(value) is dict and set(value)==keys and value['stage']==stage
+            # Only QA may accept with storage deferred; staging and prod must verify storage.
+            and type(value['storage_verified']) is bool and (value['storage_verified'] or stage=='qa')
             and value['publication']==assets.publication
             and value['source_sha256']=='sha256:'+assets.migration.source_manifest_sha256
             and value['result']=='passed' and type(value['observed_at']) is int
