@@ -233,7 +233,7 @@ class Tests(unittest.TestCase):
         request['deployment'].update(run_id=780,job_id=890)
         with self.m.host_release_state.ReleaseState(self.directory,stage=self.stage,owner_uid=os.getuid()) as state:
             token=state.begin(request,source_sha256='sha256:'+self.verified.source_manifest_sha256,started_at=self.clock()-10)
-            state.accept(token,smoke={'stage':self.stage,'publication':request['publication'],
+            state.accept(token,smoke={'storage_verified':True,'stage':self.stage,'publication':request['publication'],
                 'source_sha256':'sha256:'+self.verified.source_manifest_sha256,'result':'passed','observed_at':self.clock()-9},
                 accepted_at=self.clock()-8)
         self.assets[token]=self.m.ReleaseAssets(prepared=prepared,migration=self.verified,origin=self.verified,
@@ -344,7 +344,7 @@ class Tests(unittest.TestCase):
             request=copy.deepcopy(self.request);request['deployment'].update(run_id=700,job_id=800)
             started=self.clock()-90000
             token=state.begin(request,source_sha256='sha256:'+self.verified.source_manifest_sha256,started_at=started)
-            state.accept(token,smoke={'stage':'staging','publication':request['publication'],
+            state.accept(token,smoke={'storage_verified':True,'stage':'staging','publication':request['publication'],
                 'source_sha256':'sha256:'+self.verified.source_manifest_sha256,'result':'passed','observed_at':started+1},
                 accepted_at=started+2)
             state.record_soak(token,soak={'stage':'staging','publication':request['publication'],

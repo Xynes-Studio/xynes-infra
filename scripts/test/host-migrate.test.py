@@ -130,7 +130,7 @@ else:sys.exit(1)
 
     def accepted(self,state,token,verified):
         pending=state.read_pending()
-        state.accept(token,smoke={'stage':'qa','publication':pending['request']['publication'],
+        state.accept(token,smoke={'storage_verified':True,'stage':'qa','publication':pending['request']['publication'],
             'source_sha256':'sha256:'+verified.source_manifest_sha256,'result':'passed','observed_at':101},accepted_at=102)
 
     def refuse(self,callback):

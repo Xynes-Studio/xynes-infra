@@ -25,7 +25,7 @@ def fixtures(manifest=None):
  actor=dict(id=7,login='archan96',type='User'); reviewer=dict(id=8,login='xynes-admin',type='User')
  run=dict(id=100,run_attempt=1,workflow_id=10,path='.github/workflows/apex-build.yml',head_sha=SHA,head_branch='main',event='workflow_dispatch',status='in_progress',conclusion=None,repository=repository,head_repository=repository,actor=actor,triggering_actor=actor)
  d={P:repository,'/users/xynes-admin':reviewer,P+'/branches/main':dict(name='main',protected=True,commit=dict(sha=SHA)),P+'/actions/runs/100':run,P+'/actions/workflows/10':dict(id=10,path=run['path'],state='active'),P+'/actions/jobs/200':dict(id=200,name='publish-images',head_sha=SHA,head_branch='main',run_id=100,run_attempt=1,status='in_progress',conclusion=None,run_url='https://api.github.com'+P+'/actions/runs/100')}
- d[P+'/contents/.github/workflows/apex-build.yml?ref='+SHA]=file_record(run['path'],{'on':{'workflow_dispatch':{}},'jobs':{'admission':{'permissions':{'contents':'read'}},'build-images':{'permissions':{'contents':'read'}},'publish-images':{'name':'publish-images','environment':'release','needs':['admission','build-images'],'permissions':{'contents':'read','actions':'read','packages':'write'}}}})
+ d[P+'/contents/.github/workflows/apex-build.yml?ref='+SHA]=file_record(run['path'],json.loads((ROOT/'.github/workflows/apex-build.yml').read_text()))
  d[P+'/branches/main/protection']=dict(required_status_checks=dict(strict=True,checks=[dict(context=n,app_id=15368) for n in NAMES]),enforce_admins=dict(enabled=True),required_pull_request_reviews=dict(dismiss_stale_reviews=True,require_code_owner_reviews=True,require_last_push_approval=True,required_approving_review_count=1,bypass_pull_request_allowances=dict(users=[],teams=[],apps=[])),required_conversation_resolution=dict(enabled=True),allow_force_pushes=dict(enabled=False),allow_deletions=dict(enabled=False))
  env=dict(id=300,name='release',url='https://api.github.com'+P+'/environments/release',can_admins_bypass=False,deployment_branch_policy=dict(protected_branches=False,custom_branch_policies=True),protection_rules=[dict(id=301,type='required_reviewers',prevent_self_review=True,reviewers=[dict(type='User',reviewer=reviewer)])])
  d[P+'/environments/release']=env
@@ -58,6 +58,25 @@ class Tests(unittest.TestCase):
   return self.module.validate_admission(self.controller,200,lambda path:copy.deepcopy(self.data[path]),json.loads)
  def refused(self):
   with self.assertRaises(self.module.AdmissionError):self.verify()
+ def test_workflow_refuses_publication_without_preapproval_product_smoke(self):
+  key=P+'/contents/.github/workflows/apex-build.yml?ref='+SHA
+  workflow=json.loads(base64.b64decode(self.data[key]['content']))
+  workflow['jobs'].pop('product-smoke',None)
+  workflow['jobs']['publish-images']['needs']=['admission','build-images']
+  self.data[key]=file_record('.github/workflows/apex-build.yml',workflow)
+  self.refused()
+ def test_workflow_refuses_missing_skipped_privileged_or_nonblocking_product_smoke(self):
+  key=P+'/contents/.github/workflows/apex-build.yml?ref='+SHA
+  original=json.loads(base64.b64decode(self.data[key]['content']))
+  for mode in ('missing','skipped','privileged','nonblocking','release-environment'):
+   workflow=copy.deepcopy(original)
+   if mode=='missing':workflow['jobs'].pop('product-smoke')
+   elif mode=='skipped':workflow['jobs']['product-smoke']['if']='false'
+   elif mode=='privileged':workflow['jobs']['product-smoke']['permissions']['packages']='write'
+   elif mode=='nonblocking':workflow['jobs']['product-smoke']['continue-on-error']=True
+   else:workflow['jobs']['product-smoke']['environment']='release'
+   self.data[key]=file_record('.github/workflows/apex-build.yml',workflow)
+   with self.subTest(mode=mode):self.refused()
  def test_source_approval_binds_final_reviewed_head_and_same_tree_merge(self):
   proof=self.module.verify_source_approval(lambda path:copy.deepcopy(self.data[path]),SHA,{7})
   self.assertEqual(proof['head_commit'],'b'*40);self.assertEqual(proof['merge_commit'],SHA)

@@ -140,7 +140,7 @@ print(json.dumps({'action':'upload','fileId':'inert-file-id','fileName':remote,'
         self.assertTrue(any(r['kind']=='b2' for r in rows));self.assertTrue(all(not r.get('b2',False) and not r.get('pg',False) for r in rows))
 
     def test_periodic_accepted_backup_uses_native_age_and_keeps_ledger_unchanged(self):
-        self.state.accept(self.token,smoke=dict(stage='qa',publication=self.request['publication'],source_sha256='sha256:'+'c'*64,result='passed',observed_at=int(time.time())),accepted_at=int(time.time()))
+        self.state.accept(self.token,smoke=dict(storage_verified=True,stage='qa',publication=self.request['publication'],source_sha256='sha256:'+'c'*64,result='passed',observed_at=int(time.time())),accepted_at=int(time.time()))
         accepted=copy.deepcopy(self.state.read_accepted()['current']);ledger=(self.host/'state/qa.json').read_bytes()
         self.state.__exit__(None,None,None)
         directory=self.host/'var/lib/xynes/deploy/state';directory.parent.mkdir(parents=True)
@@ -176,7 +176,7 @@ print(json.dumps({'action':'upload','fileId':'inert-file-id','fileName':remote,'
         self.assertFalse(any(p.name=='identity.txt' for p in self.host.rglob('*')))
 
     def test_existing_accepted_release_cannot_downgrade_critical_table_evidence(self):
-        self.state.accept(self.token,smoke=dict(stage='qa',publication=self.request['publication'],source_sha256='sha256:'+'c'*64,result='passed',observed_at=int(time.time())),accepted_at=int(time.time()))
+        self.state.accept(self.token,smoke=dict(storage_verified=True,stage='qa',publication=self.request['publication'],source_sha256='sha256:'+'c'*64,result='passed',observed_at=int(time.time())),accepted_at=int(time.time()))
         request=copy.deepcopy(self.request);request['deployment'].update(run_id=102,job_id=202);request['publication']={'id':457,'digest':'sha256:'+'d'*64}
         self.token=self.state.begin(request,source_sha256='sha256:'+'c'*64,started_at=int(time.time())-1)
         self.refused(phase='bootstrap')

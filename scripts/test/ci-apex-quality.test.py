@@ -64,6 +64,8 @@ class ApexQualityCI(unittest.TestCase):
         self.assertIn('auth-runtime.integration.py',case)
         for path in ('artifact-handoff.test.py','artifact-download.test.py','publish-images.test.py','build-pipeline.test.py','apex-workflow.test.py'):
             self.assertIn(path,case)
+        for path in ('ci-smoke.test.py','ci-smoke-runtime.test.py','ci-smoke-stack.test.py','ci-smoke-engine.test.py'):
+            self.assertIn(path,case)
         self.assertIn('idle-adapter-unix.test.sh --runtime',case)
         self.assertNotIn('|| true',case);self.assertNotIn('continue-on-error',json.dumps(value))
 

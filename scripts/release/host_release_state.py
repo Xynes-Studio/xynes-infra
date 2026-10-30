@@ -308,6 +308,8 @@ class ReleaseState:
     def accept(self, token, *, smoke, accepted_at):
         try:
             record = self._active(token)
+            # Historic proofs may omit this flag; every new acceptance must supply it.
+            require(type(smoke) is dict and type(smoke.get('storage_verified')) is bool)
             record.update(status='accepted', ended_at=accepted_at, smoke=copy.deepcopy(smoke))
             value = copy.deepcopy(self.data)
             value['attempts'][-1] = record
@@ -355,6 +357,7 @@ class ReleaseState:
             current = next((item for item in value['attempts'] if item['token'] == value['current']), None)
             require(not any(item['status'] == 'pending' for item in value['attempts'])
                     and current is not None and current['status'] == 'accepted'
+                    and current['smoke'].get('storage_verified') is True
                     and encode(current['request']['publication']) == encode(publication)
                     and current['source_sha256'] == source_sha256 and current['soak'] is not None
                     and encode(current['request']['controller']) == encode(controller))

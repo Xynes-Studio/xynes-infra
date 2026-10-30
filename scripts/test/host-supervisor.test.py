@@ -352,7 +352,7 @@ if control.get('activation_ack'):unit_path.with_suffix('.output').touch()
                 result['token']=token
             self.refuse(lambda:self.m.observe_accepted(result,self.request,'qa'))
             with self.m.host_release_state.ReleaseState(directory,stage='qa',owner_uid=os.getuid()) as state:
-                state.accept(token,smoke={'stage':'qa','publication':self.request['publication'],
+                state.accept(token,smoke={'storage_verified':True,'stage':'qa','publication':self.request['publication'],
                     'source_sha256':'sha256:'+result['source_manifest_sha256'],'result':'passed','observed_at':101},accepted_at=102)
             self.m.observe_accepted(result,self.request,'qa')
             changed={**self.request,'deployment':{**self.request['deployment'],'job_id':902}}
