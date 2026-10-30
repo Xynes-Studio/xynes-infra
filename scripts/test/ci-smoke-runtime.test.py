@@ -136,6 +136,17 @@ class Tests(unittest.TestCase):
                 connection.assert_not_called()
         for port in (True,0,65536,'123'):
             with self.assertRaises(self.module.RuntimeError):self.module.LocalTransport(auth_port=port,gateway_port=12346)
+    def test_bridge_transport_uses_only_explicit_private_endpoint(self):
+        transport=self.module.LocalTransport(auth_port=9999,gateway_port=4100,
+            auth_host='172.28.0.10',gateway_host='172.28.0.11')
+        with patch('http.client.HTTPConnection',side_effect=OSError('DO_NOT_EXPOSE')) as connect:
+            with self.assertRaises(self.module.RuntimeError):
+                transport.request('GET','https://api.qa.xynes.com/me',{},None)
+            self.assertEqual(connect.call_args.args,('172.28.0.11',4100))
+        for host in ('8.8.8.8','169.254.169.254','0.0.0.0','localhost','::1','172.28.0.11:4100','DO_NOT_EXPOSE'):
+            with self.subTest(host=host),self.assertRaises(self.module.RuntimeError):
+                self.module.LocalTransport(auth_port=9999,gateway_port=4100,auth_host=host)
+
     def test_loopback_http_mapping_query_and_redirect_refusal(self):
         calls=[]
         class Handler(http.server.BaseHTTPRequestHandler):

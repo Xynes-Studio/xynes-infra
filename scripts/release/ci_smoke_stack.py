@@ -8,6 +8,7 @@ this module rechecks their bytes and owns only unpredictable labelled objects.
 import base64
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -212,12 +213,11 @@ class Stack:
             raw=self.call([kind,'create',*flags,'--label',self.label,name]).decode().strip()
             row=self.owned(kind,name,raw);self.objects[-1]=(kind,name,row.get('Id',name))
             if kind=='network':self.network_id=row['Id']
-    def create(self,name,image,env,*,port=None,mounts=(),health=None,oneoff=None,alias=None):
+    def create(self,name,image,env,*,mounts=(),health=None,oneoff=None,alias=None):
         full=self.prefix+'-'+name;self.objects.append(('container',full,None))
         args=['create','--name',full,'--platform','linux/amd64','--network',self.network,
               '--label',self.label,'--restart','no','--log-driver','none','--pids-limit','256','--memory','512m']
         if alias:args+=['--network-alias',alias]
-        if port:args+=['--publish','127.0.0.1::'+str(port)]
         args+=['--env-file',str(env)]
         for mount in mounts:args+=['--mount',mount]
         if name!='supabase-db':args+=['--read-only','--cap-drop','ALL','--security-opt','no-new-privileges:true','--tmpfs','/tmp:rw,noexec,nosuid,nodev,size=32m,mode=1777']
@@ -240,11 +240,28 @@ class Stack:
             if state.get('Health',{}).get('Status')=='healthy':return row
             time.sleep(2)
         raise StackError(ERROR)
-    def port(self,item,port):
-        row=self.owned('container',item[0],item[1]);bindings=row.get('NetworkSettings',{}).get('Ports',{}).get(str(port)+'/tcp')
-        require(type(bindings) is list and len(bindings)==1 and bindings[0].get('HostIp')=='127.0.0.1')
-        value=bindings[0].get('HostPort');require(type(value) is str and value.isdigit() and 1<=int(value)<=65535)
-        return int(value)
+    def endpoint(self,item,port):
+        # Linux hosts can reach their internal bridge directly. Docker does not
+        # publish ports for containers with only internal-network attachments.
+        require(type(port) is int and (item[0],port) in (
+            (self.prefix+'-supabase-auth',9999),(self.prefix+'-gateway',4100)))
+        row=self.owned('container',item[0],item[1])
+        network=self.owned('network',self.network,self.network_id)
+        configs=network.get('IPAM',{}).get('Config')
+        require(type(configs) is list and len(configs)==1 and type(configs[0]) is dict)
+        entry=row['NetworkSettings']['Networks'][self.network]
+        require(entry.get('NetworkID')==self.network_id)
+        try:
+            subnet=ipaddress.IPv4Network(configs[0]['Subnet'])
+            address=ipaddress.IPv4Address(entry['IPAddress'])
+            gateway=ipaddress.IPv4Address(configs[0]['Gateway'])
+        except (KeyError,ValueError,TypeError):raise StackError(ERROR) from None
+        require(any(subnet.subnet_of(ipaddress.IPv4Network(cidr))
+                    for cidr in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16'))
+                and subnet.prefixlen<=30 and address in subnet and gateway in subnet
+                and address not in (subnet.network_address,subnet.broadcast_address,gateway)
+                and type(entry.get('IPPrefixLen')) is int and entry['IPPrefixLen']==subnet.prefixlen)
+        return str(address),port
     def sql(self,db,password_file,*,source=None,query=None):
         self.owned('container',db[0],db[1])
         args=['exec','-i','--env-file',str(password_file),db[1],'psql','-X','-qAt','--no-password',
@@ -324,7 +341,7 @@ def run(*,selected,manifest,manifest_bytes,migration_bundle,controller,work):
             'GOTRUE_SMTP_HOST':'127.0.0.1','GOTRUE_SMTP_PORT':'1','GOTRUE_SMTP_ADMIN_EMAIL':'ci@example.invalid',
             'GOTRUE_SECURITY_REFRESH_TOKEN_ROTATION_ENABLED':'true','GOTRUE_LOG_LEVEL':'warn'})
         phase='gotrue'
-        auth=stack.create('supabase-auth',external['supabase-auth'],auth_env,port=9999,health='wget --quiet --tries=1 --spider http://127.0.0.1:9999/health')
+        auth=stack.create('supabase-auth',external['supabase-auth'],auth_env,health='wget --quiet --tries=1 --spider http://127.0.0.1:9999/health')
         stack.start(auth)
         phase='migrations'
         require(isinstance(migration_bundle,Path) and migration_bundle.is_absolute() and not migration_bundle.is_symlink()
@@ -371,11 +388,12 @@ def run(*,selected,manifest,manifest_bytes,migration_bundle,controller,work):
                     ACCOUNTS_SERVICE_URL='http://accounts-service:4203',CMS_CORE_URL='http://cms-core:4202',DOC_SERVICE_URL='http://doc-service:4201',
                     TELEMETRY_SERVICE_URL='http://telemetry-service:4400',STORAGE_SERVICE_URL='')
             file=environment_file(work,service,env)
-            item=stack.create(service,tags[owner],file,port=port if owner=='xynes-gateway' else None,alias=service,mounts=mounts)
+            item=stack.create(service,tags[owner],file,alias=service,mounts=mounts)
             stack.start(item);active[service]=item
         keys_loader=lambda stage:({'qa':secret,'staging':foreign}[stage],ci_smoke_runtime.smoke.origins(stage)['auth']+'/auth/v1')
         phase='flow'
-        result=ci_smoke_runtime.execute_flow(auth_port=stack.port(auth,9999),gateway_port=stack.port(active['gateway'],4100),
+        auth_host,auth_port=stack.endpoint(auth,9999);gateway_host,gateway_port=stack.endpoint(active['gateway'],4100)
+        result=ci_smoke_runtime.execute_flow(auth_port=auth_port,gateway_port=gateway_port,auth_host=auth_host,gateway_host=gateway_host,
             values={'SUPABASE_SERVICE_ROLE_KEY':service_role(secret,int(time.time())),'R2_ACCOUNT_ID':'0'*32,'R2_BUCKET':'apex-ci-unused'},keys_loader=keys_loader)
         require(type(result) is dict and result.get('result')=='passed' and result.get('storage_verified') is False)
         return result

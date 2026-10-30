@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """Disposable CI product flow adapter; no hosted files, DNS or release state.
 
-Only the two fixed QA origins map to explicit loopback ports. Injected transports
+Only the two fixed QA origins map to explicitly qualified local endpoints. Injected transports
 are trusted local fixture boundaries. Success here does not publish or accept a
 release; artifact identity and the eight-service Docker lifecycle belong to the
 caller. Credentials and provisioned configuration remain in memory only.
 """
 import copy
 import http.client
+import ipaddress
 import secrets
 import time
 from urllib.parse import urlsplit
@@ -58,15 +59,21 @@ class EphemeralStore:
     def write(self,name,value):self.check(name);self.rows[name]=copy.deepcopy(value)
 
 class LocalTransport:
-    def __init__(self,*,auth_port,gateway_port):
+    def __init__(self,*,auth_port,gateway_port,auth_host='127.0.0.1',gateway_host='127.0.0.1'):
         require(all(type(port) is int and 1<=port<=65535 for port in (auth_port,gateway_port)))
-        self.ports={'supabase.qa.xynes.com':auth_port,'api.qa.xynes.com':gateway_port}
+        for host in (auth_host,gateway_host):
+            require(type(host) is str)
+            try:address=ipaddress.IPv4Address(host)
+            except ValueError:raise RuntimeError(ERROR) from None
+            require(host=='127.0.0.1' or any(address in ipaddress.IPv4Network(cidr)
+                for cidr in ('10.0.0.0/8','172.16.0.0/12','192.168.0.0/16')))
+        self.endpoints={'supabase.qa.xynes.com':(auth_host,auth_port),'api.qa.xynes.com':(gateway_host,gateway_port)}
     def request(self,method,url,headers,body):
         connection=None
         try:
             require(type(url) is str and 0<len(url)<=16384 and not any(ord(c)<33 or ord(c)==127 for c in url))
             parsed=urlsplit(url)
-            require(parsed.scheme=='https' and parsed.netloc in self.ports and not parsed.fragment
+            require(parsed.scheme=='https' and parsed.netloc in self.endpoints and not parsed.fragment
                     and url.startswith('https://'+parsed.netloc+'/') and parsed.path.startswith('/')
                     and not parsed.path.startswith('//') and '\\' not in url
                     and method in ('GET','POST','PUT','DELETE') and type(headers) is dict
@@ -83,7 +90,7 @@ class LocalTransport:
             require('/storage/' not in path)
             target=path+('?' + parsed.query if parsed.query else '')
             deadline=time.monotonic()+smoke.HTTP_TIMEOUT
-            connection=http.client.HTTPConnection('127.0.0.1',self.ports[parsed.netloc],timeout=smoke.HTTP_TIMEOUT)
+            connection=http.client.HTTPConnection(*self.endpoints[parsed.netloc],timeout=smoke.HTTP_TIMEOUT)
             def response_class(sock,*args,**kwargs):
                 response=http.client.HTTPResponse(sock,*args,**kwargs)
                 response.fp=smoke.ResponseReader(response.fp,sock,deadline);return response
@@ -114,7 +121,8 @@ class LocalTransport:
         finally:
             if connection:connection.close()
 
-def execute_flow(*,auth_port,gateway_port,values,keys_loader,clock=time.time,sleep=time.sleep,transport=None):
+def execute_flow(*,auth_port,gateway_port,values,keys_loader,clock=time.time,sleep=time.sleep,transport=None,
+                 auth_host='127.0.0.1',gateway_host='127.0.0.1'):
     """Run real provisioning and smoke logic; return only sanitized observations.
 
     The trusted injected transport exists for tests, not workflow request fields.
@@ -124,7 +132,7 @@ def execute_flow(*,auth_port,gateway_port,values,keys_loader,clock=time.time,sle
     phase='provision';failed_flow_phase=None;flow=None
     evidence={'nonce':secrets.token_hex(16),'steps':[]}
     try:
-        local=LocalTransport(auth_port=auth_port,gateway_port=gateway_port)
+        local=LocalTransport(auth_port=auth_port,gateway_port=gateway_port,auth_host=auth_host,gateway_host=gateway_host)
         require(type(values) is dict and set(values)=={'SUPABASE_SERVICE_ROLE_KEY','R2_ACCOUNT_ID','R2_BUCKET'}
                 and all(type(value) is str and value for value in values.values())
                 and all(callable(value) for value in (keys_loader,clock,sleep)))
