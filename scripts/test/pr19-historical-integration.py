@@ -70,6 +70,7 @@ def diagnostic(cause,phase):
     if phase=='runtime' and type(safe) is dict:
         value.update(ci_smoke_runtime.failure_evidence(phase=safe.get('phase'),
             failed_flow_phase=safe.get('failed_flow_phase'),steps=safe.get('steps')))
+        value.update(ci_smoke_stack.safe_command_evidence(safe.get('command')))
         stack_phase=safe.get('stack_phase')
         if type(stack_phase) is str and stack_phase in ci_smoke.STACK_PHASES:value['stack_phase']=stack_phase
     return value
@@ -138,6 +139,7 @@ def console_failure(result):
             if row['flow']==failed:value['status']=row['status']
     stack_phase=result.get('stack_phase')
     if type(stack_phase) is str and stack_phase in ci_smoke.STACK_PHASES:value['stack_phase']=stack_phase
+    value.update(ci_smoke_stack.safe_command_evidence(result.get('command')))
     return value
 
 def main():
