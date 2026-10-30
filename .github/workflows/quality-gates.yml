@@ -172,6 +172,7 @@ jobs:
               PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/ci-smoke.test.py
               PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/ci-smoke-runtime.test.py
               PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/ci-smoke-stack.test.py
+              PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/ci-smoke-engine.test.py
               bash scripts/test/hosted-release.test.sh
               bash scripts/test/processor-readiness.test.sh
               bash scripts/test/vps-reconcile.test.sh

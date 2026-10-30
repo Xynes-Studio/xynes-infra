@@ -142,13 +142,15 @@
           }
         },
         {
-          "run": "sudo --preserve-env=GITHUB_ACTIONS,GITHUB_REPOSITORY,GITHUB_SHA,GITHUB_REF,GITHUB_REF_PROTECTED,GITHUB_EVENT_NAME,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_JOB,GITHUB_ACTOR,GITHUB_API_URL,GITHUB_SERVER_URL,GITHUB_WORKFLOW_REF,APEX_REGISTRY_PREFIX,GH_TOKEN,RUNNER_TEMP,APEX_ADMISSION_RECEIPT,APEX_BUILD_RECEIPT,APEX_MIGRATION_RECEIPT /usr/bin/python3 scripts/release/ci_smoke.py",
+          "run": "sudo --preserve-env=GITHUB_ACTIONS,GITHUB_REPOSITORY,GITHUB_SHA,GITHUB_REF,GITHUB_REF_PROTECTED,GITHUB_EVENT_NAME,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_JOB,GITHUB_ACTOR,GITHUB_API_URL,GITHUB_SERVER_URL,GITHUB_WORKFLOW_REF,APEX_REGISTRY_PREFIX,GH_TOKEN,RUNNER_TEMP,APEX_ADMISSION_RECEIPT,APEX_BUILD_RECEIPT,APEX_MIGRATION_RECEIPT,APEX_CI_RUNNER_ENVIRONMENT,APEX_CI_RUNNER_OS /usr/bin/python3 scripts/release/ci_smoke.py",
           "env": {
             "GH_TOKEN": "${{ github.token }}",
             "APEX_REGISTRY_PREFIX": "ghcr.io/xynes-studio/apex",
             "APEX_ADMISSION_RECEIPT": "${{ needs.admission.outputs.receipt }}",
             "APEX_BUILD_RECEIPT": "${{ needs.build-images.outputs.receipt }}",
-            "APEX_MIGRATION_RECEIPT": "${{ needs.build-images.outputs.migration_receipt }}"
+            "APEX_MIGRATION_RECEIPT": "${{ needs.build-images.outputs.migration_receipt }}",
+            "APEX_CI_RUNNER_ENVIRONMENT": "${{ runner.environment }}",
+            "APEX_CI_RUNNER_OS": "${{ runner.os }}"
           }
         },
         {
