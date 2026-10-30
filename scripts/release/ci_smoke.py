@@ -184,6 +184,9 @@ def run(env, work, *, read, download, command=None, stack_run=None):
         if phase=='runtime' and type(diagnostic) is dict:
             result.update(ci_smoke_runtime.failure_evidence(phase=diagnostic.get('phase'),
                 failed_flow_phase=diagnostic.get('failed_flow_phase'),steps=diagnostic.get('steps')))
+            try:from . import ci_smoke_stack as stack_tools
+            except ImportError:import ci_smoke_stack as stack_tools
+            result.update(stack_tools.safe_command_evidence(diagnostic.get('command')))
             if type(diagnostic.get('stack_phase')) is str and diagnostic['stack_phase'] in STACK_PHASES:
                 result['stack_phase']=diagnostic['stack_phase']
         else:

@@ -275,6 +275,7 @@ class EntrypointTests(unittest.TestCase):
         def fail(**kwargs):
             error=ValueError('CANARY-PRIVATE-ERROR'); error.safe_evidence={'phase':'flow',
                 'stack_phase':'flow',
+                'command':{'kind':'docker-load','exit_code':1,'error_class':'command-failed'},
                 'failed_flow_phase':'cms-entry-publish','steps':[{'flow':'cms-entry-publish','status':503,
                 'observed_at':1800000000,'body':'CANARY-PRIVATE-BODY'}],'password':'CANARY-PRIVATE-SECRET'}
             raise error
@@ -284,6 +285,7 @@ class EntrypointTests(unittest.TestCase):
         self.assertEqual(result['result'],'refused'); self.assertEqual(result['phase'],'flow')
         self.assertEqual(result['failed_flow_phase'],'cms-entry-publish')
         self.assertEqual(result['stack_phase'],'flow')
+        self.assertEqual(result['command'],{'kind':'docker-load','exit_code':1,'error_class':'command-failed'})
         self.assertNotIn('CANARY',json.dumps(result)); self.assertNotIn('CANARY',str(caught.exception))
         path=self.module.persist_result(result,self.env)
         self.assertEqual(records.read_json(path),result)

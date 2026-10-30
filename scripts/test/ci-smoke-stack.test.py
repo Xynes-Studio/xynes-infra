@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2]
@@ -176,6 +177,56 @@ class Tests(unittest.TestCase):
                 self.command_runner(['/usr/bin/openssl','version'])
             self.assertNotIn('DO_NOT_EXPOSE',str(caught.exception))
             self.assertEqual(process.call_args.kwargs['env'],self.module.clean_environment())
+    def test_native_stderr_classification_never_exposes_bytes(self):
+        native_popen=subprocess.Popen
+        cases=(('open /private/DO_NOT_EXPOSE/json: no such file or directory','missing-legacy-image-json'),
+               ('manifest.json: no such file or directory DO_NOT_EXPOSE','missing-legacy-image-json'),
+               ('NoSuchImage: DO_NOT_EXPOSE','image-reference-not-found'),
+               ('Error: No such image: DO_NOT_EXPOSE','image-reference-not-found'),
+               ('write DO_NOT_EXPOSE: no space left on device','disk-capacity'),
+               ('unsupported media type DO_NOT_EXPOSE','unsupported-media-type'),
+               ('DO_NOT_EXPOSE unclassified','command-failed'))
+        for stderr,classification in cases:
+            def process(*args,**kwargs):
+                return native_popen([sys.executable,'-c','import sys;sys.stderr.write('+repr(stderr)+');sys.exit(1)'],**kwargs)
+            with self.subTest(classification=classification),patch.object(self.module.subprocess,'Popen',side_effect=process):
+                with self.assertRaises(self.module.StackError) as caught:
+                    self.command_runner(['/usr/bin/docker','--config','DO_NOT_EXPOSE','load','--input','DO_NOT_EXPOSE'])
+                self.assertEqual(caught.exception.safe_command,{'kind':'docker-load','exit_code':1,'error_class':classification})
+                self.assertNotIn('DO_NOT_EXPOSE',str(caught.exception)+json.dumps(caught.exception.__dict__))
+    def test_command_validator_and_stack_projection(self):
+        value={'kind':'docker-load','exit_code':1,'error_class':'missing-legacy-image-json','stderr':'DO_NOT_EXPOSE'}
+        expected={key:value[key] for key in ('kind','exit_code','error_class')}
+        self.assertEqual(self.module.safe_command_evidence(value),{'command':expected})
+        for bad in ({**value,'exit_code':True},{**value,'kind':'DO_NOT_EXPOSE'},{**value,'error_class':'DO_NOT_EXPOSE'}):
+            self.assertEqual(self.module.safe_command_evidence(bad),{})
+        original=self.engine.command
+        def failed_load(argv,**kwargs):
+            if 'load' in argv:
+                error=self.module.StackError(self.module.ERROR);error.safe_command=value;raise error
+            return original(argv,**kwargs)
+        with patch.object(self.module,'command',failed_load):
+            with self.assertRaises(self.module.StackError) as caught:self.run_stack()
+        self.assertEqual(caught.exception.safe_evidence['command'],expected)
+        self.assertNotIn('DO_NOT_EXPOSE',json.dumps(caught.exception.safe_evidence))
+    def test_rejected_argument_types_keep_fixed_refusal_without_subprocess(self):
+        for argv in (['/usr/bin/docker',{'secret':'DO_NOT_EXPOSE'}],
+                     ['/usr/bin/openssl',{'secret':'DO_NOT_EXPOSE'}],
+                     ['/usr/bin/docker','--config',{},'load'],None,[]):
+            with self.subTest(case=type(argv).__name__),patch.object(self.module.subprocess,'Popen') as process:
+                with self.assertRaises(self.module.StackError) as caught:self.command_runner(argv)
+                self.assertEqual(caught.exception.safe_command,
+                    {'kind':'other','exit_code':None,'error_class':'command-failed'})
+                process.assert_not_called()
+                self.assertNotIn('DO_NOT_EXPOSE',str(caught.exception)+json.dumps(caught.exception.__dict__))
+    def test_timeout_has_controlled_diagnostic(self):
+        native_popen=subprocess.Popen
+        def process(*args,**kwargs):
+            return native_popen([sys.executable,'-c','import time;time.sleep(5)'],**kwargs)
+        with patch.object(self.module.subprocess,'Popen',side_effect=process):
+            with self.assertRaises(self.module.StackError) as caught:
+                self.command_runner(['/usr/bin/docker','load'],timeout=1)
+        self.assertEqual(caught.exception.safe_command,{'kind':'docker-load','exit_code':None,'error_class':'timeout'})
     def test_environment_has_no_external_credentials_or_storage(self):
         with patch.dict(os.environ,{'GH_TOKEN':'DO_NOT_EXPOSE','DOCKER_HOST':'tcp://evil'}):self.run_stack()
         for path in self.work.rglob('*.env'):
