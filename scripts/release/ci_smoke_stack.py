@@ -34,7 +34,44 @@ DIGEST=re.compile(r'sha256:[a-f0-9]{64}')
 ROOT=Path(__file__).resolve().parents[2]
 STACK_PHASES=frozenset(('input-qualification','image-import','external-images','substrate','identities','postgres','gotrue','migrations','seeds','services','flow','cleanup'))
 
+COMMAND_KINDS=frozenset(('docker-load','docker-image-inspect','docker-image-tag','docker-image-rm',
+    'docker-pull','docker-network-create','docker-network-inspect','docker-network-ls','docker-network-rm',
+    'docker-volume-create','docker-volume-inspect','docker-volume-ls','docker-volume-rm',
+    'docker-create','docker-start','docker-exec','docker-inspect','docker-ps','docker-rm',
+    'openssl-genpkey','openssl-pkey','other'))
+COMMAND_ERRORS=frozenset(('missing-legacy-image-json','image-reference-not-found','disk-capacity',
+    'unsupported-media-type','command-failed','timeout'))
+
 class StackError(ValueError):pass
+
+def safe_command_evidence(value):
+    """Author the complete command diagnostic shape, ignoring all other fields."""
+    if type(value) is not dict:return {}
+    kind=value.get('kind');code=value.get('exit_code');error=value.get('error_class')
+    if (type(kind) is not str or kind not in COMMAND_KINDS
+            or not (code is None or type(code) is int and -255<=code<=255)
+            or type(error) is not str or error not in COMMAND_ERRORS):return {}
+    return {'command':{'kind':kind,'exit_code':code,'error_class':error}}
+
+def command_kind(argv):
+    if type(argv) is not list or not argv or any(type(arg) is not str for arg in argv):return 'other'
+    if argv[0]=='/usr/bin/docker':
+        args=argv[3:] if len(argv)>3 and argv[1]=='--config' else argv[1:]
+        count=2 if args and args[0] in ('image','network','volume') else 1
+        kind='docker-'+'-'.join(args[:count])
+    elif argv[0]=='/usr/bin/openssl' and len(argv)>1:kind='openssl-'+argv[1]
+    else:kind='other'
+    return kind if kind in COMMAND_KINDS else 'other'
+
+def command_error_class(stderr,*,timeout):
+    """Recognize reviewed literal stderr patterns; never return captured bytes."""
+    if timeout:return 'timeout'
+    lower=bytes(stderr).lower()
+    if b'no such file' in lower and (b'/json' in lower or b'manifest.json' in lower):return 'missing-legacy-image-json'
+    if b'nosuchimage' in lower or b'no such image' in lower:return 'image-reference-not-found'
+    if b'no space left on device' in lower:return 'disk-capacity'
+    if b'unsupported media type' in lower or b'unsupported media-type' in lower:return 'unsupported-media-type'
+    return 'command-failed'
 
 def require(value):
     if not value:raise StackError(ERROR)
@@ -44,7 +81,7 @@ def clean_environment():
 
 def command(argv,*,stdin=None,timeout=180,limit=2*1024*1024):
     """Bound subprocess streams and lifetime; never surface child output/errors."""
-    process=None;source=None
+    process=None;source=None;errors=bytearray();code=None;timed_out=False
     try:
         require(type(argv) is list and argv[0] in ('/usr/bin/docker','/usr/bin/openssl')
                 and all(type(arg) is str and '\x00' not in arg for arg in argv)
@@ -55,20 +92,28 @@ def command(argv,*,stdin=None,timeout=180,limit=2*1024*1024):
             source=stdin.open('rb')
         process=subprocess.Popen(argv,stdin=source or subprocess.DEVNULL,stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,env=clean_environment(),cwd='/',start_new_session=True)
-        output=bytearray();errors=0;deadline=time.monotonic()+timeout
+        output=bytearray();deadline=time.monotonic()+timeout
         with selectors.DefaultSelector() as selector:
             for stream,kind in ((process.stdout,'out'),(process.stderr,'err')):
                 selector.register(stream,selectors.EVENT_READ,kind)
             while selector.get_map():
-                require(time.monotonic()<deadline)
+                timed_out=time.monotonic()>=deadline;require(not timed_out)
                 for key,_ in selector.select(min(1,max(0,deadline-time.monotonic()))):
                     data=os.read(key.fileobj.fileno(),65536)
                     if not data:selector.unregister(key.fileobj);continue
                     if key.data=='out':output.extend(data);require(len(output)<=limit)
-                    else:errors+=len(data);require(errors<=65536)
-            require(process.wait(timeout=max(.001,deadline-time.monotonic()))==0)
+                    else:
+                        total=len(errors)+len(data);errors.extend(data[:max(0,65536-len(errors))]);require(total<=65536)
+            code=process.wait(timeout=max(.001,deadline-time.monotonic()));require(code==0)
         return bytes(output)
-    except Exception:raise StackError(ERROR) from None
+    except Exception as cause:
+        if process is not None and code is None and not timed_out and not isinstance(cause,subprocess.TimeoutExpired):
+            observed=process.poll()
+            if type(observed) is int:code=observed
+        error=StackError(ERROR)
+        error.safe_command=safe_command_evidence({'kind':command_kind(argv),'exit_code':code,
+            'error_class':command_error_class(errors,timeout=timed_out or isinstance(cause,subprocess.TimeoutExpired))}).get('command')
+        raise error from None
     finally:
         if process:
             if process.poll() is None:os.killpg(process.pid,signal.SIGKILL);process.wait()
@@ -136,11 +181,15 @@ class Stack:
         for task,path,receipt in selected:
             require(image_build.inspect_oci(path,task)==receipt)
             self.call(['load','--input',str(path)],timeout=600)
-            image=None
+            image=None;detail={}
             for candidate in (receipt['config_digest'],receipt['manifest_digest']):
                 try:image=self.image(candidate,receipt=receipt,labels=task['labels']);break
-                except Exception:continue
-            require(image is not None)
+                except Exception as error:
+                    detail=safe_command_evidence(getattr(error,'safe_command',None));continue
+            if image is None:
+                error=StackError(ERROR)
+                if detail:error.safe_command=detail['command']
+                raise error
             tag='apex-ci-smoke:'+self.nonce+'-'+task['workload'];self.tags.append((tag,image))
             self.call(['image','tag',image,tag]);require(self.image(tag,receipt=receipt,labels=task['labels'])==image)
             self.expected[tag]=image
@@ -203,7 +252,7 @@ class Stack:
         if query:args+=['--command',query]
         return self.call(args,stdin=source,timeout=600)
     def cleanup(self):
-        errors=False
+        errors=False;detail={}
         # Permit cleanup even when the overall startup deadline expired.
         self.deadline=time.monotonic()+300
         for kind,name,reference in reversed(self.objects):
@@ -217,12 +266,19 @@ class Stack:
                     reference=rows[0]
                 self.owned(kind,name,reference)
                 self.call(['rm','--force',reference] if kind=='container' else [kind,'rm',reference])
-            except Exception:errors=True
+            except Exception as error:
+                errors=True
+                if not detail:detail=safe_command_evidence(getattr(error,'safe_command',None))
         for tag,identity in reversed(self.tags):
             try:
                 require(self.image(tag)==identity);self.call(['image','rm',tag])
-            except Exception:errors=True
-        if errors:raise StackError(ERROR)
+            except Exception as error:
+                errors=True
+                if not detail:detail=safe_command_evidence(getattr(error,'safe_command',None))
+        if errors:
+            error=StackError(ERROR)
+            if detail:error.safe_command=detail['command']
+            raise error
 
 def run(*,selected,manifest,manifest_bytes,migration_bundle,controller,work):
     stack=None;failure=None;phase='input-qualification'
@@ -329,13 +385,16 @@ def run(*,selected,manifest,manifest_bytes,migration_bundle,controller,work):
         safe=StackError(ERROR)
         safe.safe_evidence=ci_smoke_runtime.failure_evidence(phase='provision',failed_flow_phase=None,steps=[])
         safe.safe_evidence['stack_phase']=phase if phase in STACK_PHASES else 'input-qualification'
+        safe.safe_evidence.update(safe_command_evidence(getattr(error,'safe_command',None)))
         raise safe from None
     finally:
         if stack:
             try:stack.cleanup()
-            except Exception:
+            except Exception as cleanup_error:
                 error=StackError(ERROR)
-                if failure is not None and hasattr(failure,'safe_evidence'):error.safe_evidence=failure.safe_evidence
+                if failure is not None and type(getattr(failure,'safe_evidence',None)) is dict:error.safe_evidence=dict(failure.safe_evidence)
                 else:error.safe_evidence=ci_smoke_runtime.failure_evidence(phase='cleanup',failed_flow_phase=None,steps=[])
+                previous_command=error.safe_evidence.pop('command',None)
+                error.safe_evidence.update(safe_command_evidence(getattr(cleanup_error,'safe_command',None)) or safe_command_evidence(previous_command))
                 error.safe_evidence['stack_phase']='cleanup'
                 raise error from None
