@@ -40,7 +40,7 @@ class Engine:
             for i,value in enumerate(args):
                 if value=='--label':key,val=args[i+1].split('=',1);labels[key]=val
             name=args[-1];identifier=f'{self.next:064x}';self.next+=1
-            self.resources[name]={'Id':identifier,'Name':name,'Labels':labels,'Internal':True,'Driver':'bridge'}
+            self.resources[name]={'Id':identifier,'Name':name,'Labels':labels,'Internal':True,'Driver':'bridge','IPAM':{'Config':[{'Subnet':'172.28.0.0/16','Gateway':'172.28.0.1'}]}}
             return (identifier if op=='network' else name).encode()
         if op=='create':
             name=args[args.index('--name')+1];labels={}
@@ -53,7 +53,7 @@ class Engine:
             self.resources[name]={'Id':identifier,'Name':'/'+name,'Config':{'Labels':labels,'Image':image},'Image':self.images[image]['Id'],
                 'State':{'Status':'running','Health':{'Status':'healthy'},'ExitCode':0},
                 'HostConfig':{'NetworkMode':next(row['Name'] for row in self.resources.values() if row['Name'].endswith('-net'))},
-                'NetworkSettings':{'Networks':{row['Name']:{'NetworkID':row['Id']} for row in self.resources.values() if row['Name'].endswith('-net')},'Ports':{'9999/tcp':[{'HostIp':'127.0.0.1','HostPort':'32001'}],'4100/tcp':[{'HostIp':'127.0.0.1','HostPort':'32002'}]}}}
+                'NetworkSettings':{'Networks':{row['Name']:{'NetworkID':row['Id'],'IPAddress':'172.28.0.10' if name.endswith('-supabase-auth') else '172.28.0.11','IPPrefixLen':16} for row in self.resources.values() if row['Name'].endswith('-net')},'Ports':{}}}
             return identifier.encode()
         if op=='start':
             if '--attach' in args:
@@ -154,7 +154,7 @@ class Tests(unittest.TestCase):
         self.assertEqual({row['issuer'] for row in trust},{'gateway','accounts','cms','docs'})
         self.assertTrue(all(path.stat().st_mode&0o777==0o600 for path in self.work.glob('*.env')))
         creates=[argv for argv,_ in self.engine.calls if 'create' in argv and '--name' in argv]
-        self.assertEqual(sum('--publish' in argv for argv in creates),2)
+        self.assertEqual(sum('--publish' in argv for argv in creates),0)
         self.assertTrue(all(argv[argv.index('--publish')+1].startswith('127.0.0.1::') for argv in creates if '--publish' in argv))
     def test_invalid_containerd_descriptor_refused(self):
         engine=Engine(self.work,self.selected,self.manifest,containerd=True)
@@ -163,6 +163,31 @@ class Tests(unittest.TestCase):
             with self.assertRaises(self.module.StackError) as caught:self.run_stack()
         self.assertEqual(caught.exception.safe_evidence['stack_phase'],'image-import')
         self.assertFalse(engine.resources)
+    def test_internal_bridge_endpoint_works_without_published_bindings(self):
+        flow=self.module.ci_smoke_runtime.execute_flow
+        self.run_stack()
+        self.assertEqual(flow.call_args.kwargs['auth_host'],'172.28.0.10')
+        self.assertEqual(flow.call_args.kwargs['auth_port'],9999)
+        self.assertEqual(flow.call_args.kwargs['gateway_host'],'172.28.0.11')
+        self.assertEqual(flow.call_args.kwargs['gateway_port'],4100)
+        self.assertFalse(any('--publish' in argv for argv,_ in self.engine.calls))
+    def test_endpoint_refuses_foreign_invalid_gateway_or_public_addresses(self):
+        stack=self.module.Stack(self.work);stack.substrate()
+        image=next(iter(self.engine.images));stack.expected[image]=self.engine.images[image]['Id']
+        env=self.module.environment_file(self.work,'probe',{'INERT':'yes'})
+        item=stack.create('supabase-auth',image,env)
+        row=self.engine.resources[item[0]];entry=row['NetworkSettings']['Networks'][stack.network]
+        for value in ('172.29.0.10','172.28.0.1','172.28.0.0','172.28.255.255','127.0.0.1','169.254.169.254','8.8.8.8','DO_NOT_EXPOSE'):
+            with self.subTest(address=value):
+                entry['IPAddress']=value
+                with self.assertRaises(self.module.StackError):stack.endpoint(item,9999)
+        entry['IPAddress']='172.28.0.10';entry['NetworkID']=''
+        with self.assertRaises(self.module.StackError):stack.endpoint(item,9999)
+        entry['NetworkID']=stack.network_id
+        with self.assertRaises(self.module.StackError):stack.endpoint(item,4100)
+        self.engine.resources[stack.network]['IPAM']['Config'][0]['Subnet']='0.0.0.0/0'
+        with self.assertRaises(self.module.StackError):stack.endpoint(item,9999)
+
     def test_runtime_failure_evidence_survives_cleanup(self):
         error=self.module.ci_smoke_runtime.RuntimeError('CI product smoke refused')
         error.safe_evidence={'phase':'flow','failed_flow_phase':'cms-entry-publish','steps':[], 'result':'refused','storage_verified':False}

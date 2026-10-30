@@ -26,7 +26,7 @@ Write failing tests for mismatched controller, admission/build/migration referen
 
 Files: `scripts/release/ci_smoke.py` (split a helper only if necessary), `scripts/test/ci-smoke.test.py`.
 
-Reuse migration/seed modules and smoke fixture provisioning. Generate job-local dummy secrets and signed service identities. Start Postgres, GoTrue, gateway, accounts, authz, CMS, document, and telemetry services with bounded readiness. Map only the QA gateway/auth origins to loopback endpoints in a CI-only transport; retain existing hosted HTTPS checks unchanged. Run auth/session, workspace isolation/denial, directory, document, Lexical entry publish/read, and cleanup checks. Record storage and browser/hosted behavior as unverified. Prove failure and cleanup paths with fixtures, then exercise the real eight-service job in CI; fixture success alone is insufficient.
+Reuse migration/seed modules and smoke fixture provisioning. Generate job-local dummy secrets and signed service identities. Start Postgres, GoTrue, gateway, accounts, authz, CMS, document, and telemetry services with bounded readiness. Map only the QA gateway/auth origins to the ownership-verified private IPv4 addresses and fixed ports of their containers in a CI-only transport; retain the internal bridge without host port publishing; retain existing hosted HTTPS checks unchanged. Run auth/session, workspace isolation/denial, directory, document, Lexical entry publish/read, and cleanup checks. Record storage and browser/hosted behavior as unverified. Prove failure and cleanup paths with fixtures, then exercise the real eight-service job in CI; fixture success alone is insufficient.
 
 ## 4. Workflow and policy gate
 
