@@ -273,9 +273,11 @@
           }
         },
         {
-          "run": "sudo --preserve-env=GITHUB_ACTIONS,GITHUB_REPOSITORY,GITHUB_SHA,GITHUB_REF,GITHUB_EVENT_NAME,GITHUB_RUN_ID,GITHUB_JOB,GH_TOKEN,RUNNER_TEMP /usr/bin/python3 scripts/test/pr19-historical-integration.py",
+          "run": "sudo --preserve-env=GITHUB_ACTIONS,GITHUB_REPOSITORY,GITHUB_SHA,GITHUB_REF,GITHUB_EVENT_NAME,GITHUB_RUN_ID,GITHUB_JOB,GH_TOKEN,RUNNER_TEMP,APEX_CI_RUNNER_ENVIRONMENT,APEX_CI_RUNNER_OS /usr/bin/python3 scripts/test/pr19-historical-integration.py",
           "env": {
-            "GH_TOKEN": "${{ github.token }}"
+            "GH_TOKEN": "${{ github.token }}",
+            "APEX_CI_RUNNER_ENVIRONMENT": "${{ runner.environment }}",
+            "APEX_CI_RUNNER_OS": "${{ runner.os }}"
           }
         },
         {

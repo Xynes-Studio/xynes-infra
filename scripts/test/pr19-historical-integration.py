@@ -20,6 +20,7 @@ import build_pipeline
 import ci_smoke
 import ci_smoke_runtime
 import ci_smoke_stack
+import ci_smoke_engine
 import github_read
 import publish_images
 import release_manifest as records
@@ -33,7 +34,7 @@ REFERENCES={
     'build':{'id':12871698815,'digest':'sha256:0ae31be527377bbca161c95422e95a593ff18c8bc294b28a6c17f29aaa024521'},
     'migration':{'id':12871634362,'digest':'sha256:200235900947967c7cece7ab3ec393458bb1fb5cb64147061063f521a6aaad64'},
 }
-PHASES=frozenset(('guard','native-run','admission','tracked-manifest','build','migration','runtime','persist'))
+PHASES=frozenset(('guard','native-run','admission','tracked-manifest','build','migration','engine-preparation','runtime','persist'))
 
 class ValidationError(ValueError):pass
 
@@ -112,6 +113,11 @@ def validate(env,work,*,read,download):
         migration=artifact_handoff.acquire(kind='migration',reference=REFERENCES['migration'],controller=CONTROLLER,
             read=read,download=download,output=work/'migration')
         phase='native-run';native_run(read)
+        phase='engine-preparation';engine_work=work/'engine';engine_work.mkdir(mode=0o700)
+        engine=ci_smoke_engine.prepare(env,engine_work)
+        require(type(engine) is dict and set(engine)=={'containerd_store','changed'}
+                and engine['containerd_store'] is True and type(engine['changed']) is bool)
+        result['runner_engine']=engine
         phase='runtime';runtime=work/'runtime';runtime.mkdir(mode=0o700)
         previous=dict(os.environ)
         try:
