@@ -162,11 +162,19 @@ def run(env, work, *, read, download, command=None, stack_run=None):
         migration_transport.extract(bundle=bundle,expected_sha256=migration_transport.sha(
             migration_transport.private_bytes(bundle,os.getuid())),manifest_bytes=raw,
             controller=controller,work=verified_work)
-        phase='runtime'
         if stack_run is None:
+            phase='engine-preparation'
+            try:from . import ci_smoke_engine
+            except ImportError:import ci_smoke_engine
+            engine_work=work/'engine';engine_work.mkdir(mode=0o700)
+            engine=ci_smoke_engine.prepare(env,engine_work)
+            require(type(engine) is dict and set(engine)=={'containerd_store','changed'}
+                    and engine['containerd_store'] is True and type(engine['changed']) is bool)
+            result['runner_engine']=engine
             try:from . import ci_smoke_stack
             except ImportError:import ci_smoke_stack
             stack_run=ci_smoke_stack.run
+        phase='runtime'
         runtime_work=work/'runtime';runtime_work.mkdir(mode=0o700)
         previous=dict(os.environ)
         try:

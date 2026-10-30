@@ -20,10 +20,11 @@ export const publisherEnvironment = 'release' as const;
 export const publisherGuard = `github.repository == '${publisherRepository}' && ${trustedReleaseGuard}`;
 export const publisherCommand = 'python3 scripts/release/publish_images.py' as const;
 export const publisherPermissions = Object.freeze({ contents: 'read', actions: 'read', packages: 'write' } as const);
-export const productSmokeCommand = 'sudo --preserve-env=GITHUB_ACTIONS,GITHUB_REPOSITORY,GITHUB_SHA,GITHUB_REF,GITHUB_REF_PROTECTED,GITHUB_EVENT_NAME,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_JOB,GITHUB_ACTOR,GITHUB_API_URL,GITHUB_SERVER_URL,GITHUB_WORKFLOW_REF,APEX_REGISTRY_PREFIX,GH_TOKEN,RUNNER_TEMP,APEX_ADMISSION_RECEIPT,APEX_BUILD_RECEIPT,APEX_MIGRATION_RECEIPT /usr/bin/python3 scripts/release/ci_smoke.py';
+export const productSmokeCommand = 'sudo --preserve-env=GITHUB_ACTIONS,GITHUB_REPOSITORY,GITHUB_SHA,GITHUB_REF,GITHUB_REF_PROTECTED,GITHUB_EVENT_NAME,GITHUB_RUN_ID,GITHUB_RUN_ATTEMPT,GITHUB_JOB,GITHUB_ACTOR,GITHUB_API_URL,GITHUB_SERVER_URL,GITHUB_WORKFLOW_REF,APEX_REGISTRY_PREFIX,GH_TOKEN,RUNNER_TEMP,APEX_ADMISSION_RECEIPT,APEX_BUILD_RECEIPT,APEX_MIGRATION_RECEIPT,APEX_CI_RUNNER_ENVIRONMENT,APEX_CI_RUNNER_OS /usr/bin/python3 scripts/release/ci_smoke.py';
 const smokeInputs = Object.freeze({GH_TOKEN:'${{ github.token }}',APEX_REGISTRY_PREFIX:publisherRegistry,
   APEX_ADMISSION_RECEIPT:'${{ needs.admission.outputs.receipt }}',APEX_BUILD_RECEIPT:'${{ needs.build-images.outputs.receipt }}',
-  APEX_MIGRATION_RECEIPT:'${{ needs.build-images.outputs.migration_receipt }}'});
+  APEX_MIGRATION_RECEIPT:'${{ needs.build-images.outputs.migration_receipt }}',
+  APEX_CI_RUNNER_ENVIRONMENT:'${{ runner.environment }}',APEX_CI_RUNNER_OS:'${{ runner.os }}'});
 export const controllerSparsePaths = '/scripts/release/\n/scripts/lib/\n/infra/release/' as const;
 const publisherInputs = Object.freeze({
   GH_TOKEN: '${{ github.token }}',

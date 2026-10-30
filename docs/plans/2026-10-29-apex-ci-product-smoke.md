@@ -8,6 +8,8 @@
 
 **Tech Stack:** Existing Python release modules, Docker, pinned Postgres/GoTrue images, GitHub Actions, Bun workflow-policy tests.
 
+The disposable GitHub-hosted Linux runner enables Docker's containerd image store before loading verified OCI archives. Preparation refuses existing containers, preserves other daemon configuration, and verifies the store after restart. It never runs on the VPS or a self-hosted runner. This keeps the original OCI bytes and image identities intact instead of rebuilding or converting the images.
+
 ## 1. Strict new storage acceptance, compatible historical reads
 
 Files: `scripts/release/host_release_state.py`, `scripts/test/host-release-state.test.py`.

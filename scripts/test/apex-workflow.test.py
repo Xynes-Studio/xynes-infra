@@ -20,6 +20,8 @@ class Tests(unittest.TestCase):
   self.assertNotIn('docker build',invoke['run'])
   self.assertEqual(invoke['env']['APEX_BUILD_RECEIPT'],'${{ needs.build-images.outputs.receipt }}')
   self.assertEqual(invoke['env']['APEX_MIGRATION_RECEIPT'],'${{ needs.build-images.outputs.migration_receipt }}')
+  self.assertEqual(invoke['env']['APEX_CI_RUNNER_ENVIRONMENT'],'${{ runner.environment }}')
+  self.assertEqual(invoke['env']['APEX_CI_RUNNER_OS'],'${{ runner.os }}')
   self.assertIn('steps.migrations.outputs.artifact-digest',self.jobs['build-images']['outputs']['migration_receipt'])
   self.assertEqual(self.jobs['publish-images']['needs'],['admission','build-images','product-smoke'])
   upload=next(step for step in smoke['steps'] if step.get('id')=='smoke-result')

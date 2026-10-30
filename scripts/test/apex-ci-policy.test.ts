@@ -51,6 +51,8 @@ describe('isolated infra package publisher configuration, never approval', () =>
       (v:any)=>{v.jobs['product-smoke'].steps[1].run+=' || true';},
       (v:any)=>{v.jobs['product-smoke'].steps[1].env.APEX_BUILD_RECEIPT='${{ inputs.build }}';},
       (v:any)=>{v.jobs['product-smoke'].steps[1].env.CREDENTIAL='${{ secrets.ANY }}';},
+      (v:any)=>{v.jobs['product-smoke'].steps[1].env.APEX_CI_RUNNER_ENVIRONMENT='self-hosted';},
+      (v:any)=>{v.jobs['product-smoke'].steps[1].env.APEX_CI_RUNNER_OS='${{ inputs.os }}';},
       (v:any)=>{v.jobs['product-smoke'].steps[0].with['persist-credentials']=true;},
       (v:any)=>{v.jobs['product-smoke'].steps[2].with.path='${{ github.workspace }}/**';},
     ]) { const v=fixture();mutate(v);expect(await check(v)).not.toEqual([]); }

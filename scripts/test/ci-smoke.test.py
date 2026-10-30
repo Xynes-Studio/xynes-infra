@@ -12,6 +12,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 import zipfile
 from unittest.mock import patch
 
@@ -242,6 +243,36 @@ class EntrypointTests(unittest.TestCase):
         self.assertEqual(result['result'],'passed'); self.assertFalse(result['deployable'])
         self.assertEqual(result['artifacts'],self.references); self.assertEqual(len(result['images']),6)
         self.assertEqual(len(self.stack_calls),1); self.assertEqual(len(self.calls),6)
+
+    def test_native_stack_prepares_oci_engine_after_qualification_before_services(self):
+        import ci_smoke_stack
+        order=[]
+        def prepare(env,work):
+            self.assertEqual(env['GITHUB_JOB'],'product-smoke')
+            self.assertTrue(work.is_dir());self.assertEqual(work.stat().st_mode&0o777,0o700)
+            self.assertEqual(len(self.calls),6)
+            order.append('engine');return {'containerd_store':True,'changed':True}
+        def stack(**kwargs):order.append('stack');return self.stack(**kwargs)
+        (self.fixture.fixture.roots['xynes-infra']/'infra/release/source-manifest.json').write_bytes(self.raw)
+        with patch.dict(sys.modules,{'ci_smoke_engine':SimpleNamespace(prepare=prepare)}), \
+             patch.object(ci_smoke_stack,'run',side_effect=stack), \
+             patch.object(self.module.build_pipeline,'ROOT',self.fixture.fixture.roots['xynes-infra']):
+            result=self.module.run(self.env,self.work,read=self.read,download=self.download,command=self.command)
+        self.assertEqual(order,['engine','stack'])
+        self.assertEqual(result['runner_engine'],{'containerd_store':True,'changed':True})
+
+    def test_engine_preparation_failure_never_starts_services_or_echoes_errors(self):
+        import ci_smoke_stack
+        def prepare(env,work):raise ValueError('CANARY-ENGINE-PRIVATE')
+        (self.fixture.fixture.roots['xynes-infra']/'infra/release/source-manifest.json').write_bytes(self.raw)
+        with patch.dict(sys.modules,{'ci_smoke_engine':SimpleNamespace(prepare=prepare)}), \
+             patch.object(ci_smoke_stack,'run') as stack, \
+             patch.object(self.module.build_pipeline,'ROOT',self.fixture.fixture.roots['xynes-infra']):
+            with self.assertRaises(self.module.SmokeError) as caught:
+                self.module.run(self.env,self.work,read=self.read,download=self.download,command=self.command)
+        stack.assert_not_called()
+        self.assertEqual(caught.exception.safe_evidence['phase'],'engine-preparation')
+        self.assertNotIn('CANARY',str(caught.exception)+json.dumps(caught.exception.safe_evidence))
 
     def test_wrong_job_or_uid_refuses_before_artifact_reads(self):
         for job in ('publish-images','build-images','product-smoke-evil'):
