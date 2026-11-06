@@ -162,6 +162,8 @@ jobs:
               PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-quiescence.test.py
               PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-smoke.test.py
               PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-smoke-setup.test.py
+              PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-smoke-provider.test.py
+              PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-smoke-provider-runtime.test.py
               PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-runtime.test.py
               PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/host-supervisor.test.py
               PYTHONDONTWRITEBYTECODE=1 python3 scripts/test/root-executor.test.py

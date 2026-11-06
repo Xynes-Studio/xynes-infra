@@ -178,6 +178,27 @@ webhook or other credentials in journals, evidence, Git or command arguments.
 Local fixture checks establish no VPS backup, offsite recovery or alert delivery;
 those require separate native evidence before acceptance.
 
+## Storage for product smoke
+
+After creating the dedicated smoke workspace, staging and production provision
+its default R2 provider before running product smoke. The coordinator reads the
+protected fixture journal, then checks the confirmed user identity, active
+membership and workspace owner role in one short database transaction. It inserts only
+when no provider exists; an exact existing configuration is preserved, and
+conflicting or disabled configurations fail closed without replacement.
+
+The row contains stage-owned bucket metadata and a credential reference;
+credentials remain in the protected stage environment. QA retains its explicit
+storage exception. Provisioning a row is not storage acceptance: staging and
+production must still pass the real upload, processing, read and cleanup flow
+and report `storage_verified: true`. Staging's result gates production
+promotion; production's own flow gates its acceptance.
+
+The quality test gate runs `host-smoke-provider.test.py` and the real isolated
+PostgreSQL checks in `host-smoke-provider-runtime.test.py`. The latter reuses
+the existing pinned PostgreSQL fixture prepared by CI, exposes no network ports
+and removes only its own fixture. It does not contact R2 or a hosted database.
+
 ## Idle admission across deployment and proxy restart
 
 Before draining an existing idle generation, the coordinator persists
