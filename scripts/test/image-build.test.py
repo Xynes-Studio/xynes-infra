@@ -244,7 +244,8 @@ class ImageBuildTests(unittest.TestCase):
         with self.assertRaises(ValueError):tool().inspect_oci(path,task)
         task,path,files,_=self.valid();files['index.json']=b'[]';write_tar(path,files)
         with self.assertRaises(ValueError):tool().inspect_oci(path,task)
-    def run_fixture(self,fail_at=None,tamper=False):
+    def run_fixture(self,fail_at=None,tamper=False,failure_program=None,failure_timeout=None):
+        real_run=subprocess.run
         output=self.base/'output';config=self.base/'docker-config';config.mkdir()
         recipe_bytes=b'FROM fixture:1 AS prod\n'
         for section in ['recipes','processors']:
@@ -261,7 +262,12 @@ class ImageBuildTests(unittest.TestCase):
             self.assertNotIn('--push',command);self.assertNotIn('--load',command)
             artifact=Path(command[command.index('--output')+1].split('dest=',1)[1])
             task=tasks[artifact.name.removesuffix('.oci.tar')];calls.append(task['id'])
-            if fail_at==len(calls):raise subprocess.CalledProcessError(1,command)
+            if fail_at==len(calls):
+                if failure_program is not None:
+                    options=dict(kwargs)
+                    if failure_timeout is not None:options['timeout']=failure_timeout
+                    return real_run([sys.executable,'-c',failure_program],**options)
+                raise subprocess.CalledProcessError(1,command)
             archive(artifact,task['labels'],architecture='arm64' if tamper else 'amd64')
             return subprocess.CompletedProcess(command,0)
         captured=io.StringIO();stdout=io.StringIO()
@@ -333,6 +339,50 @@ class ImageBuildTests(unittest.TestCase):
         with patch.object(tool().source_context,'prepare') as prepared,self.assertRaises(ValueError):
             tool().execute(self.manifest,self.public,self.controller,'planning',self.base,self.base/'output','fixture-builder',config)
         prepared.assert_not_called();self.assertFalse((self.base/'output').exists())
+
+    def test_real_failed_subprocess_emits_closed_facts_without_log_bytes(self):
+        program="import sys; print('no space left on device DO-NOT-EXPOSE https://private.invalid/path?token=DO-NOT-EXPOSE',flush=True); print('did not complete successfully: exit code: 4',flush=True); sys.exit(17)"
+        self.run_fixture(fail_at=1,failure_program=program)
+        event=self.diagnostics[-1];self.assertIn('error_kind',event)
+        self.assertEqual(event['error_kind'],'subprocess-exit');self.assertEqual(event['returncode'],17)
+        self.assertTrue(event['log_tail_available']);self.assertIn('no-space-text',event['observed_log_signals']);self.assertEqual(event['observed_step_exit_code'],4)
+        for text in ('DO-NOT-EXPOSE','private.invalid','exit code: 4'):self.assertNotIn(text,json.dumps(event))
+    def test_real_coordinator_timeout_emits_typed_fact_and_keeps_failure(self):
+        self.run_fixture(fail_at=1,failure_program="import time; print('DO-NOT-EXPOSE',flush=True); time.sleep(5)",failure_timeout=.05)
+        event=self.diagnostics[-1];self.assertIn('error_kind',event)
+        self.assertEqual(event['error_kind'],'coordinator-timeout');self.assertIsNone(event['returncode']);self.assertFalse((self.base/'output/image-receipts.json').exists())
+    def test_failure_log_tail_is_bounded_and_prefix_not_scanned(self):
+        self.assertTrue(hasattr(tool(),'build_failure_details'),'bounded failure detail reader missing')
+        path=self.base/'owned.log'
+        with path.open('xb') as log:
+            log.write(b'no space left on device DO-NOT-EXPOSE\n'+b'x'*131072);log.flush()
+            real_pread=os.pread
+            with patch.object(tool().os,'pread',wraps=real_pread) as read:
+                value=tool().build_failure_details(subprocess.CalledProcessError(1,['DO-NOT-EXPOSE']),log)
+            self.assertTrue(value['log_tail_available']);self.assertEqual(value['observed_log_signals'],[])
+            self.assertEqual(len(read.call_args_list),1);self.assertLessEqual(read.call_args.args[1],65536);self.assertGreater(read.call_args.args[2],0)
+    def test_failure_tail_refuses_symlink_and_hardlink_without_reading(self):
+        self.assertTrue(hasattr(tool(),'build_failure_details'),'bounded failure detail reader missing')
+        for kind in ('symlink','hardlink'):
+            path=self.base/(kind+'.log');other=self.base/(kind+'.other')
+            with path.open('xb') as log:
+                log.write(b'no space left on device');log.flush()
+                if kind=='symlink':path.unlink();other.write_text('DO-NOT-EXPOSE');path.symlink_to(other)
+                else:os.link(path,other)
+                with patch.object(tool().os,'pread',side_effect=AssertionError('unsafe log read')):
+                    value=tool().build_failure_details(subprocess.CalledProcessError(1,['x']),log)
+                self.assertFalse(value['log_tail_available']);self.assertEqual(value['observed_log_signals'],[])
+    def test_failure_detail_errors_cannot_mask_original_subprocess_failure(self):
+        self.assertTrue(hasattr(tool(),'build_failure_details'),'bounded failure detail reader missing')
+        with patch.object(tool(),'build_failure_details',side_effect=OSError('DO-NOT-EXPOSE')):self.run_fixture(fail_at=1)
+        self.assertEqual(self.diagnostics[-1]['status'],'failure');self.assertFalse((self.base/'output/image-receipts.json').exists())
+    def test_subprocess_metadata_never_serializes_exception_or_unknown_signals(self):
+        self.assertTrue(hasattr(tool(),'build_failure_details'),'bounded failure detail reader missing')
+        path=self.base/'owned.log'
+        with path.open('xb') as log:
+            log.write(b'unknown DO-NOT-EXPOSE');log.flush();error=subprocess.CalledProcessError('DO-NOT-EXPOSE',['DO-NOT-EXPOSE'],output='DO-NOT-EXPOSE')
+            value=tool().build_failure_details(error,log)
+        self.assertIsNone(value['returncode']);self.assertNotIn('DO-NOT-EXPOSE',json.dumps(value))
 
     def test_configuration_id_is_never_reported_as_manifest_digest(self):
         task,path,files,digest=self.valid();v=tool().inspect_oci(path,task)
