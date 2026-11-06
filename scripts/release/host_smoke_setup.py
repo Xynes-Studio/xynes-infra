@@ -252,3 +252,144 @@ def ensure(stage,*,transport=None,environment_loader=stage_values,keys_loader=sm
 class Setup:
     def __init__(self,stage):smoke.origins(stage);self.stage=stage
     def run(self):return ensure(self.stage)
+
+
+# This hook is coordinator-only after Setup.run(), under the existing deploy
+# lock. The retained setup journal and database both prove fixture ownership.
+# It adds only one R2 pointer row; it never creates a bucket, handles R2 secrets,
+# changes an existing row, or confers product/storage acceptance.
+STORAGE_PROVIDER_SQL="""BEGIN ISOLATION LEVEL READ COMMITTED;
+SET LOCAL search_path=pg_catalog;
+SET LOCAL statement_timeout='15s';
+SET LOCAL lock_timeout='3s';
+DO $apex_provider$
+DECLARE input jsonb := __PAYLOAD__; role text; account jsonb; provider_count integer;
+BEGIN
+ IF current_database() <> 'postgres' OR current_user <> 'postgres' OR pg_is_in_recovery() THEN
+  RAISE EXCEPTION 'Smoke provider target refused';
+ END IF;
+ PERFORM id FROM platform.workspaces
+  WHERE id IN ((input->'primary'->>'workspace_id')::uuid,(input->'secondary'->>'workspace_id')::uuid)
+  ORDER BY id FOR UPDATE;
+ PERFORM id FROM identity.users
+  WHERE id IN ((input->'primary'->>'user_id')::uuid,(input->'secondary'->>'user_id')::uuid)
+  ORDER BY id FOR SHARE;
+ PERFORM id FROM auth.users
+  WHERE id IN ((input->'primary'->>'user_id')::uuid,(input->'secondary'->>'user_id')::uuid)
+  ORDER BY id FOR SHARE;
+ PERFORM user_id FROM platform.workspace_members
+  WHERE workspace_id IN ((input->'primary'->>'workspace_id')::uuid,(input->'secondary'->>'workspace_id')::uuid)
+  ORDER BY workspace_id,user_id FOR SHARE;
+ PERFORM user_id FROM authz.user_roles
+  WHERE workspace_id IN ((input->'primary'->>'workspace_id')::uuid,(input->'secondary'->>'workspace_id')::uuid)
+   AND role_key='workspace_owner'
+  ORDER BY workspace_id,user_id FOR SHARE;
+ FOREACH role IN ARRAY ARRAY['primary','secondary'] LOOP
+  account := input->role;
+  IF NOT EXISTS (
+   SELECT 1 FROM platform.workspaces w
+    JOIN identity.users i ON i.id=w.created_by
+    JOIN auth.users a ON a.id=i.id
+    JOIN platform.workspace_members member ON member.workspace_id=w.id AND member.user_id=i.id
+    JOIN authz.user_roles owner_role ON owner_role.workspace_id=w.id AND owner_role.user_id=i.id AND owner_role.role_key='workspace_owner'
+   WHERE w.id=(account->>'workspace_id')::uuid AND w.created_by=(account->>'user_id')::uuid
+    AND w.slug=account->>'slug' AND w.name=account->>'slug'
+    AND i.email=account->>'email' AND a.email=account->>'email'
+    AND a.email_confirmed_at IS NOT NULL AND member.status='active'
+    AND a.raw_app_meta_data->'apex_smoke_fixture'=jsonb_build_object(
+     'version',1,'stage',input->>'stage','nonce',input->>'nonce','identity',role)
+  ) THEN RAISE EXCEPTION 'Smoke provider ownership refused'; END IF;
+ END LOOP;
+ IF EXISTS (SELECT 1 FROM platform.workspace_members
+  WHERE workspace_id=(input->'secondary'->>'workspace_id')::uuid
+   AND user_id=(input->'primary'->>'user_id')::uuid AND status='active')
+ THEN RAISE EXCEPTION 'Smoke provider foreign membership refused'; END IF;
+ -- The immediate workspace FK makes every insert/move-in acquire KEY SHARE
+ -- on the parent, conflicting with the FOR UPDATE above. Existing provider
+ -- rows also need locks because non-key updates can avoid the FK parent lock.
+ -- These are separate READ COMMITTED statements: re-read after waiting.
+ PERFORM id FROM platform.workspace_storage_providers
+  WHERE workspace_id=(input->'primary'->>'workspace_id')::uuid FOR UPDATE;
+ SELECT count(*) INTO provider_count FROM platform.workspace_storage_providers
+  WHERE workspace_id=(input->'primary'->>'workspace_id')::uuid;
+ IF provider_count=0 THEN
+  INSERT INTO platform.workspace_storage_providers
+   (workspace_id,provider_kind,display_name,bucket,region,endpoint,credential_ref,status,is_default,created_by)
+  VALUES ((input->'primary'->>'workspace_id')::uuid,'r2',input->>'display_name',input->>'bucket',
+   input->>'region',input->>'endpoint',input->>'credential_ref','active',true,(input->'primary'->>'user_id')::uuid);
+ END IF;
+ IF (SELECT count(*) FROM platform.workspace_storage_providers
+      WHERE workspace_id=(input->'primary'->>'workspace_id')::uuid) <> 1
+  OR NOT EXISTS (SELECT 1 FROM platform.workspace_storage_providers
+   WHERE workspace_id=(input->'primary'->>'workspace_id')::uuid AND provider_kind='r2'
+    AND display_name=input->>'display_name' AND bucket=input->>'bucket' AND region=input->>'region'
+    AND endpoint=input->>'endpoint' AND credential_ref=input->>'credential_ref'
+    AND status='active' AND is_default IS TRUE AND created_by=(input->'primary'->>'user_id')::uuid)
+ THEN RAISE EXCEPTION 'Smoke provider conflict refused'; END IF;
+END $apex_provider$;
+SELECT json_build_object('stage',(__PAYLOAD__)->>'stage','storage_provider_ready',true);
+COMMIT;
+"""
+
+def storage_provider_values(stage):
+    require(stage in ('staging','prod') and os.getuid()==ROOT_UID)
+    host_compose.stage_environment(stage)
+    path=Path('/srv/xynes')/stage/'env'/('.env.'+stage)
+    raw=host_compose.private_environment(path,uid=0,gid=grp.getgrnam('xynes').gr_gid)
+    values=environment_inputs.parse_existing(raw,stage)
+    return {key:values[key] for key in ('R2_ACCOUNT_ID','R2_BUCKET','R2_REGION')}
+
+def storage_provider_payload(stage,setup,journal,values):
+    require(stage in ('staging','prod'));qualify_journal(journal,stage)
+    require(type(setup) is dict and set(setup)=={'stage','configured','user_id','workspace_id','forbidden_workspace_id'}
+            and setup['stage']==stage and setup['configured'] is True)
+    primary,secondary=(journal['accounts'][role] for role in ROLES)
+    require(all(row['workspace_intent'] and row['user_intent'] and row['user_id'] is not None and row['workspace_id'] is not None for row in (primary,secondary)))
+    require(setup['user_id']==primary['user_id'] and setup['workspace_id']==primary['workspace_id']
+            and setup['forbidden_workspace_id']==secondary['workspace_id'])
+    require(type(values) is dict and set(values)=={'R2_ACCOUNT_ID','R2_BUCKET','R2_REGION'}
+            and type(values['R2_ACCOUNT_ID']) is str and re.fullmatch(r'[a-f0-9]{32}',values['R2_ACCOUNT_ID'])
+            and type(values['R2_BUCKET']) is str and re.fullmatch(r'[a-z0-9][a-z0-9-]{1,61}[a-z0-9]',values['R2_BUCKET'])
+            and values['R2_REGION']=='auto')
+    accounts={role:{'user_id':journal['accounts'][role]['user_id'],'workspace_id':journal['accounts'][role]['workspace_id'],
+                   'email':journal['accounts'][role]['email'],'slug':'apex-smoke-'+stage+'-'+journal['nonce']+'-'+role[0]} for role in ROLES}
+    return {'stage':stage,'nonce':journal['nonce'],**accounts,'bucket':values['R2_BUCKET'],'region':'auto',
+            'endpoint':'https://'+values['R2_ACCOUNT_ID']+'.r2.cloudflarestorage.com',
+            'credential_ref':'secret://xynes/storage/r2-'+stage,'display_name':'Apex deployment smoke '+stage}
+
+def storage_provider_sql(payload):
+    # The sole substitution is bounded JSON DATA encoded as hex. No identifier,
+    # SQL fragment or quoted string is supplied by a request/environment value.
+    raw=json.dumps(payload,sort_keys=True,separators=(',',':'),allow_nan=False).encode()
+    require(0<len(raw)<=4096 and STORAGE_PROVIDER_SQL.count('__PAYLOAD__')==2)
+    expression="convert_from(decode('"+raw.hex()+"','hex'),'UTF8')::jsonb"
+    return STORAGE_PROVIDER_SQL.replace('__PAYLOAD__',expression).encode()
+
+def storage_provider_execute(stage,sql):
+    try:
+        from . import host_migrate,pg_container_bridge
+    except ImportError:
+        import host_migrate,pg_container_bridge
+    require(stage in ('staging','prod') and os.geteuid()==ROOT_UID)
+    values=pg_container_bridge.stage_environment(stage)
+    require(values['XYNES_ENV']==stage)
+    container=pg_container_bridge.inspected_container(stage)
+    result=host_migrate._execute(container,values['POSTGRES_PASSWORD'],sql=sql)
+    require(pg_container_bridge.inspected_container(stage)==container)
+    return result
+
+def ensure_storage_provider(stage,setup,*,store=None,values_loader=storage_provider_values,executor=storage_provider_execute):
+    try:
+        smoke.origins(stage)
+        if stage=='qa':return {'stage':'qa','storage_provider_ready':False}
+        require(stage in ('staging','prod'))
+        with (store or Store()) as protected:
+            journal=protected.read(stage+'.setup.json')
+            payload=storage_provider_payload(stage,setup,journal,values_loader(stage))
+            raw=executor(stage,storage_provider_sql(payload))
+            require(type(raw) is bytes and 0<len(raw)<=1024)
+            result=records.strict_json(raw.decode())
+            require(type(result) is dict and set(result)=={'stage','storage_provider_ready'}
+                    and result['stage']==stage and result['storage_provider_ready'] is True)
+            return result
+    except Exception:raise SetupError(ERROR) from None

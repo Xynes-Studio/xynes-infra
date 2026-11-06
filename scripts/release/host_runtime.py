@@ -142,6 +142,9 @@ class Runtime:
                 require(phase in ('current','rollback') and assets.prepared.stage==self.stage)
                 setup=fixtures.run()
                 require(type(setup) is dict and setup.get('stage')==self.stage and setup.get('configured') is True)
+                if self.stage in ('staging','prod'):
+                    provider=host_smoke_setup.ensure_storage_provider(self.stage,setup)
+                    require(type(provider) is dict and provider=={'stage':self.stage,'storage_provider_ready':True})
                 # Workspace creation occurs after the initial platform seeds.
                 # Run the same immutable implementations again for its new CMS
                 # defaults before accepting directory-first product flows.

@@ -59,7 +59,7 @@ class ApexQualityCI(unittest.TestCase):
         for path in ('deploy-request.test.py','deployment-candidate.test.py','ssh-entry.test.py','deploy-admission.test.py','deploy-dispatch.test.py','host-release-state.test.py','host-compose.test.py','migration-transport.test.py','pg-container-bridge.test.py','candidate-migration.test.py','host-migrate.test.py','host-seed.test.py','host-backup.test.py','host-assets.test.py','root-executor.test.py','host-boundary.test.py'):
             self.assertIn(path,case)
         self.assertIn('auth-runtime.test.py',case)
-        for path in ('host-runtime.test.py','host-supervisor.test.py','host-controls.test.py','host-smoke.test.py','host-smoke-setup.test.py'):
+        for path in ('host-runtime.test.py','host-supervisor.test.py','host-controls.test.py','host-smoke.test.py','host-smoke-setup.test.py','host-smoke-provider.test.py','host-smoke-provider-runtime.test.py'):
             self.assertIn(path,case)
         self.assertIn('auth-runtime.integration.py',case)
         for path in ('artifact-handoff.test.py','artifact-download.test.py','publish-images.test.py','build-pipeline.test.py','apex-workflow.test.py'):
