@@ -83,13 +83,72 @@ DIAGNOSTIC_TASKS = frozenset('shared--' + name for name in SHARED_BUILD) | froze
     stage + '--' + name for stage in ('qa', 'staging', 'prod') for name in source_context.APPS)
 
 
-def emit_event(phase, status, task=None, output_root=None):
+BUILD_FAILURE_KINDS = frozenset(('subprocess-exit','coordinator-timeout','launch-error'))
+BUILD_LOG_TAIL_BYTES = 65536
+BUILD_LOG_SIGNALS = {
+    'no-space-text': (b'no space left on device',),
+    'memory-text': (b'out of memory',b'cannot allocate memory'),
+    'timeout-text': (b'timed out',b'context deadline exceeded',b'i/o timeout'),
+    'network-text': (b'connection reset',b'connection refused',b'failed to fetch',b'network is unreachable',b'could not resolve',b'temporary failure resolving'),
+    'tls-text': (b'x509:',b'certificate verify failed',b'tls handshake'),
+    'package-text': (b'unable to select packages',b'unsatisfiable constraints',b'no such package'),
+    'tests-text': (b'failed test',b'test suite failed'),
+    'rate-limit-text': (b'toomanyrequests',b'too many requests'),
+    'permission-text': (b'permission denied',),
+    'exec-format-text': (b'exec format error',),
+}
+
+
+def build_failure_details(error, log):
+    """Direct process facts plus bounded observed text signals, never a cause.
+
+    Read only the exclusive log's exact owned inode. Source/dependency output
+    can spoof signals: none authorizes retries, acceptance or policy changes.
+    """
+    require(isinstance(error,(subprocess.CalledProcessError,subprocess.TimeoutExpired,OSError)))
+    kind=('coordinator-timeout' if isinstance(error,subprocess.TimeoutExpired) else
+          'subprocess-exit' if isinstance(error,subprocess.CalledProcessError) else 'launch-error')
+    code=error.returncode if isinstance(error,subprocess.CalledProcessError) else None
+    if type(code) is not int or not -255<=code<=255 or code==0:code=None
+    value={'error_kind':kind,'returncode':code,'log_tail_available':False,
+           'observed_log_signals':[],'observed_step_exit_code':None}
+    descriptor=None
+    def identity(info):return (info.st_dev,info.st_ino,info.st_mode,info.st_uid,info.st_gid,info.st_nlink,info.st_size,info.st_mtime_ns,info.st_ctime_ns)
+    try:
+        log.flush();owned=os.fstat(log.fileno())
+        require(stat.S_ISREG(owned.st_mode) and owned.st_uid==os.getuid() and owned.st_nlink==1 and 0<=owned.st_size<=2**63-1)
+        descriptor=os.open(log.name,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK|os.O_CLOEXEC)
+        before=os.fstat(descriptor);require(identity(before)==identity(owned)==identity(Path(log.name).lstat()))
+        raw=os.pread(descriptor,min(BUILD_LOG_TAIL_BYTES,before.st_size),max(0,before.st_size-BUILD_LOG_TAIL_BYTES))
+        require(identity(os.fstat(descriptor))==identity(before)==identity(os.fstat(log.fileno()))==identity(Path(log.name).lstat()) and len(raw)==min(BUILD_LOG_TAIL_BYTES,before.st_size))
+        lower=raw.lower();signals=sorted(name for name,patterns in BUILD_LOG_SIGNALS.items() if any(pattern in lower for pattern in patterns))
+        codes=re.findall(rb'did not complete successfully: exit code: ([0-9]{1,3})(?![0-9])',lower)
+        inner=int(codes[-1]) if codes and 0<=int(codes[-1])<=255 else None
+        value.update(log_tail_available=True,observed_log_signals=signals,observed_step_exit_code=inner)
+    except Exception:pass  # Diagnostics must never replace the original failure.
+    finally:
+        if descriptor is not None:os.close(descriptor)
+    return value
+
+
+def emit_event(phase, status, task=None, output_root=None, failure=None):
     """Emit only closed identifiers and an optional non-authorizing disk metric."""
     require(type(phase) is str and phase in DIAGNOSTIC_PHASES
             and type(status) is str and status in ('start', 'success', 'failure')
             and (task is None or (type(task) is str and task in DIAGNOSTIC_TASKS
                  and phase in ('image-build', 'image-inspect'))))
+    if failure is not None:
+        require(phase=='image-build' and status=='failure' and type(failure) is dict
+                and set(failure)=={'error_kind','returncode','log_tail_available','observed_log_signals','observed_step_exit_code'}
+                and failure['error_kind'] in BUILD_FAILURE_KINDS and type(failure['log_tail_available']) is bool)
+        code=failure['returncode'];inner=failure['observed_step_exit_code'];signals=failure['observed_log_signals']
+        require((code is None or (type(code) is int and -255<=code<=255 and code!=0))
+                and (inner is None or (type(inner) is int and 0<=inner<=255))
+                and type(signals) is list and len(signals)<=len(BUILD_LOG_SIGNALS)
+                and all(type(v) is str and v in BUILD_LOG_SIGNALS for v in signals) and len(set(signals))==len(signals)
+                and (failure['log_tail_available'] or (signals==[] and inner is None)))
     value = {'artifact_kind': 'apex-build-diagnostic', 'phase': phase, 'status': status}
+    if failure is not None:value.update(failure)
     if task is not None:value['task'] = task
     if isinstance(output_root, Path):
         try:
@@ -102,10 +161,12 @@ def emit_event(phase, status, task=None, output_root=None):
 @contextlib.contextmanager
 def diagnostic(phase, task=None, output_root=None):
     emit_event(phase, 'start', task, output_root)
+    details={}
     try:
-        yield
+        yield details
     except BaseException:
-        emit_event(phase, 'failure', task, output_root)
+        try:emit_event(phase, 'failure', task, output_root, failure=details.get('build_failure'))
+        except Exception:pass
         raise
     else:
         emit_event(phase, 'success', task)
@@ -327,12 +388,17 @@ def execute(manifest, public, controller, purpose, workspace, output, builder, d
     # supplied secrets, GH_TOKEN, SSH_AUTH_SOCK or host-wide registry config.
     environment = {k: os.environ[k] for k in ('PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH') if k in os.environ}
     for task in tasks:
-        with diagnostic('image-build', task['id'], output):
+        with diagnostic('image-build', task['id'], output) as details:
             artifact = output / 'archives' / (task['id'] + '.oci.tar')
             require(',' not in str(artifact) and '\n' not in str(artifact))
             with (output / 'logs' / (task['id'] + '.log')).open('xb') as log:
-                subprocess.run(build_argv(task, output, artifact, builder, docker_config), env=environment,
-                               stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=2400, check=True)
+                try:
+                    subprocess.run(build_argv(task, output, artifact, builder, docker_config), env=environment,
+                                   stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=2400, check=True)
+                except (subprocess.SubprocessError,OSError) as error:
+                    try:details['build_failure']=build_failure_details(error,log)
+                    except Exception:pass
+                    raise
         with diagnostic('image-inspect', task['id']):
             receipts.append(inspect_oci(artifact, task))
     with diagnostic('image-receipts'):
