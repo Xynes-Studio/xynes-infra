@@ -263,7 +263,7 @@ SET LOCAL search_path=pg_catalog;
 SET LOCAL statement_timeout='15s';
 SET LOCAL lock_timeout='3s';
 DO $apex_provider$
-DECLARE input jsonb := __PAYLOAD__; role text; account jsonb; provider_count integer;
+DECLARE input jsonb := __PAYLOAD__; fixture_role text; account jsonb; provider_count integer;
 BEGIN
  IF current_database() <> 'postgres' OR current_user <> 'postgres' OR pg_is_in_recovery() THEN
   RAISE EXCEPTION 'Smoke provider target refused';
@@ -284,8 +284,8 @@ BEGIN
   WHERE workspace_id IN ((input->'primary'->>'workspace_id')::uuid,(input->'secondary'->>'workspace_id')::uuid)
    AND role_key='workspace_owner'
   ORDER BY workspace_id,user_id FOR SHARE;
- FOREACH role IN ARRAY ARRAY['primary','secondary'] LOOP
-  account := input->role;
+ FOREACH fixture_role IN ARRAY ARRAY['primary','secondary'] LOOP
+  account := input->fixture_role;
   IF NOT EXISTS (
    SELECT 1 FROM platform.workspaces w
     JOIN identity.users i ON i.id=w.created_by
@@ -297,7 +297,7 @@ BEGIN
     AND i.email=account->>'email' AND a.email=account->>'email'
     AND a.email_confirmed_at IS NOT NULL AND member.status='active'
     AND a.raw_app_meta_data->'apex_smoke_fixture'=jsonb_build_object(
-     'version',1,'stage',input->>'stage','nonce',input->>'nonce','identity',role)
+     'version',1,'stage',input->>'stage','nonce',input->>'nonce','identity',fixture_role)
   ) THEN RAISE EXCEPTION 'Smoke provider ownership refused'; END IF;
  END LOOP;
  IF EXISTS (SELECT 1 FROM platform.workspace_members
