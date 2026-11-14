@@ -27,7 +27,7 @@ class Tests(unittest.TestCase):
   self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.root=Path(self.tmp.name).resolve();self.root.chmod(0o700)
   self.manifest,self.public,_=IMAGE.inputs();self.manifest.update(status='approved',approval_reference='https://github.com/Xynes-Studio/xynes-infra/pull/1')
   self.controller=dict(repository='Xynes-Studio/xynes-infra',commit='a'*40,workflow='apex-build.yml',run_id=100,run_attempt=1)
-  self.data=ADMISSION.fixtures();self.data[ADMISSION.P+'/actions/runs/100/attempts/1/jobs?per_page=100&page=1']={'total_count':1,'jobs':[self.data[ADMISSION.P+'/actions/jobs/200']]}
+  self.data=ADMISSION.fixtures(self.manifest);self.data[ADMISSION.P+'/actions/runs/100/attempts/1/jobs?per_page=100&page=1']={'total_count':1,'jobs':[self.data[ADMISSION.P+'/actions/jobs/200']]}
   catalog=json.loads((ROOT/'infra/release/source-check-catalog.json').read_text())
   self.source_checks={'checks_verified':True,'approved':False,'deployable':False,'sources':[{'repository':s['repository'],'commit':s['commit'],'checks':[{'name':name,'check_id':800+i,'job_id':900+i,'run_id':1000+i,'run_attempt':1,'workflow_id':1100+i,'workflow_path':path,'workflow_blob':'b'*40} for i,(name,path) in enumerate(catalog[key].items())]} for key,s in self.manifest['sources'].items()]}
   self.admission_files={'controller.json':self.controller,'source-manifest.json':self.manifest,'public-inputs.json':self.public,'source-checks.json':self.source_checks}

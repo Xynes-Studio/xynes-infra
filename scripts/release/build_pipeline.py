@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only admission and credential-free immutable-source Actions builds."""
+"""Read-only admission and isolated immutable-source Actions builds."""
 import json
 import os
 from pathlib import Path
@@ -155,6 +155,9 @@ def qualify_build(output,result,manifest,public,bound):
 
 
 def build(env,*,read,download,command=bounded_command,execute=image_build.execute,migration_writer=migration_transport.create):
+    # main passes os.environ, which is temporarily cleared for child processes.
+    # Retain coordinator-only inputs before changing that same mapping.
+    env=dict(env)
     created=False;docker=None;clean=None
     try:
         with image_build.diagnostic('controller'):
@@ -207,7 +210,12 @@ def build(env,*,read,download,command=bounded_command,execute=image_build.execut
             previous=dict(os.environ)
             try:
                 os.environ.clear();os.environ.update(clean)
-                result=execute(manifest,public,bound,'release',workspace,output,builder,config)
+                # Only the coordinator receives ephemeral package-read access.
+                # Docker/source children still run with the clean environment.
+                options={}
+                if 'reuse' in manifest['processors']['libreoffice']:
+                    options['reuse_credential']=image_build.GitHubPullCredential(env['GITHUB_ACTOR'],env['GH_TOKEN'])
+                result=execute(manifest,public,bound,'release',workspace,output,builder,config,**options)
             finally:os.environ.clear();os.environ.update(previous)
         with image_build.diagnostic('image-qualification'):
             qualify_build(output,result,manifest,public,bound)

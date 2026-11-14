@@ -25,6 +25,8 @@ def digest(value):
 
 def fixtures():
     source=json.loads((ROOT/'infra/release/source-manifest.json').read_text())
+    # Historical fresh-build fixture; reuse bindings have separate OCI tests.
+    source['processors']['libreoffice'].pop('reuse',None)
     source['status']='planning';source['approval_reference']=None
     source['external_images']['clamav-freshclam']['image']='clamav/clamav:1.5.2-debian@sha256:'+'a'*64
     source['external_images'].update({

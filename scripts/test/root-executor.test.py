@@ -241,6 +241,56 @@ class Tests(unittest.TestCase):
             public=self.public,receipt=self.receipt)
         return token
 
+    def initial_runtime_fixture(self):
+        self.stage='staging';self.driver.stage='staging'
+        file=self.root/'unaccepted-old-compose.json';file.write_text('{}');file.chmod(0o600)
+        prepared=self.m.host_compose.Prepared('staging',file,hashlib.sha256(b'{}').hexdigest(),self.pointers(),storage_generation='3'*64)
+        baseline=self.m.host_compose.InitialRuntime(prepared,{'supabase-db':{'id':'a'*64,'image':prepared.images['IMAGE_SUPABASE_DB']}},'f'*64)
+        import host_assets
+        patcher=patch.object(host_assets.Store,'initial_runtime',return_value=baseline);patcher.start();self.addCleanup(patcher.stop)
+        self.operational_baseline=prepared
+        def validate(current,value):
+            self.assertIs(value,baseline);self.event('runtime-preflight')
+            file=self.directory/(self.stage+'.json')
+            if file.exists():
+                value=json.loads(file.read_bytes());self.assertIsNone(value['current'])
+                self.assertFalse(any(row['status']=='pending' for row in value['attempts']))
+            return prepared
+        self.driver.validate_initial_runtime=validate
+        original_audit=self.operations.target_audit
+        def audit(stage,current,previous):
+            self.assertIsNone(previous);result=original_audit(stage,current,previous)
+            result.update(database_state='existing',database_container_id='a'*64);return result
+        self.operations=dataclasses.replace(self.operations,target_audit=audit)
+        for method in ('bootstrap','start'):
+            original=getattr(self.driver,method)
+            def invoke(current,*,previous=None,_method=method,_original=original):
+                self.assertIs(previous,prepared);return _original(current,previous=previous)
+            setattr(self.driver,method,invoke)
+        return baseline
+
+    def test_initial_operational_baseline_reaches_native_driver_without_becoming_accepted_previous(self):
+        self.initial_runtime_fixture();result=self.execute()
+        self.assertTrue(result['deployment_accepted']);self.assertIn('runtime-preflight',self.events)
+        self.assertLess(self.events.index('runtime-preflight'),self.events.index('warm-enter'))
+        self.assertNotIn('load',self.events);self.assertNotIn('rollback',self.events)
+        pending,accepted=self.read_state();self.assertIsNone(pending)
+        self.assertEqual(accepted['current']['source_sha256'],'sha256:'+self.verified.source_manifest_sha256)
+
+    def test_failed_initial_operational_successor_never_rolls_back_to_unaccepted_baseline(self):
+        self.initial_runtime_fixture();self.failure='smoke-current'
+        with self.assertRaises(self.m.ExecutorError) as caught:self.execute()
+        self.assertTrue(caught.exception.reconciliation_required);self.assertNotIn('rollback',self.events)
+        pending,accepted=self.read_state();self.assertIsNotNone(pending);self.assertIsNone(accepted['current'])
+
+    def test_runtime_drift_refuses_before_begin_or_host_mutation(self):
+        self.initial_runtime_fixture()
+        def refuse(*a):self.event('runtime-preflight');raise ValueError('changed native CID')
+        self.driver.validate_initial_runtime=refuse
+        with self.assertRaises(self.m.ExecutorError):self.execute()
+        pending,accepted=self.read_state();self.assertIsNone(pending);self.assertIsNone(accepted['current'])
+        self.assertNotIn('warm-enter',self.events);self.assertNotIn('bootstrap',self.events)
+
     def test_sequence_initial_release_accepted_only_after_complete_operational_success(self):
         result=self.execute()
         self.assertTrue(result['deployment_accepted']);self.assertEqual(result['stage'],'qa')

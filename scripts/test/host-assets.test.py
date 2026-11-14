@@ -230,18 +230,27 @@ class Tests(unittest.TestCase):
     'artifact_kind':'rollback-operational-head','stage':'qa','accepted_token':accepted['token'],
     'latest_token':None,'record_sha256':'a'*64}));head.chmod(0o600)
   with self.assertRaises(self.m.AssetError):self.store.load_release('qa',accepted)
- def initial_fixture(self):
+ def initial_fixture(self,stage='qa'):
+  if stage=='staging':
+   self.request=copy.deepcopy(self.request);self.request['deployment']['run_id']+=1000;self.request['deployment']['job_id']+=1000
+   self.state.__exit__(None,None,None)
+   self.state=self.m.host_release_state.ReleaseState(self.state_root,stage=stage,owner_uid=os.getuid());self.state.__enter__();self.addCleanup(self.state.__exit__,None,None,None)
+   self.token=self.state.begin(self.request,source_sha256='sha256:'+self.verified.source_manifest_sha256,started_at=int(time.time())-1)
+   self.store=self.m.Store(stage,base=self.base)
+   self.compose.write_bytes(self.compose.read_bytes().replace(b'/qa/',b'/staging/'))
+   prepared=self.m.replace(self.assets.prepared,stage=stage,sha256=hashlib.sha256(self.compose.read_bytes()).hexdigest())
+   self.assets=self.m.replace(self.assets,prepared=prepared)
   self.state.fail(self.token,reason='interrupted',failed_at=int(time.time()))
   failed=copy.deepcopy(self.state.data['attempts'][-1])
   root=self.root/'initial';root.mkdir(mode=0o700)
-  for patcher in (patch.object(self.m,'INITIAL_BASELINE_ROOT',root),
+  for patcher in (patch.object(self.m,'INITIAL_BASELINE_ROOT' if stage=='qa' else 'STAGING_BASELINE_ROOT',root,create=True),
     patch.object(self.m,'initial_database',return_value={'container_id':'a'*64,'data_inode':[7,11],'data_uid':70,'data_mode':448})):
    patcher.start();self.addCleanup(patcher.stop)
   catalog={};self.store.migration(root,'origin',self.verified,catalog)
   publication={'id':457,'digest':'sha256:'+'c'*64}
   import host_migrate
   units,_=self.m.migration_transport.application_inputs(self.verified)
-  capsule={'schema_version':1,'artifact_kind':'qa-failed-initial-baseline','stage':'qa',
+  capsule={'schema_version':1,'artifact_kind':stage+'-failed-initial-baseline','stage':stage,
     'failed_record_sha256':hashlib.sha256(self.m.encode(failed)).hexdigest(),
     'state_sha256':hashlib.sha256(self.m.host_release_state.encode(self.state.data)).hexdigest(),
     'origin_controller':self.verified.controller,'origin_source_manifest_sha256':self.verified.source_manifest_sha256,
@@ -255,11 +264,84 @@ class Tests(unittest.TestCase):
   for name,value in [('INITIAL_ORIGIN_COMMIT',self.verified.controller['commit']),
     ('INITIAL_ORIGIN_MANIFEST',self.verified.source_manifest_sha256),('INITIAL_ORIGIN_BASELINE',capsule['baseline_sha256']),
     ('INITIAL_FAILED_DEPLOYMENT',self.request['deployment']),('INITIAL_FAILED_PUBLICATION',self.request['publication'])]:
-   patcher=patch.object(self.m,name,value);patcher.start();self.addCleanup(patcher.stop)
+   if stage=='staging':name=name.replace('INITIAL_','STAGING_',1)
+   patcher=patch.object(self.m,name,value,create=stage=='staging');patcher.start();self.addCleanup(patcher.stop)
   seal()
   return root,capsule,publication,seal
- def test_failed_initial_capsule_authorizes_only_exact_successor_and_preserves_old_rows(self):
-  root,capsule,publication,seal=self.initial_fixture()
+ def runtime_fixture(self):
+  root,capsule,publication,seal=self.initial_fixture('staging')
+  images={key:'ghcr.io/xynes-studio/apex/inert@sha256:'+format(i+1,'064x') for i,key in enumerate(self.m.host_compose.SERVICE_IMAGES.values())}
+  runtime=root/'runtime';runtime.mkdir(mode=0o700);raw=self.compose.read_bytes();file=runtime/'compose.json';file.write_bytes(raw);file.chmod(0o600)
+  capsule['runtime']={'prepared':{'sha256':hashlib.sha256(raw).hexdigest(),'images':images,'storage_generation':self.generation},
+   'containers':{svc:{'id':format(i+1,'064x'),'image':images[key]} for i,(svc,key) in enumerate(self.m.host_compose.SERVICE_IMAGES.items())}}
+  capsule['runtime']['containers']['supabase-db']['id']=capsule['database']['container_id']
+  capsule['files']['runtime/compose.json']={'size':len(raw),'sha256':hashlib.sha256(raw).hexdigest()};seal()
+  return root,capsule,publication,seal
+ def test_staging_initial_runtime_is_separate_from_acceptance_and_bound_to_capsule(self):
+  root,capsule,publication,seal=self.runtime_fixture();before=copy.deepcopy(self.state.data)
+  result=self.store.initial_runtime(self.state,self.successor,publication)
+  self.assertIs(type(result),self.m.host_compose.InitialRuntime)
+  self.assertEqual(result.prepared.file,root/'runtime/compose.json');self.assertEqual(result.containers,capsule['runtime']['containers'])
+  self.assertEqual(result.capsule_sha256,hashlib.sha256((root/'capsule.json').read_bytes()).hexdigest());self.assertEqual(self.state.data,before)
+  self.assertIsNone(self.state.data['current'])
+ def test_staging_runtime_tamper_or_incomplete_inventory_refuses(self):
+  root,capsule,publication,seal=self.runtime_fixture();good=copy.deepcopy(capsule)
+  changes=[lambda c:c['runtime']['containers'].pop('gateway'),lambda c:c['runtime']['containers']['gateway'].update(image='wrong-image'),
+   lambda c:c['runtime']['prepared'].update(storage_generation='not-a-generation'),lambda c:c['runtime']['containers']['gateway'].update(id='x'*64)]
+  for mutate in changes:
+   capsule.clear();capsule.update(copy.deepcopy(good));mutate(capsule);seal()
+   with self.assertRaises(self.m.AssetError):self.store.initial_runtime(self.state,self.successor,publication)
+  capsule.clear();capsule.update(good);seal();(root/'runtime/compose.json').write_bytes(b'changed')
+  with self.assertRaises(self.m.AssetError):self.store.initial_runtime(self.state,self.successor,publication)
+ def test_runtime_baseline_is_staging_only_and_not_used_after_acceptance(self):
+  root,capsule,publication,seal=self.runtime_fixture()
+  with patch.object(self.state,'read_accepted',return_value={'current':{'token':'accepted'},'previous':None}),       patch.object(self.store,'initial_capsule',side_effect=AssertionError('accepted path must not read capsule')):
+   self.assertIsNone(self.store.initial_runtime(self.state,self.successor,publication))
+  for stage in ('qa','prod'):
+   store=self.m.Store(stage,base=self.base)
+   with patch.object(store,'initial_capsule',side_effect=AssertionError('stage does not permit runtime adoption')):
+    self.assertIsNone(store.initial_runtime(self.state,self.successor,publication))
+ def test_sql_only_staging_capsule_does_not_supply_runtime_authority(self):
+  self.initial_fixture('staging')
+  with self.assertRaises(self.m.AssetError):self.store.initial_runtime(self.state,self.successor,{'id':457,'digest':'sha256:'+'c'*64})
+ def test_staging_policy_is_fixed_and_prod_has_no_initial_exception(self):
+  policy=self.m.initial_policy('staging')
+  self.assertEqual(policy['root'],Path('/var/lib/xynes/deploy/initial-baselines/staging'))
+  self.assertEqual(policy['data'],Path('/srv/xynes/staging/supabase/db'))
+  self.assertEqual(policy['deployment'],{'run_id':42554238136,'run_attempt':1,'job_id':128956292366})
+  self.assertEqual(policy['commit'],'1e86e8dd418c418a511608687e3952858b93617c')
+  self.assertIsNone(self.m.initial_policy('prod'))
+  with self.assertRaises(self.m.AssetError):self.m.initial_database('prod')
+ def test_staging_failed_initial_catalog_uses_only_root_reviewed_successor(self):
+  root,capsule,publication,seal=self.initial_fixture('staging')
+  before=copy.deepcopy(self.state.data)
+  result=self.store.initial_origin(self.state,self.successor,publication)
+  self.assertIsNotNone(result,'reviewed staging recovery packet must bind its failed catalog')
+  self.assertEqual(result[0].controller,self.verified.controller)
+  self.assertEqual(self.state.data,before)
+  self.assertTrue(all(row['status']=='failed' for row in self.state.data['attempts']))
+  self.assertIsNone(self.state.data['current'])
+  import host_migrate
+  old,_=self.m.migration_transport.application_inputs(result[0]);new,_=self.m.migration_transport.application_inputs(self.successor)
+  ledger={'database':'postgres','user':'postgres','in_recovery':False,'migration_count':40,'bootstrap':[{'environment':'staging','baseline_sha256':capsule['baseline_sha256'],'completed':True}],'migrations':old}
+  self.assertEqual(host_migrate.ledger(json.dumps(ledger).encode(),stage='staging',units=new,prior={(row['owner'],row['path']):row for row in old}),sorted(old,key=lambda row:(row['owner'],row['path'])))
+ def test_staging_known_failed_origin_missing_capsule_refuses_before_sql(self):
+  root,capsule,publication,seal=self.initial_fixture('staging')
+  before=copy.deepcopy(self.state.data);root.rename(self.root/'retained-initial')
+  with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+  self.assertEqual(self.state.data,before)
+ def test_staging_reviewed_source_allows_a_fresh_protected_build(self):
+  root,capsule,publication,seal=self.initial_fixture('staging')
+  result=self.store.initial_origin(self.state,self.rebuilds['retry'],{'id':999,'digest':'sha256:'+'f'*64})
+  self.assertIsNotNone(result);self.assertEqual(result[0].controller,self.verified.controller)
+ def test_staging_capsule_wrong_successor_or_database_refuses(self):
+  root,capsule,publication,seal=self.initial_fixture('staging')
+  good=copy.deepcopy(capsule)
+  for mutate in (lambda value:value.update(stage='qa'),lambda value:value['database'].update(container_id='f'*64),lambda value:value['successor'].update(source_manifest_sha256='f'*64)):
+   capsule.clear();capsule.update(copy.deepcopy(good));mutate(capsule);seal()
+   with self.assertRaises(self.m.AssetError):self.store.initial_origin(self.state,self.successor,publication)
+ def assert_initial_capsule_lineage(self,stage):
+  root,capsule,publication,seal=self.initial_fixture(stage)
   result=self.store.initial_origin(self.state,self.successor,publication)
   self.assertEqual(result[0].controller,self.verified.controller)
   self.assertEqual(result[1]['capsule_sha256'],hashlib.sha256((root/'capsule.json').read_bytes()).hexdigest())
@@ -272,7 +354,7 @@ class Tests(unittest.TestCase):
   restored=self.store.persist(assets,token=token,proofs={},state=self.state)
   meta=json.loads((self.base/token/'asset-record.json').read_bytes())
   self.assertEqual(meta['proofs']['initial_baseline_origin'],result[1])
-  self.state.accept(token,smoke={'storage_verified':True,'stage':'qa','publication':publication,'source_sha256':'sha256:'+self.successor.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.state.accept(token,smoke={'storage_verified':True,'stage':stage,'publication':publication,'source_sha256':'sha256:'+self.successor.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
   # A real accepted successor is the anchor; the failed origin is never accepted.
   self.assertEqual(len([r for r in self.state.data['attempts'] if r['status']=='accepted']),1)
   with patch.object(self.m,'initial_database',side_effect=AssertionError('historical CID must not constrain a genuinely accepted upgrade')):
@@ -282,11 +364,15 @@ class Tests(unittest.TestCase):
   nexttoken=self.state.begin(request,source_sha256='sha256:'+self.later.source_manifest_sha256,started_at=int(time.time()))
   laterassets=self.m.replace(assets,migration=self.later,controller=self.later.controller,publication=laterpub,manifest=json.loads((self.later.directory/'source-manifest.json').read_bytes()))
   self.store.persist(laterassets,token=nexttoken,proofs={},state=self.state)
-  self.state.accept(nexttoken,smoke={'storage_verified':True,'stage':'qa','publication':laterpub,'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
-  self.assertEqual(self.store.load_release('qa',self.state.read_accepted()['current']).origin.controller,self.verified.controller)
+  self.state.accept(nexttoken,smoke={'storage_verified':True,'stage':stage,'publication':laterpub,'source_sha256':'sha256:'+self.later.source_manifest_sha256,'result':'passed','observed_at':int(time.time())},accepted_at=int(time.time()))
+  self.assertEqual(self.store.load_release(stage,self.state.read_accepted()['current']).origin.controller,self.verified.controller)
   self.assertEqual(len([r for r in self.state.data['attempts'] if r['status']=='accepted']),2)
   (root/'capsule.json').write_bytes(b'{}')
-  with self.assertRaises(self.m.AssetError):self.store.load_release('qa',self.state.read_accepted()['current'])
+  with self.assertRaises(self.m.AssetError):self.store.load_release(stage,self.state.read_accepted()['current'])
+ def test_failed_initial_capsule_authorizes_only_exact_successor_and_preserves_old_rows(self):
+  self.assert_initial_capsule_lineage('qa')
+ def test_staging_accepted_anchor_preserves_original_catalog_on_later_upgrade(self):
+  self.assert_initial_capsule_lineage('staging')
  def test_initial_capsule_denies_tampering_wrong_successor_db_history_and_stage(self):
   root,capsule,publication,seal=self.initial_fixture()
   good=copy.deepcopy(capsule)

@@ -46,6 +46,13 @@ class Tests(unittest.TestCase):
    calls=[step for step in self.jobs[job]['steps'] if 'run' in step]
    self.assertEqual([s['run'] for s in calls],['python3 scripts/release/build_pipeline.py '+operation])
   self.assertTrue((ROOT/'scripts/release/build_pipeline.py').is_file())
+ def test_only_protected_image_build_gains_read_only_private_package_access(self):
+  self.assertEqual(self.jobs['build-images']['permissions'],{'contents':'read','actions':'read','packages':'read'})
+  for name in ('admission','product-smoke','attest-images'):
+   self.assertNotIn('packages',self.jobs[name]['permissions'])
+  invoke=next(step for step in self.jobs['build-images']['steps'] if 'run' in step)
+  self.assertEqual(invoke['env']['GH_TOKEN'],'${{ github.token }}')
+  self.assertNotIn('secrets.',json.dumps(invoke))
  def test_migrations_are_a_separate_exact_data_artifact(self):
   build=self.jobs['build-images'];uploads=[step for step in build['steps'] if step.get('uses','').startswith('actions/upload-artifact@')]
   self.assertEqual(len(uploads),2)

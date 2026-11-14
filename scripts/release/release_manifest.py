@@ -142,6 +142,13 @@ def build_inputs(controller, source_manifest, name, stage=None, public_inputs=No
     recipe = source_manifest['recipes'][name] if name in BACKENDS + APPS else source_manifest['processors'][name]
     result.update(source_commit=source_manifest['sources'][owner]['commit'], recipe_sha256=recipe['sha256'],
                   base_images=source_manifest['base_images'], tools=source_manifest['tools'])
+    if name=='libreoffice' and 'reuse' in source_manifest['processors'][name]:
+        source_context.validate_manifest(source_manifest,'planning')
+        reuse=source_manifest['processors'][name]['reuse']
+        require(reuse['content_sha256']==processor_content_identity(source_manifest,name))
+        # New provenance records an import of this approved immutable subject;
+        # it never attributes the previous run's build-input hash to this run.
+        result['reuse']=dict(reuse)
     if stage is not None:
         result.update(environment=stage, public_inputs_sha256=canonical_sha256(public_inputs[stage][name]))
     return result
@@ -179,6 +186,8 @@ def validate_image(image, name, controller, source_manifest, registry_prefix, st
     else:
         require(re.fullmatch(re.escape(registry_prefix + '/' + name) + r'@sha256:[a-f0-9]{64}', reference))
     inputs = build_inputs(controller, source_manifest, name, stage, public_inputs)
+    if 'reuse' in inputs:
+        require(reference==inputs['reuse']['image'])
     if name not in source_context.EXTERNAL_IMAGE_PREFIXES:
         require(image['source_commit'] == inputs['source_commit'] and image['recipe_sha256'] == inputs['recipe_sha256'])
     if stage is not None:

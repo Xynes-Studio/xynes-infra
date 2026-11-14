@@ -37,6 +37,8 @@ def descriptor(data,kind):return {'mediaType':kind,'digest':'sha256:'+sha(data),
 
 def inputs():
     manifest=json.loads((ROOT/'infra/release/source-manifest.json').read_text())
+    # Legacy fixtures build fresh OCI bytes; reuse has its own explicit cases.
+    manifest['processors']['libreoffice'].pop('reuse',None)
     public={}
     for stage in ['qa','staging','prod']:
         common={'NEXT_PUBLIC_AUTH_APP_URL':f'https://auth.{stage}.example.invalid','NEXT_PUBLIC_API_URL':f'https://api.{stage}.example.invalid','NEXT_PUBLIC_SUPABASE_URL':f'https://supabase.{stage}.example.invalid','NEXT_PUBLIC_SUPABASE_ANON_KEY':'sb_publishable_'+'a'*24,'NEXT_PUBLIC_ALLOWED_REDIRECT_DOMAINS':f'auth.{stage}.example.invalid,cms.{stage}.example.invalid'}
@@ -244,13 +246,21 @@ class ImageBuildTests(unittest.TestCase):
         with self.assertRaises(ValueError):tool().inspect_oci(path,task)
         task,path,files,_=self.valid();files['index.json']=b'[]';write_tar(path,files)
         with self.assertRaises(ValueError):tool().inspect_oci(path,task)
-    def run_fixture(self,fail_at=None,tamper=False,failure_program=None,failure_timeout=None):
+    def run_fixture(self,fail_at=None,tamper=False,failure_program=None,failure_timeout=None,reuse=False):
         real_run=subprocess.run
         output=self.base/'output';config=self.base/'docker-config';config.mkdir()
         recipe_bytes=b'FROM fixture:1 AS prod\n'
         for section in ['recipes','processors']:
             for recipe in self.manifest[section].values():recipe['sha256']=sha(recipe_bytes)
-        tasks={task['id']:task for task in self.tasks()};calls=[];preparations=[]
+        tasks={task['id']:task for task in self.tasks()};calls=[];preparations=[];reuse_calls=[]
+        if reuse:
+            prior=self.base/'approved-prior.oci.tar';old_task=tasks['shared--libreoffice'];_,digest=archive(prior,old_task['labels'])
+            self.manifest['processors']['libreoffice']['reuse']={'image':'ghcr.io/xynes-studio/apex/libreoffice@'+digest,
+                'content_sha256':tool().records.processor_content_identity(self.manifest,'libreoffice')}
+            tasks={task['id']:task for task in self.tasks()}
+        def import_oci(artifact,task,*,credential=None):
+            reuse_calls.append(task['id']);self.assertIsNone(credential);artifact.write_bytes(prior.read_bytes())
+
         def prepare(args):
             preparations.append(args.environment);args.output.mkdir()
             print('Prepared immutable contexts')
@@ -271,7 +281,7 @@ class ImageBuildTests(unittest.TestCase):
             archive(artifact,task['labels'],architecture='arm64' if tamper else 'amd64')
             return subprocess.CompletedProcess(command,0)
         captured=io.StringIO();stdout=io.StringIO()
-        with contextlib.redirect_stderr(captured),contextlib.redirect_stdout(stdout),patch.object(tool().source_context,'prepare',prepare),patch.object(tool().subprocess,'run',builder),patch.dict(os.environ,{'GH_TOKEN':'DO-NOT-EXPOSE','GITHUB_TOKEN':'DO-NOT-EXPOSE','DOCKER_AUTH_CONFIG':'DO-NOT-EXPOSE'}):
+        with contextlib.redirect_stderr(captured),contextlib.redirect_stdout(stdout),patch.object(tool().source_context,'prepare',prepare),patch.object(tool().subprocess,'run',builder),patch.object(tool(),'reuse_oci',import_oci),patch.dict(os.environ,{'GH_TOKEN':'DO-NOT-EXPOSE','GITHUB_TOKEN':'DO-NOT-EXPOSE','DOCKER_AUTH_CONFIG':'DO-NOT-EXPOSE'}):
             if fail_at or tamper:
                 with self.assertRaises((ValueError,subprocess.SubprocessError)):
                     tool().execute(self.manifest,self.public,self.controller,'planning',self.base,output,'fixture-builder',config)
@@ -287,7 +297,12 @@ class ImageBuildTests(unittest.TestCase):
         self.diagnostics=[json.loads(line) for line in captured.getvalue().splitlines()]
         self.assertNotIn('DO-NOT-EXPOSE',captured.getvalue())
         self.assertEqual((output/'logs/source-preparation.log').read_text().count('Prepared immutable contexts'),3)
+        self.reuse_calls=reuse_calls
         return calls
+    def test_reuse_skips_libreoffice_build_subprocess_and_records_closed_diagnostic(self):
+        calls=self.run_fixture(reuse=True)
+        self.assertEqual(len(calls),14);self.assertNotIn('shared--libreoffice',calls);self.assertEqual(self.reuse_calls,['shared--libreoffice'])
+        self.assertEqual([v['status'] for v in self.diagnostics if v['phase']=='image-reuse'],['start','success'])
     def test_diagnostics_report_success_order_and_fixed_image_ids(self):
         calls=self.run_fixture()
         expected=[]
@@ -388,6 +403,184 @@ class ImageBuildTests(unittest.TestCase):
         task,path,files,digest=self.valid();v=tool().inspect_oci(path,task)
         self.assertNotEqual(v['config_digest'],v['manifest_digest'])
         self.assertEqual(v['manifest_digest'],digest)
+
+
+class ProcessorReuseTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.base=Path(self.tmp.name).resolve()
+        self.manifest,self.public,self.controller=inputs()
+        self.original=next(t for t in tool().build_tasks(self.manifest,self.public,self.controller,'planning') if t['workload']=='libreoffice')
+        self.files,self.digest=archive(self.base/'prior.tar',self.original['labels'])
+        self.reuse={'image':'ghcr.io/xynes-studio/apex/libreoffice@'+self.digest,
+                    'content_sha256':tool().records.processor_content_identity(self.manifest,'libreoffice')}
+        self.manifest['processors']['libreoffice']['reuse']=copy.deepcopy(self.reuse)
+    def task(self):
+        try:return next(t for t in tool().build_tasks(self.manifest,self.public,self.controller,'planning') if t['workload']=='libreoffice')
+        except ValueError:self.fail('Valid immutable processor reuse declaration was rejected')
+    def test_reuse_explicitly_binds_current_provenance_without_changing_content_labels(self):
+        task=self.task();self.assertEqual(task['reuse'],self.reuse);self.assertEqual(task['labels'],self.original['labels'])
+        current=tool().records.build_inputs(self.controller,self.manifest,'libreoffice',None,self.public)
+        self.assertEqual(current['reuse'],self.reuse);self.assertEqual(current['controller'],self.controller)
+        self.assertEqual(current['source_manifest_sha256'],tool().records.canonical_sha256(self.manifest))
+        self.assertNotEqual(task['build_inputs_sha256'],self.original['build_inputs_sha256'])
+    def test_old_content_pin_refuses_recipe_file_mode_base_and_tool_changes(self):
+        for field in ('recipe','file','mode','base','tool'):
+            manifest=copy.deepcopy(self.manifest);p=manifest['processors']['libreoffice']
+            if field=='recipe':p['sha256']='b'*64
+            if field=='file':p['files'][0]['sha256']='b'*64
+            if field=='mode':p['files'][0]['mode']='100755'
+            if field=='base':
+                base='example.invalid/base:1@sha256:'+'b'*64;manifest['base_images'].append(base);p['base_images'].append(base);p['base_images'].sort()
+            if field=='tool':manifest['tools']['pnpm']='99.0.0'
+            with self.subTest(field=field),self.assertRaises(ValueError):tool().build_tasks(manifest,self.public,self.controller,'planning')
+    def test_changed_exporter_identity_refuses_existing_pin(self):
+        with patch.object(tool().records,'processor_content_identity',return_value='b'*64),self.assertRaises(ValueError):
+            tool().build_tasks(self.manifest,self.public,self.controller,'planning')
+    def test_wrong_namespace_mutable_reference_or_extra_declaration_refuses(self):
+        for value in ('ghcr.io/other/libreoffice@'+self.digest,'ghcr.io/xynes-studio/apex/archive-scanner@'+self.digest,'ghcr.io/xynes-studio/apex/libreoffice:latest','https://ghcr.io/xynes-studio/apex/libreoffice@'+self.digest):
+            manifest=copy.deepcopy(self.manifest);manifest['processors']['libreoffice']['reuse']['image']=value
+            with self.subTest(value=value),self.assertRaises(ValueError):tool().source_context.validate_manifest(manifest,'planning')
+        self.manifest['processors']['libreoffice']['reuse']['unexpected']=True
+        with self.assertRaises(ValueError):tool().source_context.validate_manifest(self.manifest,'planning')
+    def test_release_record_cannot_substitute_a_new_subject_for_reuse_pin(self):
+        task=self.task();image={'image':'ghcr.io/xynes-studio/apex/libreoffice@sha256:'+'0'*64,'platform':'linux/amd64',
+            'source_commit':task['source_commit'],'recipe_sha256':task['recipe_sha256'],'build_inputs_sha256':task['build_inputs_sha256']}
+        with self.assertRaises(ValueError):tool().records.validate_image(image,'libreoffice',self.controller,self.manifest,'ghcr.io/xynes-studio/apex')
+
+    def test_reuse_of_other_processors_is_refused(self):
+        manifest=copy.deepcopy(self.manifest);manifest['processors']['archive-scanner']['reuse']=manifest['processors']['libreoffice'].pop('reuse')
+        with self.assertRaises(ValueError):tool().source_context.validate_manifest(manifest,'planning')
+    def test_reconstructed_archive_preserves_exact_subject_config_layers(self):
+        self.assertTrue(callable(getattr(tool(),'reuse_oci',None)),'Read-only OCI reuse importer is missing')
+        task=self.task();path=self.base/'new.tar';calls=[]
+        import registry_io
+        manifest=self.files['blobs/sha256/'+self.digest.split(':')[1]]
+        class Transport:
+            def request(inner,method,url,**kw):
+                calls.append((method,url,kw));self.assertFalse(kw['follow_redirects']);self.assertEqual(method,'GET');self.assertEqual(kw['body'],b'')
+                if '/token?' in url:return registry_io.Response(200,{'Content-Type':'application/json'},encoded({'token':'A'*32}))
+                if not kw['headers'].get('Authorization'):
+                    return registry_io.Response(401,{'WWW-Authenticate':'Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:xynes-studio/apex/libreoffice:pull"'})
+                return registry_io.Response(200,{'Content-Type':tool().OCI_MANIFEST,'Docker-Content-Digest':self.digest},manifest)
+        def fetch_blob(desc,dest,bearer,deadline):
+            self.assertEqual(bearer,'A'*32);dest.write_bytes(self.files['blobs/sha256/'+desc['digest'].split(':')[1]])
+        tool().reuse_oci(path,task,transport=Transport(),blob_fetcher=fetch_blob)
+        result=tool().inspect_oci(path,task);self.assertEqual(result['manifest_digest'],self.digest)
+        prior=tool().inspect_oci(self.base/'prior.tar',self.original);self.assertEqual(result['config_digest'],prior['config_digest'])
+        self.assertNotEqual(result['build_inputs_sha256'],prior['build_inputs_sha256'])
+        self.assertTrue(any('scope=repository%3Axynes-studio%2Fapex%2Flibreoffice%3Apull' in x[1] for x in calls))
+    def test_explicit_pull_credential_is_hidden_and_sent_only_to_exact_token_endpoint(self):
+        self.assertTrue(callable(getattr(tool(),'GitHubPullCredential',None)),'Explicit read-only pull credential type is missing')
+        credential=tool().GitHubPullCredential('fixture-actor','DO_NOT_EXPOSE_READ_TOKEN_'+'A'*32)
+        self.assertNotIn(credential.token,repr(credential));task=self.task();calls=[]
+        import registry_io
+        manifest=self.files['blobs/sha256/'+self.digest.split(':')[1]]
+        class Transport:
+            def request(inner,method,url,**kw):
+                calls.append((url,kw['headers']))
+                if '/token?' in url:
+                    import base64
+                    self.assertEqual(kw['headers'],{'Authorization':'Basic '+base64.b64encode(('fixture-actor:'+credential.token).encode()).decode()})
+                    return registry_io.Response(200,{'Content-Type':'application/json'},encoded({'token':'B'*32}))
+                if not kw['headers'].get('Authorization'):return registry_io.Response(401,{'WWW-Authenticate':'Bearer realm="https://ghcr.io/token",service="ghcr.io"'})
+                return registry_io.Response(200,{'Content-Type':tool().OCI_MANIFEST,'Docker-Content-Digest':self.digest},manifest)
+        def blob(desc,dest,bearer,deadline):
+            self.assertEqual(bearer,'B'*32);dest.write_bytes(self.files['blobs/sha256/'+desc['digest'].split(':')[1]])
+        tool().reuse_oci(self.base/'private.tar',task,credential=credential,transport=Transport(),blob_fetcher=blob)
+        self.assertEqual(sum(h.get('Authorization','').startswith('Basic ') for _,h in calls),1)
+
+    def test_corrupt_reused_blob_or_mismatched_subject_refuses(self):
+        self.assertTrue(callable(getattr(tool(),'reuse_oci',None)),'Read-only OCI reuse importer is missing')
+        task=self.task()
+        import registry_io
+        manifest=self.files['blobs/sha256/'+self.digest.split(':')[1]]
+        class Transport:
+            def request(inner,method,url,**kw):
+                if '/token?' in url:return registry_io.Response(200,{'Content-Type':'application/json'},encoded({'token':'A'*32}))
+                if not kw['headers'].get('Authorization'):return registry_io.Response(401,{'WWW-Authenticate':'Bearer realm="https://ghcr.io/token",service="ghcr.io"'})
+                return registry_io.Response(200,{'Content-Type':tool().OCI_MANIFEST,'Docker-Content-Digest':self.digest},manifest)
+        def corrupt(desc,dest,bearer,deadline):dest.write_bytes(b'corrupt')
+        with self.assertRaises(ValueError):tool().reuse_oci(self.base/'corrupt.tar',task,transport=Transport(),blob_fetcher=corrupt)
+        task['reuse']['image']='ghcr.io/xynes-studio/apex/libreoffice@sha256:'+'0'*64
+        with self.assertRaises(ValueError):tool().reuse_oci(self.base/'wrong.tar',task,transport=Transport(),blob_fetcher=corrupt)
+
+
+class ReuseBlobTransportTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp=tempfile.TemporaryDirectory();self.addCleanup(self.tmp.cleanup);self.path=Path(self.tmp.name).resolve()/'blob'
+        self.body=b'approved opaque OCI blob';self.desc={'digest':'sha256:'+sha(self.body),'size':len(self.body)};self.calls=[]
+    def fetch(self,responses):
+        import time
+        queue=list(responses);outer=self
+        class Response:
+            def __init__(inner,row):inner.status,inner.metadata,body=row;inner.body=io.BytesIO(body)
+            def getheaders(inner):return list(inner.metadata.items()) if isinstance(inner.metadata,dict) else inner.metadata
+            def read(inner,n):return inner.body.read(n)
+        class Connection:
+            sock=None
+            def __init__(inner,host,**kw):
+                self.assertTrue(kw['context'].check_hostname);self.assertNotEqual(kw['context'].verify_mode,0)
+                inner.host=host;inner.response=Response(queue.pop(0))
+            def connect(inner):pass
+            def request(inner,method,target,headers):outer.calls.append((inner.host,method,target,dict(headers)))
+            def getresponse(inner):return inner.response
+            def close(inner):pass
+        with patch.object(tool().http.client,'HTTPSConnection',Connection):
+            tool().fetch_reuse_blob(self.desc,self.path,'A'*32,time.monotonic()+60)
+    def test_sole_cdn_hop_strips_authorization_and_retains_exact_bytes(self):
+        self.fetch([(307,{'Location':'https://pkg-containers.githubusercontent.com/ghcr1/blobs/sha256:fixture?sig=private'},b''),(200,{'Content-Length':str(len(self.body))},self.body)])
+        self.assertEqual(self.path.read_bytes(),self.body);self.assertEqual(self.calls[0][3],{'Authorization':'Bearer '+'A'*32});self.assertEqual(self.calls[1][3],{})
+        self.assertEqual([x[0] for x in self.calls],['ghcr.io','pkg-containers.githubusercontent.com'])
+    def test_unsafe_redirects_never_receive_a_token_or_create_blob(self):
+        targets=['http://pkg-containers.githubusercontent.com/x','https://evil.invalid/x','https://user@pkg-containers.githubusercontent.com/x','https://pkg-containers.githubusercontent.com:443/x','https://pkg-containers.githubusercontent.com//x','https://pkg-containers.githubusercontent.com/x?sig=%0dprivate','https://pkg-containers.githubusercontent.com/x#private']
+        for target in targets:
+            self.calls=[]
+            with self.subTest(target=target),self.assertRaises(ValueError) as caught:self.fetch([(307,{'Location':target},b'')])
+            self.assertEqual(len(self.calls),1);self.assertFalse(self.path.exists());self.assertNotIn(target,str(caught.exception))
+    def test_second_redirect_or_unapproved_status_refuses(self):
+        with self.assertRaises(ValueError):self.fetch([(307,{'Location':'https://pkg-containers.githubusercontent.com/x'},b''),(307,{'Location':'https://pkg-containers.githubusercontent.com/y'},b'')])
+        self.assertFalse(self.path.exists())
+        with self.assertRaises(ValueError):self.fetch([(302,{'Location':'https://pkg-containers.githubusercontent.com/x'},b'')])
+    def test_corruption_oversize_and_truncation_refuse(self):
+        for body in (b'wrong',self.body+b'extra',self.body[:-1]):
+            if self.path.exists():self.path.unlink()
+            with self.subTest(length=len(body)),self.assertRaises(ValueError):self.fetch([(200,{},body)])
+    def test_digest_header_mismatch_and_duplicate_header_refuse(self):
+        for headers in ({'Docker-Content-Digest':'sha256:'+'0'*64},[('Content-Length',str(len(self.body))),('Content-Length',str(len(self.body)))]):
+            with self.subTest(headers=headers),self.assertRaises(ValueError):self.fetch([(200,headers,self.body)])
+            self.assertFalse(self.path.exists())
+    def test_ambiguous_transfer_framing_refuses(self):
+        with self.assertRaises(ValueError):self.fetch([(200,{'Transfer-Encoding':'chunked','Content-Length':str(len(self.body))},self.body)])
+    def test_existing_destination_is_never_overwritten(self):
+        self.path.write_bytes(b'owned earlier attempt')
+        with self.assertRaises(ValueError):self.fetch([(200,{},self.body)])
+        self.assertEqual(self.path.read_bytes(),b'owned earlier attempt')
+
+
+class ReuseDeadlineTest(unittest.TestCase):
+    def test_slow_headers_body_and_chunk_framing_respect_shared_absolute_deadline(self):
+        for stage in ('headers','body','chunk-framing'):
+            with self.subTest(stage=stage):
+                now=[0.0];body=b'DATA'
+                header=(b'HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\n' if stage!='chunk-framing' else b'HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n')
+                wire=header+(body if stage!='chunk-framing' else b'4;extension=slow\r\nDATA\r\n0\r\n\r\n');start=0 if stage=='headers' else len(header)
+                class Drip(io.BytesIO):
+                    def read1(inner,n):
+                        if inner.tell()>=start:now[0]+=0.25
+                        return inner.read(min(n,1))
+                class Socket:
+                    def settimeout(inner,value):pass
+                    def makefile(inner,*a,**kw):return Drip(wire)
+                class Connection:
+                    def __init__(inner,*a,**kw):inner.sock=Socket()
+                    def connect(inner):pass
+                    def request(inner,*a,**kw):pass
+                    def getresponse(inner):
+                        response=inner.response_class(inner.sock,method='GET');response.begin();return response
+                    def close(inner):pass
+                with patch.object(tool().http.client,'HTTPSConnection',Connection),patch.object(tool().time,'monotonic',lambda:now[0]),self.assertRaises(ValueError):
+                    tool().reuse_get('https://ghcr.io/token?fixture',{},1.0)
+                self.assertLessEqual(now[0],1.0)
 
 
 if __name__=='__main__':unittest.main()

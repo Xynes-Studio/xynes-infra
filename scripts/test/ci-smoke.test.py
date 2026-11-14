@@ -157,6 +157,9 @@ class EntrypointTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('ci_migration_fixture', ROOT / 'scripts/test/migration-transport.test.py')
         migration = importlib.util.module_from_spec(spec); spec.loader.exec_module(migration)
         self.fixture = migration.Tests(); self.fixture.setUp(); self.addCleanup(self.fixture.doCleanups)
+        # This fixture builds synthetic fresh OCI images, never the approved registry subject.
+        self.fixture.manifest['processors']['libreoffice'].pop('reuse',None)
+        self.fixture.manifest_bytes=(json.dumps(self.fixture.manifest,indent=2)+'\n').encode()
         self.fixture.create()
         self.manifest = self.fixture.manifest; self.controller = self.fixture.controller
         self.raw = self.fixture.manifest_bytes
