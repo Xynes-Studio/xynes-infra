@@ -320,7 +320,7 @@ def validate_assets(assets,*,stage,driver,record=None,expected=None):
 
 def origin_bundle(assets,state,current,publication=None):
     # A failed initial origin has no acceptance authority. Only the fixed,
-    # separately root-reviewed QA packet can bridge it to one real successor.
+    # separately root-reviewed QA/staging packet can bridge it to one real successor.
     try:
         from . import host_assets
     except ImportError:
@@ -414,10 +414,25 @@ def execute_locked(*,stage,request,work,state,native,operations,current,driver):
     previous=None
     if previous_record is not None:
         previous=validate_assets(operations.load_release(stage,previous_record),stage=stage,driver=driver,record=previous_record)
+    # An unaccepted staging rollout can supply only operational replacement
+    # inputs. It never becomes the accepted previous release or rollback target.
+    operational_previous=previous.prepared if previous else None
+    initial_runtime=None
+    if previous is None and stage=='staging':
+        try:from . import host_assets
+        except ImportError:import host_assets
+        initial_runtime=host_assets.Store(stage).initial_runtime(state,current.migration,current.publication)
+        if initial_runtime is not None:
+            require(type(initial_runtime) is host_compose.InitialRuntime and callable(getattr(driver,'validate_initial_runtime',None)))
+            operational_previous=driver.validate_initial_runtime(current.prepared,initial_runtime)
+            require(operational_previous is initial_runtime.prepared)
     prior=origin_bundle(previous,state,current.migration,current.publication)
     current=ReleaseAssets(**{**current.__dict__,'origin':prior or current.migration})
     audit=target(operations.target_audit(stage,current,previous),stage=stage,current=current,
                  previous=previous,now=clock(operations))
+    if initial_runtime is not None:
+        require(audit['database_state']=='existing'
+            and audit['database_container_id']==initial_runtime.containers['supabase-db']['id'])
     # Expensive artifact/config checks precede this fresh write-boundary read.
     proofs={'admission':[admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256)],'target':copy.deepcopy(audit),'backups':[]}
     started_at=clock(operations)
@@ -439,7 +454,7 @@ def execute_locked(*,stage,request,work,state,native,operations,current,driver):
             proofs['backups'].append(backup(operations.backup(stage,phase='before-bootstrap',current=current,previous=previous,state=state,token=token),
                 stage=stage,started_at=started_at,now=clock(operations)));step='backup-before-bootstrap'
         proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256));mutated=True
-        result=driver.bootstrap(current.prepared,previous=previous.prepared if previous else None)
+        result=driver.bootstrap(current.prepared,previous=operational_previous)
         require(type(result) is dict and result.get('stage')==stage and result.get('services_ready')==2);step='bootstrap'
         proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
         proofs['backups'].append(backup(operations.backup(stage,phase='before-sql',current=current,previous=previous,state=state,token=token),
@@ -460,7 +475,7 @@ def execute_locked(*,stage,request,work,state,native,operations,current,driver):
         require(type(seeded) is dict and seeded.get('stage')==stage and seeded.get('seeds_applied') is True)
         proofs['seeds']=seeded;step='seeds'
         phase='runtime';proofs['admission'].append(admission(stage,request,native,source_sha256=current.migration.source_manifest_sha256))
-        result=driver.start(current.prepared,previous=previous.prepared if previous else None)
+        result=driver.start(current.prepared,previous=operational_previous)
         require(type(result) is dict and result.get('stage')==stage and result.get('services_ready')==14);step='start'
         phase='smoke'
         observed=smoke(operations.product_smoke(current,phase='current'),current,stage=stage,

@@ -124,6 +124,55 @@ generic-command, Docker/socket, secret-file and sudo denial. Retain the prior
 immutable library and protected convergence ledger for recovery. Fixture-root
 execution exercises file transactions without granting live-host readiness.
 
+## Interrupted first rollouts
+
+Two fixed failed initial origins, for QA and staging, can use separately
+root-reviewed recovery packets under
+`/var/lib/xynes/deploy/initial-baselines/<stage>`. There is no generic failed-origin
+adoption API or production exception. Each immutable packet binds the exact failed
+request, complete verified migration bundle, all 40 unchanged SQL content hashes,
+database container/data-directory identity, native proof and one successor source
+commit/manifest. Separately protected fresh builds of that successor source remain
+eligible. The packet does not grant application acceptance or bypass release gates.
+
+A known failed origin without its packet refuses before SQL. Existing migration
+rows and their original source commits remain unchanged. The first genuinely
+accepted successor anchors later upgrades; retain its original migration bundle
+and recovery packet. Packet creation is a separate reviewed root operation, never
+an automatic deployment repair or database reset.
+
+The fixed staging packet may additionally seal `runtime/compose.json` and a
+`runtime` record containing the old Prepared Compose digest, all 14 immutable image
+pointers, Storage process generation, and all 14 exact container IDs/image pairs.
+The catalog covers the extra file; its database CID must match the separately
+reviewed database identity. This record is staging-only and remains optional for
+reading a historical SQL-origin capsule. A native retry of the fixed unaccepted
+staging rollout requires it before beginning an attempt; a SQL-origin packet
+alone grants no authority to adopt an existing application's runtime.
+
+Before beginning an attempt, the native Driver checks this operational baseline's
+full old Compose contract, every current CID/image/ownership label and every
+service's Compose configuration hash. Non-frontend services must be ready;
+frontends may be in their ordinary idle state only with a healthy last check,
+exit code 0 or 143, no OOM kill and no native runtime error. A changed CID or partially replaced
+successor refuses and requires separate root reconciliation. Deployment never
+updates the capsule automatically.
+
+This operational baseline is passed only to native bootstrap/replacement and
+Storage drain checks. It is not an accepted previous release, a rollback target,
+a promotion record, or application acceptance. Backups, persistence and rollback
+retain the real accepted-release pointer. Once an actual staging release is
+accepted, normal accepted assets replace this operational input.
+
+Remote processors whose complete service configuration is unchanged remain
+subject to `--no-recreate`; replacement of a live remote processor remains
+forbidden. Optional LibreOffice image reuse requires its exact approved pin,
+complete build-input content identity, verified raw OCI bytes and fresh provenance
+for the new run. Package-read permission belongs only to the coordinator job.
+Native Mounts inventories compare canonical ordering of complete mount records;
+no field or duplicate record is discarded, and all existing guard identity,
+permission, generation and quiescence checks remain enforced.
+
 ## Private failure diagnostics
 
 The SSH/workflow output stays the fixed `Deployment dispatch refused`. On any

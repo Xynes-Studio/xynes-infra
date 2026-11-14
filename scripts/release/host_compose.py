@@ -61,6 +61,9 @@ UP = ('up','-d','--no-build','--no-deps','--pull','always','--quiet-pull','--wai
 INSPECT = ('{"id":{{json .Id}},"image":{{json .Config.Image}},"labels":{{json .Config.Labels}},'
            '"state":{{json .State.Status}},"health":{{if .State.Health}}{{json .State.Health.Status}}{{else}}null{{end}}}')
 
+INITIAL_STOPPED_INSPECT = ('{"id":{{json .Id}},"state":{{json .State.Status}},'
+                           '"exit_code":{{json .State.ExitCode}},"oom":{{json .State.OOMKilled}},"error":{{json .State.Error}}}')
+
 # Fixed labels for the root-only diagnostic record; never argv values or output.
 COMPOSE_COMMANDS=('config','up','ps','pull','run','create','start','stop','exec')
 DOCKER_COMMANDS=('ps','inspect','pull','create','start','wait','rm','exec','logs','version','cp','kill','stop',
@@ -241,6 +244,13 @@ class Prepared:
     host_approved: bool = False
     storage_generation: str = None
 
+@dataclass(frozen=True)
+class InitialRuntime:
+    """Root-sealed operational baseline; it conveys no release acceptance."""
+    prepared: Prepared
+    containers: dict = field(repr=False)
+    capsule_sha256: str
+
 class Driver:
     def __init__(self, stage, *, runner=run_command, environment_loader=stage_environment, storage_control=None,idle_control=None):
         require(stage in STAGES and callable(runner) and callable(environment_loader))
@@ -402,6 +412,35 @@ class Driver:
                 require(row['state']=='running' and row['health']=='healthy')
         if ready: require(required <= seen)
         return inventory
+
+    def validate_initial_runtime(self,current,baseline):
+        """Validate the exact old staging runtime before the ledger may begin."""
+        try:
+            require(self.stage=='staging' and type(baseline) is InitialRuntime
+                and type(baseline.capsule_sha256) is str and CID.fullmatch(baseline.capsule_sha256))
+            previous=baseline.prepared;self.config(current);self.config(previous)
+            require(previous.images['IMAGE_SUPABASE_DB']==current.images['IMAGE_SUPABASE_DB']
+                and type(baseline.containers) is dict and set(baseline.containers)==SERVICES)
+            inventory=self.inspect({svc:{previous.images[key]} for svc,key in SERVICE_IMAGES.items()},
+                ready=True,required=SERVICES-{'auth-app','cms-console-web'})
+            require(set(inventory)==SERVICES)
+            for service,row in inventory.items():
+                expected=baseline.containers[service]
+                require(type(expected) is dict and set(expected)=={'id','image'} and row['id']==expected['id']
+                    and row['image']==expected['image']==previous.images[SERVICE_IMAGES[service]])
+                if service in ('auth-app','cms-console-web'):
+                    require(row['state'] in ('running','exited') and row['health']=='healthy')
+                    if row['state']=='exited':
+                        stopped=json.loads(self.call(['inspect','--format',INITIAL_STOPPED_INSPECT,row['id']],limit=1024))
+                        require(type(stopped) is dict and set(stopped)=={'id','state','exit_code','oom','error'}
+                            and stopped['id']==row['id'] and stopped['state']=='exited'
+                            and type(stopped['exit_code']) is int and stopped['exit_code'] in (0,143)
+                            and stopped['oom'] is False and stopped['error']=='')
+                raw=self.call(self.compose(previous.file)+['config','--hash',service],timeout=30,limit=1024)
+                match=re.fullmatch((service+r' ([a-f0-9]{64})\n').encode(),raw)
+                require(match is not None and row['labels'].get('com.docker.compose.config-hash')==match[1].decode('ascii'))
+            return previous
+        except Exception:raise ComposeError(ERROR) from None
 
     def bootstrap(self, prepared, *, previous=None):
         """Only start pinned DB/Auth; the caller must migrate/seed before start()."""

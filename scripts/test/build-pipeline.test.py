@@ -119,6 +119,31 @@ class Tests(unittest.TestCase):
   with patch.dict(os.environ,self.env,clear=True),self.assertRaises(self.module.PipelineError):
    self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=self.cleanup_command(61),execute=self.execute,migration_writer=self.migration_writer)
   self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-4:]],[('image-batch','start'),('image-batch','failure'),('builder-cleanup','start'),('builder-cleanup','success')])
+ def prepare_reuse(self):
+  task=next(t for t in image_build.build_tasks(self.manifest,self.public,self.controller,'release') if t['workload']=='libreoffice')
+  temporary=self.base/'approved-processor.oci.tar';_,digest=IMAGE.archive(temporary,task['labels']);temporary.unlink()
+  self.manifest['processors']['libreoffice']['reuse']={'image':'ghcr.io/xynes-studio/apex/libreoffice@'+digest,
+   'content_sha256':records.processor_content_identity(self.manifest,'libreoffice')}
+  self.manifest_bytes=json.dumps(self.manifest).encode();(self.root/'infra/release/source-manifest.json').write_bytes(self.manifest_bytes)
+  self.refresh();self.env['GITHUB_JOB']='build-images'
+ def test_reuse_passes_ephemeral_read_credential_only_as_in_memory_argument(self):
+  self.prepare_reuse();seen=[]
+  def execute(*args,**kwargs):
+   seen.append(kwargs);return self.execute(*args)
+  with patch.dict(os.environ,self.env,clear=True):
+   self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=self.command,execute=execute,migration_writer=self.migration_writer)
+  self.assertEqual(len(seen),1);self.assertEqual(set(seen[0]),{'reuse_credential'})
+  credential=seen[0]['reuse_credential'];self.assertEqual(credential.actor,self.env['GITHUB_ACTOR'])
+  self.assertEqual(credential.token,self.env['GH_TOKEN']);self.assertNotIn(credential.token,repr(credential))
+  for argv,environment,cwd,timeout in self.commands:
+   self.assertNotIn(self.env['GH_TOKEN'],str(argv));self.assertNotIn('GH_TOKEN',environment)
+  self.assertNotIn(self.env['GH_TOKEN'],self.captured.getvalue())
+ def test_actual_os_environ_entrypoint_keeps_pull_credential_when_child_environment_is_cleared(self):
+  self.prepare_reuse();seen=[]
+  def execute(*args,**kwargs):seen.append(kwargs);return self.execute(*args)
+  with patch.dict(os.environ,self.env,clear=True):
+   self.module.build(os.environ,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=self.command,execute=execute,migration_writer=self.migration_writer)
+  self.assertEqual(seen[0]['reuse_credential'].token,self.env['GH_TOKEN'])
  def test_migration_failure_has_phase_without_raw_error(self):
   self.env['GITHUB_JOB']='build-images';self.fail_migration=True;self.refuse()
   self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-2:]],[('migration-export','start'),('migration-export','failure')])

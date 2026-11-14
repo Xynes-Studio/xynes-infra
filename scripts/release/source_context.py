@@ -112,7 +112,14 @@ def validate_manifest(manifest, purpose):
     require(all(isinstance(x, str) and IMAGE.fullmatch(x) for x in bases), 'Every base image requires a digest')
     exact_keys(manifest['processors'], PROCESSOR_FILES, 'processor inventory')
     for name, processor in manifest['processors'].items():
-        exact_keys(processor, {'source', 'context_prefix', 'recipe', 'sha256', 'target', 'platform', 'files', 'base_images'}, 'processor')
+        fields={'source', 'context_prefix', 'recipe', 'sha256', 'target', 'platform', 'files', 'base_images'}
+        if isinstance(processor,dict) and 'reuse' in processor:
+            require(name=='libreoffice','Only LibreOffice supports reviewed immutable reuse')
+            fields.add('reuse');reuse=processor['reuse']
+            exact_keys(reuse,{'image','content_sha256'},'processor reuse')
+            require(isinstance(reuse['image'],str) and re.fullmatch(r'ghcr\.io/xynes-studio/apex/libreoffice@sha256:[a-f0-9]{64}',reuse['image'])
+                    and isinstance(reuse['content_sha256'],str) and DIGEST.fullmatch(reuse['content_sha256']),'Invalid immutable processor reuse')
+        exact_keys(processor, fields, 'processor')
         require(processor['source'] == 'xynes-storage-service'
                 and processor['context_prefix'] == 'sidecars/' + name
                 and processor['recipe'] == 'infra/images/' + name + '.Dockerfile'

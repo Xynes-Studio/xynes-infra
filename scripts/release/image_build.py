@@ -1,19 +1,27 @@
 #!/usr/bin/env python3
-"""Build fifteen credential-free OCI archives; never publish, attest or deploy."""
+"""Build fifteen verified OCI archives; optional pull credentials stay in the coordinator."""
 import argparse
+import base64
 import contextlib
 import gzip
 import hashlib
+import http.client
+import io
 import json
 import os
 from pathlib import Path
+from dataclasses import dataclass
 import re
 import shutil
 import stat
+import ssl
 import subprocess
 import sys
 import tarfile
+import tempfile
+import time
 from types import SimpleNamespace
+from urllib.parse import urlencode, urlsplit
 import zlib
 
 try:
@@ -31,6 +39,13 @@ MAX_ARCHIVE = 2 * 1024 ** 3
 MAX_EXPANDED = 4 * 1024 ** 3
 NAMESPACE_KIND = 'namespace-qualification-only'
 NAMESPACE_RECIPE = hashlib.sha256(b'xynes-apex-namespace-v1:linux/amd64;zero-layers;labels-only').hexdigest()
+
+
+@dataclass(frozen=True,repr=False)
+class GitHubPullCredential:
+    """Explicit build-coordinator pull-only credential; never child environment."""
+    actor: str
+    token: str
 
 
 class BuildError(ValueError):
@@ -75,7 +90,7 @@ DIAGNOSTIC_PHASES = frozenset(('controller', 'admission-intake', 'input-qualific
     'tracked-source-manifest', 'source-materialize', 'migration-export', 'migration-qualification',
     'builder-create', 'image-batch', 'image-qualification', 'builder-cleanup', 'image-tasks',
     'image-output', 'context-qa', 'context-staging', 'context-prod', 'image-recipes',
-    'image-build', 'image-inspect', 'image-receipts', 'initial-policy', 'admission-artifact',
+    'image-build', 'image-reuse', 'image-inspect', 'image-receipts', 'initial-policy', 'admission-artifact',
     'source-qualification', 'build-artifact', 'namespace-qualification', 'image-publication-batch',
     'publication-receipt', 'registry-challenge', 'registry-token', 'registry-blob-upload',
     'registry-manifest-upload', 'registry-manifest-readback', 'registry-config-readback'))
@@ -136,7 +151,7 @@ def emit_event(phase, status, task=None, output_root=None, failure=None):
     require(type(phase) is str and phase in DIAGNOSTIC_PHASES
             and type(status) is str and status in ('start', 'success', 'failure')
             and (task is None or (type(task) is str and task in DIAGNOSTIC_TASKS
-                 and phase in ('image-build', 'image-inspect'))))
+                 and phase in ('image-build', 'image-reuse', 'image-inspect'))))
     if failure is not None:
         require(phase=='image-build' and status=='failure' and type(failure) is dict
                 and set(failure)=={'error_kind','returncode','log_tail_available','observed_log_signals','observed_step_exit_code'}
@@ -212,11 +227,12 @@ def build_tasks(manifest, public, controller, purpose):
                 args = {'SOURCE_DATE_EPOCH': str(epoch)}
                 labels = {'org.opencontainers.image.source': 'https://github.com/' + controller['repository'],
                           'com.xynes.apex.processor-content-sha256': content}
+            reuse=recipe.get('reuse') if name=='libreoffice' else None
             tasks.append({'id': task_id, 'workload': name, 'environment': stage,
                           'platform': 'linux/amd64', 'target': 'prod', 'context': context,
                           'dockerfile': dockerfile, 'source_commit': manifest['sources'][owner]['commit'],
                           'recipe_sha256': recipe['sha256'], 'build_inputs_sha256': digest, 'build_args': args,
-                          'labels': labels})
+                          'labels': labels, **({'reuse':dict(reuse)} if reuse is not None else {})})
     return tasks
 
 
@@ -343,6 +359,8 @@ def inspect_oci(path, task):
             require(os.path.samestat(opened, after) and os.path.samestat(opened, final)
                     and (before.st_size, before.st_mtime_ns, before.st_ctime_ns)
                     == (after.st_size, after.st_mtime_ns, after.st_ctime_ns) and archive_size == before.st_size)
+        if 'reuse' in task:
+            require(task['workload']=='libreoffice' and 'ghcr.io/xynes-studio/apex/libreoffice@'+manifest_digest==task['reuse']['image'])
         return {'workload': task['workload'], 'environment': task['environment'], 'platform': 'linux/amd64',
                 'manifest_digest': manifest_digest, 'config_digest': config_digest, 'archive_sha256': archive_hash,
                 'archive_size': archive_size, 'source_commit': task['source_commit'],
@@ -352,7 +370,191 @@ def inspect_oci(path, task):
         raise BuildError('Image archive refused: malformed or unavailable content') from None
 
 
-def execute(manifest, public, controller, purpose, workspace, output, builder, docker_config):
+@contextlib.contextmanager
+def reuse_response(url,values,deadline):
+    """One verified HTTPS GET with absolute header/framing/body deadline."""
+    try:
+        from . import registry_io,github_read
+    except ImportError:
+        import registry_io,github_read
+    connection=None
+    try:
+        require(isinstance(url,str) and 0<len(url)<=8192 and all(33<=ord(c)<=126 for c in url))
+        parsed=urlsplit(url)
+        require(parsed.path.startswith('/') and not parsed.path.startswith('//') and parsed.scheme=='https' and parsed.netloc in ('ghcr.io',registry_io.CONFIG_CDN_HOST)
+                and not parsed.username and not parsed.password and not parsed.fragment and parsed.port is None)
+        if parsed.netloc==registry_io.CONFIG_CDN_HOST:require(values=={})
+        remaining=deadline-time.monotonic();require(0<remaining<=300)
+        context=ssl.create_default_context();require(context.check_hostname and context.verify_mode==ssl.CERT_REQUIRED)
+        connection=http.client.HTTPSConnection(parsed.netloc,timeout=min(120,remaining),context=context)
+        def bounded_response(sock,*args,**kwargs):
+            response=http.client.HTTPResponse(sock,*args,**kwargs)
+            response.fp=github_read.DeadlineReader(response.fp,sock,deadline)
+            return response
+        connection.response_class=bounded_response
+        connection.connect();remaining=deadline-time.monotonic();require(remaining>0)
+        if connection.sock is not None:connection.sock.settimeout(min(120,remaining))
+        connection.request('GET',parsed.path+('?' + parsed.query if parsed.query else ''),headers=values)
+        response=connection.getresponse();pairs=response.getheaders();require(len(pairs)<=100)
+        metadata=registry_io.headers(registry_io.Response(response.status,dict(pairs)))
+        require(len(metadata)==len(pairs) and deadline-time.monotonic()>0)
+        require('transfer-encoding' not in metadata or (metadata['transfer-encoding'].lower()=='chunked' and 'content-length' not in metadata))
+        yield response,metadata
+        require(deadline-time.monotonic()>0)
+    except Exception:raise BuildError('Immutable processor HTTPS read refused') from None
+    finally:
+        if connection is not None:
+            try:connection.close()
+            except Exception:raise BuildError('Immutable processor HTTPS read refused') from None
+
+
+def reuse_get(url,values,deadline):
+    try:
+        from . import registry_io
+    except ImportError:
+        import registry_io
+    with reuse_response(url,values,deadline) as (response,metadata):
+        chunks=[];received=0
+        while True:
+            raw=response.read(min(65536,256*1024+1-received))
+            if not raw:break
+            received+=len(raw);require(received<=256*1024);chunks.append(raw)
+        return registry_io.Response(response.status,metadata,b''.join(chunks))
+
+
+def fetch_reuse_blob(descriptor, destination, bearer, deadline):
+    """Stream one approved blob; a sole HTTPS CDN hop never receives a token."""
+    try:
+        from . import registry_io
+    except ImportError:
+        import registry_io
+    try:
+        digest=descriptor['digest'];size=descriptor['size']
+        require(re.fullmatch(r'sha256:[a-f0-9]{64}',digest) and type(size) is int and 0<size<=MAX_ARCHIVE)
+        require(bearer is None or (isinstance(bearer,str) and registry_io.TOKEN_PATTERN.fullmatch(bearer)))
+        url='https://ghcr.io/v2/xynes-studio/apex/libreoffice/blobs/'+digest
+        values={'Authorization':'Bearer '+bearer} if bearer is not None else {}
+        for hop in range(2):
+            with reuse_response(url,values,deadline) as (response,metadata):
+                if response.status==307 and hop==0:
+                    location=metadata.get('location')
+                    require(isinstance(location,str) and 0<len(location)<=registry_io.MAX_SIGNED_URL
+                            and all(33<=ord(c)<=126 for c in location) and '#' not in location
+                            and not re.search(r'%(?:0[0-9a-f]|1[0-9a-f]|7f)',location,re.I))
+                    redirected=urlsplit(location)
+                    require(redirected.scheme=='https' and redirected.netloc==registry_io.CONFIG_CDN_HOST
+                            and redirected.port is None and not redirected.username and not redirected.password
+                            and not redirected.fragment and redirected.path.startswith('/') and not redirected.path.startswith('//'))
+                    url=location;values={};continue
+                require(response.status==200);registry_io.check_metadata(metadata,digest,size)
+                fd=os.open(destination,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600)
+                with os.fdopen(fd,'wb') as file:
+                    received=0;hashed=hashlib.sha256()
+                    while True:
+                        raw=response.read(min(65536,size+1-received))
+                        if not raw:break
+                        received+=len(raw);require(received<=size);hashed.update(raw);file.write(raw)
+                    require(received==size and 'sha256:'+hashed.hexdigest()==digest)
+                    file.flush();os.fsync(file.fileno())
+                return
+        require(False)
+    except Exception:raise BuildError('Immutable processor blob read refused') from None
+
+
+def reuse_oci(path,task,*,credential=None,transport=None,blob_fetcher=None):
+    """Import approved immutable LibreOffice bytes without loading or executing them.
+
+    The token exchange requests only pull. Exact descriptor hashes and the final
+    OCI inspector retain the original subject/config/layers; the archive and
+    provenance receipt belong to this run. No signed URL/token is persisted.
+    """
+    try:
+        from . import registry_io
+    except ImportError:
+        import registry_io
+    try:
+        require(task['workload']=='libreoffice' and task['environment'] is None
+                and set(task['reuse'])=={'image','content_sha256'}
+                and re.fullmatch(r'ghcr\.io/xynes-studio/apex/libreoffice@sha256:[a-f0-9]{64}',task['reuse']['image'])
+                and task['reuse']['content_sha256']==task['labels']['com.xynes.apex.processor-content-sha256'])
+        require(path.is_absolute() and path.parent.resolve(strict=True)==path.parent and not os.path.lexists(path))
+        blob_fetcher=blob_fetcher or fetch_reuse_blob
+        if credential is not None:
+            require(type(credential) is GitHubPullCredential and isinstance(credential.actor,str) and re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})",credential.actor)
+                    and isinstance(credential.token,str) and registry_io.TOKEN_PATTERN.fullmatch(credential.token))
+        deadline=time.monotonic()+300;repository='xynes-studio/apex/libreoffice';digest=task['reuse']['image'].split('@')[1]
+        def get(url,values):
+            remaining=deadline-time.monotonic();require(remaining>0)
+            response=(reuse_get(url,values,deadline) if transport is None else
+                transport.request('GET',url,headers=values,body=b'',timeout=min(30,remaining),max_response_bytes=256*1024,follow_redirects=False))
+            metadata=registry_io.headers(response)
+            require(isinstance(response.body,bytes) and len(response.body)<=256*1024 and time.monotonic()<deadline)
+            return response,metadata
+        manifest_url='https://ghcr.io/v2/'+repository+'/manifests/'+digest
+        probe,metadata=get(manifest_url,{'Accept':OCI_MANIFEST});require(probe.status in (200,401))
+        if probe.status==401:registry_io.validate_challenge(metadata.get('www-authenticate'),repository)
+        # Only the explicitly supplied protected coordinator credential may
+        # authenticate this read-only token exchange. It never reaches a child.
+        token_headers={}
+        if credential is not None:
+            token_headers={'Authorization':'Basic '+base64.b64encode((credential.actor+':'+credential.token).encode('ascii')).decode('ascii')}
+        token,metadata=get('https://ghcr.io/token?'+urlencode({'service':'ghcr.io','scope':'repository:'+repository+':pull'}),token_headers)
+        require(token.status==200 and metadata.get('content-type','').split(';')[0].strip()=='application/json')
+        value=records.strict_json(token.body.decode('utf8'))
+        require(isinstance(value,dict) and set(value)<={'token','access_token','expires_in','issued_at'})
+        bearer=value.get('token',value.get('access_token'));require(isinstance(bearer,str) and registry_io.TOKEN_PATTERN.fullmatch(bearer))
+        if 'expires_in' in value:
+            require(type(value['expires_in']) is int and 0<value['expires_in']<=3600)
+            deadline=min(deadline,time.monotonic()+value['expires_in'])
+        response,metadata=get(manifest_url,{'Accept':OCI_MANIFEST,'Authorization':'Bearer '+bearer})
+        require(response.status==200 and metadata.get('content-type','').split(';')[0].strip()==OCI_MANIFEST)
+        manifest_raw=response.body;require('sha256:'+hashlib.sha256(manifest_raw).hexdigest()==digest)
+        registry_io.check_metadata(metadata,digest,len(manifest_raw),mandatory=True)
+        manifest=records.strict_json(manifest_raw.decode('utf8'))
+        require(isinstance(manifest,dict) and set(manifest)<={'schemaVersion','mediaType','config','layers','annotations'}
+                and manifest.get('schemaVersion')==2 and manifest.get('mediaType')==OCI_MANIFEST
+                and isinstance(manifest.get('layers'),list) and len(manifest['layers'])<=128)
+        descriptors=[manifest['config'],*manifest['layers']];total=len(manifest_raw);seen={}
+        for index,desc in enumerate(descriptors):
+            require(isinstance(desc,dict) and {'mediaType','digest','size'}<=set(desc)<={'mediaType','digest','size','platform','annotations'}
+                    and isinstance(desc['digest'],str) and re.fullmatch(r'sha256:[a-f0-9]{64}',desc['digest'])
+                    and type(desc['size']) is int and 0<desc['size']<=MAX_ARCHIVE
+                    and desc['mediaType'] in ({OCI_CONFIG} if index==0 else LAYER_TYPES))
+            if index==0:require(desc['size']<=records.MAX_BYTES)
+            if desc['digest'] in seen:require(desc==seen[desc['digest']])
+            else:total+=desc['size'];seen[desc['digest']]=desc
+        require(total<=MAX_ARCHIVE)
+        with tempfile.TemporaryDirectory(prefix='.processor-reuse-',dir=path.parent) as directory:
+            blobs={};directory=Path(directory)
+            for digest_key,desc in seen.items():
+                destination=directory/digest_key.split(':')[1];blob_fetcher(desc,destination,bearer,deadline)
+                info=destination.lstat();require(stat.S_ISREG(info.st_mode) and info.st_nlink==1 and info.st_uid==os.getuid() and info.st_size==desc['size'])
+                fd=os.open(destination,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
+                with os.fdopen(fd,'rb') as file:
+                    actual,size=hash_stream(file,MAX_ARCHIVE);require('sha256:'+actual==digest_key and size==desc['size'])
+                blobs['blobs/sha256/'+digest_key.split(':')[1]]=destination
+            encode=lambda value:json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False).encode()
+            documents={'oci-layout':encode({'imageLayoutVersion':'1.0.0'}),
+                       'index.json':encode({'schemaVersion':2,'manifests':[{'mediaType':OCI_MANIFEST,'digest':digest,'size':len(manifest_raw)}]}),
+                       'blobs/sha256/'+digest.split(':')[1]:manifest_raw}
+            fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o600)
+            with os.fdopen(fd,'wb') as file:
+                with tarfile.open(fileobj=file,mode='w:') as archive:
+                    for name,raw in documents.items():
+                        member=tarfile.TarInfo(name);member.size=len(raw);archive.addfile(member,io.BytesIO(raw))
+                    for name,blob in sorted(blobs.items()):
+                        member=tarfile.TarInfo(name);member.size=blob.stat().st_size
+                        fd=os.open(blob,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
+                        with os.fdopen(fd,'rb') as stream:archive.addfile(member,stream)
+                file.flush();os.fsync(file.fileno())
+        # The same inspector checks config labels, platform, every compressed
+        # layer and expanded diff_id, subject identity and no unreferenced blobs.
+        inspect_oci(path,task)
+    except Exception:
+        raise BuildError('Immutable processor OCI reuse refused') from None
+
+
+def execute(manifest, public, controller, purpose, workspace, output, builder, docker_config, *, reuse_credential=None):
     with diagnostic('image-tasks'):
         tasks = build_tasks(manifest, public, controller, purpose)
     with diagnostic('image-output'):
@@ -388,17 +590,21 @@ def execute(manifest, public, controller, purpose, workspace, output, builder, d
     # supplied secrets, GH_TOKEN, SSH_AUTH_SOCK or host-wide registry config.
     environment = {k: os.environ[k] for k in ('PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH') if k in os.environ}
     for task in tasks:
-        with diagnostic('image-build', task['id'], output) as details:
-            artifact = output / 'archives' / (task['id'] + '.oci.tar')
-            require(',' not in str(artifact) and '\n' not in str(artifact))
-            with (output / 'logs' / (task['id'] + '.log')).open('xb') as log:
-                try:
-                    subprocess.run(build_argv(task, output, artifact, builder, docker_config), env=environment,
-                                   stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=2400, check=True)
-                except (subprocess.SubprocessError,OSError) as error:
-                    try:details['build_failure']=build_failure_details(error,log)
-                    except Exception:pass
-                    raise
+        artifact = output / 'archives' / (task['id'] + '.oci.tar')
+        if 'reuse' in task:
+            with diagnostic('image-reuse',task['id'],output):reuse_oci(artifact,task,credential=reuse_credential)
+        else:
+            with diagnostic('image-build', task['id'], output) as details:
+                artifact = output / 'archives' / (task['id'] + '.oci.tar')
+                require(',' not in str(artifact) and '\n' not in str(artifact))
+                with (output / 'logs' / (task['id'] + '.log')).open('xb') as log:
+                    try:
+                        subprocess.run(build_argv(task, output, artifact, builder, docker_config), env=environment,
+                                       stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, timeout=2400, check=True)
+                    except (subprocess.SubprocessError,OSError) as error:
+                        try:details['build_failure']=build_failure_details(error,log)
+                        except Exception:pass
+                        raise
         with diagnostic('image-inspect', task['id']):
             receipts.append(inspect_oci(artifact, task))
     with diagnostic('image-receipts'):

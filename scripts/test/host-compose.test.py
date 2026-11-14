@@ -104,7 +104,11 @@ class Tests(unittest.TestCase):
         if 'ps' in argv:
             return ('\n'.join(row['id'] for row in self.containers)).encode()
         if 'inspect' in argv:
-            return json.dumps(next(row for row in self.containers if row['id'] == argv[-1])).encode()
+            row=next(row for row in self.containers if row['id']==argv[-1])
+            if '"exit_code":' in argv[argv.index('--format')+1]:
+                value={'id':row['id'],'state':row['state'],'exit_code':0,'oom':False,'error':''}
+                value.update(getattr(self,'stopped',{}));return json.dumps(value).encode()
+            return json.dumps(row).encode()
         if 'up' in argv:
             if self.up_failure:
                 raise RuntimeError('inert-secret-do-not-print')
@@ -127,8 +131,8 @@ class Tests(unittest.TestCase):
 
     def container(self, service, index=0):
         return dict(id=f'{index+1:064x}', image=self.config['services'][service]['image'],
-                    labels={'com.docker.compose.project':'xynes-qa', 'com.docker.compose.service':service,
-                            'com.docker.compose.oneoff':'False', 'com.docker.compose.config-hash':self.service_hash(self.config['services'][service]), 'com.xynes.managed':'true', 'com.xynes.environment':'qa'},
+                    labels={'com.docker.compose.project':'xynes-'+self.driver.stage, 'com.docker.compose.service':service,
+                            'com.docker.compose.oneoff':'False', 'com.docker.compose.config-hash':self.service_hash(self.config['services'][service]), 'com.xynes.managed':'true', 'com.xynes.environment':self.driver.stage},
                     state='running', health='healthy')
 
     def prepare(self):
@@ -139,6 +143,64 @@ class Tests(unittest.TestCase):
             callback()
         self.assertEqual(str(caught.exception), 'Hosted Compose operation refused')
         self.assertNotIn('inert', str(caught.exception))
+
+    def operational_fixture(self):
+        # Real inert staging rendering and the production config validator; only
+        # Docker's command boundary is injected, never Driver.config.
+        self.config=load('initial_runtime_render',ROOT/'scripts/test/hosted-release.test.py').HostedReleaseTests().render('staging')
+        points=self.module.image_pointers(stage='staging',**self.inputs)
+        for service,key in self.module.SERVICE_IMAGES.items():self.config['services'][service]['image']=points[key]
+        self.driver=self.module.Driver('staging',runner=self.run_command,environment_loader=lambda stage:None,
+            idle_control=SimpleNamespace(stage='staging',before_replace=lambda:None,rebind=lambda *args:None))
+        previous=self.driver.store(self.config,points,'b'*64,self.work)
+        updated=copy.deepcopy(self.config);updated['services']['storage-service']['labels']['com.xynes.storage-generation']='c'*64
+        for mount in updated['services']['storage-service']['volumes']:
+            if mount['target']=='/run/xynes/storage-control':mount['source']='/run/xynes/storage/staging/'+'c'*32
+        current=self.driver.store(updated,points,'c'*64,self.work)
+        self.containers=[self.container(s,i) for i,s in enumerate(sorted(self.module.SERVICES))]
+        self.stopped={}
+        bindings={r['labels']['com.docker.compose.service']:{'id':r['id'],'image':r['image']} for r in self.containers}
+        return current,self.module.InitialRuntime(previous,bindings,'f'*64)
+
+    def test_initial_runtime_validates_all_old_ids_images_and_config_hashes_readonly(self):
+        current,baseline=self.operational_fixture()
+        next(r for r in self.containers if r['labels']['com.docker.compose.service']=='auth-app')['state']='exited'
+        before=len(self.commands);self.driver.validate_initial_runtime(current,baseline)
+        self.assertTrue(self.commands[before:]);self.assertFalse(any('up' in c[0] or 'stop' in c[0] for c in self.commands[before:]))
+        for field,value in (('id','e'*64),('image',current.images['IMAGE_ACCOUNTS']+'wrong')):
+            old=copy.deepcopy(self.containers);self.containers[0][field]=value
+            self.refused(lambda:self.driver.validate_initial_runtime(current,baseline));self.containers=old
+        self.containers[0]['labels']['com.docker.compose.config-hash']='b'*64
+        self.refused(lambda:self.driver.validate_initial_runtime(current,baseline))
+
+    def test_initial_runtime_allows_old_images_for_bootstrap_only_through_explicit_previous(self):
+        from dataclasses import replace
+        current,baseline=self.operational_fixture()
+        images=copy.deepcopy(current.images);images['IMAGE_GATEWAY']='ghcr.io/xynes-studio/apex/xynes-gateway@sha256:'+'d'*64
+        config=self.driver.config(current);config['services']['gateway']['image']=images['IMAGE_GATEWAY']
+        current=self.driver.store(config,images,current.storage_generation,self.work)
+        self.driver.validate_initial_runtime(current,baseline)
+        calls=[]
+        class Guard:
+            def before_replacement(inner,prepared,previous,inventory,replacing,**kwargs):calls.append(previous)
+        self.driver.guard=Guard()
+        self.driver.bootstrap(current,previous=baseline.prepared)
+        self.assertEqual(calls,[baseline.prepared])
+        before=len(self.commands);self.refused(lambda:self.driver.bootstrap(current))
+        self.assertFalse(any('up' in c[0] for c in self.commands[before:]))
+
+    def test_exited_initial_frontend_requires_clean_stop_and_never_adopts_oom_or_crash(self):
+        current,baseline=self.operational_fixture()
+        row=next(r for r in self.containers if r['labels']['com.docker.compose.service']=='auth-app');row['state']='exited'
+        for change in ({'exit_code':137},{'oom':True},{'error':'runtime-error'},{'state':'running'}):
+            self.stopped=change;self.refused(lambda:self.driver.validate_initial_runtime(current,baseline))
+        self.stopped={'exit_code':143};self.driver.validate_initial_runtime(current,baseline)
+        row['health']='unhealthy';self.refused(lambda:self.driver.validate_initial_runtime(current,baseline))
+
+    def test_initial_runtime_rejects_partial_successor_and_other_stage(self):
+        current,baseline=self.operational_fixture();self.containers.pop()
+        self.refused(lambda:self.driver.validate_initial_runtime(current,baseline))
+        self.driver.stage='qa';self.refused(lambda:self.driver.validate_initial_runtime(current,baseline))
 
     def test_fresh_generation_binding_and_metadata_tampering_refused(self):
         first=self.prepare();second=self.prepare()

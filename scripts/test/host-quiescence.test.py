@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Private filesystem/native-stream fixtures; no hosted drain acceptance."""
-import importlib.util,json,os,socket,sys,tempfile,threading,time,unittest
+import copy,importlib.util,json,os,socket,sys,tempfile,threading,time,unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -41,7 +41,7 @@ class Tests(unittest.TestCase):
   self.guard=self.m.Guard('qa',self.state,root=self.root,owner_uid=os.geteuid(),service_uid=os.geteuid(),service_gid=os.getegid(),runner=self.docker,peer_reader=lambda sock:(os.getpid(),os.geteuid(),os.getegid()),process_verifier=lambda *args:None,claims_reader=lambda stage:self.running)
 
  def storage_row(self):
-  return {'id':self.cid,'image':self.images['IMAGE_STORAGE'],'labels':{'com.docker.compose.project':'xynes-qa','com.docker.compose.service':'storage-service','com.docker.compose.oneoff':'False','com.xynes.managed':'true','com.xynes.environment':'qa','com.xynes.storage-generation':self.generation},'state':'running','health':'healthy','pid':os.getpid(),'user':'1001:1001','enabled':True,'mounts':[{'Type':'bind','Source':'/etc/xynes/storage-control/qa/control.token','Destination':'/run/secrets/storage-quiesce-token','RW':False},{'Type':'bind','Source':'/run/xynes/storage/qa/'+self.generation[:32],'Destination':'/run/xynes/storage-control','RW':True}]}
+  return {'id':self.cid,'image':self.images['IMAGE_STORAGE'],'labels':{'com.docker.compose.project':'xynes-qa','com.docker.compose.service':'storage-service','com.docker.compose.oneoff':'False','com.xynes.managed':'true','com.xynes.environment':'qa','com.xynes.storage-generation':self.generation},'state':'running','health':'healthy','pid':os.getpid(),'user':'1001:1001','enabled':True,'mounts':[{'Type':'bind','Source':'/etc/xynes/storage-control/qa/control.token','Destination':'/run/secrets/storage-quiesce-token','Mode':'ro','RW':False,'Propagation':'rprivate'},{'Type':'bind','Source':'/run/xynes/storage/qa/'+self.generation[:32],'Destination':'/run/xynes/storage-control','Mode':'rw','RW':True,'Propagation':'rprivate'}]}
 
  def inventory(self):return {service:{key:row[key] for key in ('id','image','labels','state','health')} for service,row in self.rows.items()}
  def docker(self,argv,**kwargs):
@@ -80,6 +80,50 @@ class Tests(unittest.TestCase):
   self.assertEqual(self.messages[0][0],'/quiesce');self.assertEqual(self.messages[0][1]['owner'],self.token[:32])
   self.assertIn(b'Authorization: Bearer '+b'f'*64,self.messages[0][2])
   self.guard.resume();self.assertEqual(self.messages[-1][0],'/status')
+
+ def test_native_mount_order_changes_during_authenticated_control_are_equivalent(self):
+  # Synthetic Docker records only; no real inspect/security evidence enters Git.
+  volume={'Type':'volume','Name':'inert-definitions','Driver':'local','Source':'/var/lib/docker/volumes/inert-definitions/_data',
+   'Destination':'/var/lib/inert-definitions','Mode':'ro','RW':False,'Propagation':''}
+  self.rows['clamav-freshclam']={'id':'3'*64,'image':self.images['IMAGE_FRESHCLAM'],
+   'labels':{'com.docker.compose.project':'xynes-qa','com.docker.compose.service':'clamav-freshclam','com.docker.compose.oneoff':'False','com.xynes.managed':'true','com.xynes.environment':'qa'},
+   'state':'running','health':'healthy','pid':os.getpid(),'user':'0:0','enabled':False,
+   'mounts':[volume,{'Type':'bind','Source':'/inert/health.sh','Destination':'/opt/inert/health.sh','Mode':'ro','RW':False,'Propagation':'rprivate'}]}
+  def reordered(path,data):
+   for row in self.rows.values():row['mounts'].reverse()
+   return data
+  self.response=reordered
+  self.acquire();self.guard.verify_before_stop();self.guard.resume()
+  self.assertIsNone(self.guard.lease)
+  self.assertEqual([path for path,_,_ in self.messages],['/quiesce','/status','/resume','/status'])
+
+ def test_full_mount_fields_and_cardinality_remain_bound_after_sorting(self):
+  volume={'Type':'volume','Name':'inert-data','Driver':'local','Source':'/var/lib/docker/volumes/inert-data/_data',
+   'Destination':'/var/lib/inert-data','Mode':'rw','RW':True,'Propagation':''}
+  self.rows['storage-service']['mounts'].append(volume);self.acquire()
+  original=copy.deepcopy(self.rows['storage-service']['mounts'])
+  for field,value in [('Type','bind'),('Name','different'),('Driver','other'),('Source','/different'),('Destination','/different'),('Mode','ro'),('RW',False),('Propagation','rshared')]:
+   self.rows['storage-service']['mounts']=copy.deepcopy(original);self.rows['storage-service']['mounts'][-1][field]=value
+   with self.subTest(field=field),self.assertRaises(self.m.QuiescenceError):self.guard.verify_before_stop()
+  for extra in (False,True):
+   self.rows['storage-service']['mounts']=copy.deepcopy(original)
+   if extra:self.rows['storage-service']['mounts'].append({'Type':'bind','Source':'/inert/extra','Destination':'/inert/extra','Mode':'ro','RW':False,'Propagation':'rprivate'})
+   else:self.rows['storage-service']['mounts'].pop()
+   with self.subTest(extra=extra),self.assertRaises(self.m.QuiescenceError):self.guard.verify_before_stop()
+  self.rows['storage-service']['mounts']=original;self.guard.resume()
+
+ def test_malformed_native_mount_records_and_duplicate_destinations_refuse(self):
+  self.guard.allowed={service:{self.images[key]} for service,key in self.m.SERVICE_KEYS.items()}
+  original=copy.deepcopy(self.rows['storage-service']['mounts']);mount=original[0]
+  invalid=[None,[],{}, {k:v for k,v in mount.items() if k!='Destination'},
+   {**mount,'Destination':'relative'},{**mount,'Destination':'/inert/../target'},
+   {**mount,'RW':1},{**mount,'Source':'/bad\x00path'},{**mount,'extra':'not-a-native-field'}]
+  cases=[None,'mounts']+[copy.deepcopy(original)+[entry] for entry in invalid]
+  cases+=[copy.deepcopy(original)+[copy.deepcopy(mount)],copy.deepcopy(original)+[{**mount,'Source':'/different'}]]
+  for mounts in cases:
+   self.rows['storage-service']['mounts']=mounts
+   with self.subTest(mounts=mounts),self.assertRaises(self.m.QuiescenceError):self.guard.inventory()
+  self.rows['storage-service']['mounts']=original
 
  def test_false_proof_running_claims_short_lease_and_wrong_owner_refuse_resume(self):
   for change in ({'active_background':1},{'state':'timeout'},{'owner':'0'*32},{'expires_at':int(time.time()*1000)+1000}):

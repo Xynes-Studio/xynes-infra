@@ -45,6 +45,23 @@ class QuiescenceError(ValueError):pass
 def require(value):
     if not value:raise QuiescenceError(ERROR)
 
+def canonical_mounts(mounts):
+    """Docker Mounts order is not identity; retain every complete mount record."""
+    require(type(mounts) is list);result=copy.deepcopy(mounts);destinations=[]
+    for mount in result:
+        require(type(mount) is dict and mount.get('Type') in ('bind','volume'))
+        keys={'Type','Source','Destination','Mode','RW','Propagation'}
+        if mount['Type']=='volume':keys|={'Name','Driver'}
+        require(set(mount)==keys and type(mount['RW']) is bool)
+        for key in keys-{'RW'}:require(type(mount[key]) is str and '\x00' not in mount[key])
+        for key in ('Source','Destination'):
+            name=mount[key]
+            require(name.startswith('/') and str(Path(name))==name and not {'.','..'}.intersection(name.split('/')))
+        if mount['Type']=='volume':require(bool(mount['Name']) and bool(mount['Driver']))
+        destinations.append(mount['Destination'])
+    require(len(destinations)==len(set(destinations)))
+    return sorted(result,key=lambda mount:json.dumps(mount,sort_keys=True,separators=(',',':'),allow_nan=False))
+
 def stamp(info):
     return (info.st_dev,info.st_ino,info.st_uid,info.st_gid,info.st_mode,info.st_nlink,
         info.st_size,info.st_mtime_ns,info.st_ctime_ns)
@@ -156,6 +173,7 @@ class Guard:
                 and row['id']==ids[0] and row['image'] in self.allowed[service]
                 and type(row['pid']) is int and row['pid']>0 and row['state']=='running' and row['health']=='healthy'
                 and type(row['labels']) is dict and type(row['mounts']) is list)
+            row['mounts']=canonical_mounts(row['mounts'])
             labels=row['labels']
             expected={'com.docker.compose.project':'xynes-'+self.stage,'com.docker.compose.service':service,
                 'com.docker.compose.oneoff':'False','com.xynes.managed':'true','com.xynes.environment':self.stage}

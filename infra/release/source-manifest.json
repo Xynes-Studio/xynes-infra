@@ -292,7 +292,11 @@
       "base_images": [
         "debian:12-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587",
         "oven/bun:1.4.2@sha256:9114c058aeae42162ee16dd5084b95fe9473970bb6bcb5b232ab1630f0546895"
-      ]
+      ],
+      "reuse": {
+        "image": "ghcr.io/xynes-studio/apex/libreoffice@sha256:a6cea2adccaf4064a0ff216a41716a624ea72d2c65b866ccd037d78ffc410868",
+        "content_sha256": "0b2ec2097ec46e89266e2030b552ad0e7a0acce741219b91d7262dd22b02a4b4"
+      }
     }
   },
   "external_images": {

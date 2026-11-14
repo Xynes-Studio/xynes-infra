@@ -3,7 +3,7 @@
 
 The root coordinator validates native candidates and qualifies these assets both
 before and after persistence. No code, SQL or request-selected path executes
-here. Initial QA recovery additionally inspects the fixed DB container read-only.
+here. Fixed initial recovery additionally inspects the DB container read-only.
 Current/previous and the first migration origin remain data.
 Interrupted writes retain a private incomplete directory for reconciliation.
 """
@@ -32,6 +32,15 @@ INITIAL_ORIGIN_MANIFEST='3efa88877ad2095da4b8291c70439fb3606356501056b5e33b949a7
 INITIAL_ORIGIN_BASELINE='e4c769a64a873a8cc3bcd63d1f2eee7545f3bc8ca3ac1466c9c89a2ca1594ed5'
 INITIAL_FAILED_DEPLOYMENT={'run_id':39771693703,'run_attempt':1,'job_id':119800547985}
 INITIAL_FAILED_PUBLICATION={'id':12400586717,'digest':'sha256:f16043e734b307dd38a5020890133e7c5dc18fec30630df333bb2e54659d39b1'}
+# Independently reviewed first staging rollout: SQL completed, app smoke failed.
+# This is one fixed origin, with no authority to accept that failed app release.
+STAGING_BASELINE_ROOT=Path('/var/lib/xynes/deploy/initial-baselines/staging')
+STAGING_DATA=Path('/srv/xynes/staging/supabase/db')
+STAGING_ORIGIN_COMMIT='1e86e8dd418c418a511608687e3952858b93617c'
+STAGING_ORIGIN_MANIFEST='3bb9f2a594c6fddb25bc54c2f914b7b0fdcf31eeb8dbd38afdae1364f187b21b'
+STAGING_ORIGIN_BASELINE='e4c769a64a873a8cc3bcd63d1f2eee7545f3bc8ca3ac1466c9c89a2ca1594ed5'
+STAGING_FAILED_DEPLOYMENT={'run_id':42554238136,'run_attempt':1,'job_id':128956292366}
+STAGING_FAILED_PUBLICATION={'id':13556982352,'digest':'sha256:84c492fed690a37c6702ab178f1b1f3d846cabc5a516e0d52c8c421defadeb5d'}
 ERROR='Durable release assets refused'
 META_KEYS={'schema_version','artifact_kind','stage','token','controller','publication',
            'source_manifest_sha256','prepared','files','proofs'}
@@ -76,21 +85,34 @@ def fsync_directory(path):
     try:os.fsync(fd)
     finally:os.close(fd)
 
-def initial_database():
-    """Fixed QA target only; the root capsule never selects a path or command."""
+def initial_policy(stage):
+    """Two fixed reviewed origins; no request-selected path or trust policy."""
+    if stage=='qa':
+        return {'root':INITIAL_BASELINE_ROOT,'data':INITIAL_DATA,'commit':INITIAL_ORIGIN_COMMIT,
+            'manifest':INITIAL_ORIGIN_MANIFEST,'baseline':INITIAL_ORIGIN_BASELINE,
+            'deployment':INITIAL_FAILED_DEPLOYMENT,'publication':INITIAL_FAILED_PUBLICATION}
+    if stage=='staging':
+        return {'root':STAGING_BASELINE_ROOT,'data':STAGING_DATA,'commit':STAGING_ORIGIN_COMMIT,
+            'manifest':STAGING_ORIGIN_MANIFEST,'baseline':STAGING_ORIGIN_BASELINE,
+            'deployment':STAGING_FAILED_DEPLOYMENT,'publication':STAGING_FAILED_PUBLICATION}
+    return None
+
+def initial_database(stage='qa'):
+    """Fixed QA/staging target; the root capsule cannot select paths/commands."""
     try:
         from . import pg_container_bridge
     except ImportError:
         import pg_container_bridge
-    require(INITIAL_DATA.resolve(strict=True)==INITIAL_DATA)
-    for path in INITIAL_DATA.parents:
+    policy=initial_policy(stage);require(policy is not None);data=policy['data']
+    require(data.resolve(strict=True)==data)
+    for path in data.parents:
         info=path.lstat()
         require(stat.S_ISDIR(info.st_mode) and info.st_uid==ROOT_UID and not info.st_mode&0o022)
-    info=INITIAL_DATA.lstat()
+    info=data.lstat()
     require(stat.S_ISDIR(info.st_mode) and info.st_uid==info.st_gid==70
             and stat.S_IMODE(info.st_mode)==0o700)
-    container=pg_container_bridge.inspected_container('qa')
-    require(re.fullmatch(r'[a-f0-9]{64}',container) and stamp(INITIAL_DATA.lstat())==stamp(info))
+    container=pg_container_bridge.inspected_container(stage)
+    require(re.fullmatch(r'[a-f0-9]{64}',container) and stamp(data.lstat())==stamp(info))
     return {'container_id':container,'data_inode':[info.st_dev,info.st_ino],
             'data_uid':info.st_uid,'data_mode':stat.S_IMODE(info.st_mode)}
 
@@ -224,16 +246,17 @@ class Store:
         return verified
 
     def initial_capsule(self):
-        """Read a separately root-reviewed, immutable first-QA recovery packet.
+        """Read a separately root-reviewed, immutable QA/staging recovery packet.
 
         There is no request-selected path, automatic packet creation or implicit
         trust in a failed bundle. Root installs the digest and complete retained
         Verified origin only after reviewing native failure/target/release proof.
         """
-        if self.stage!='qa':return None
-        root=INITIAL_BASELINE_ROOT
+        policy=initial_policy(self.stage)
+        if policy is None:return None
+        root=policy['root']
         if not root.exists() and not root.is_symlink():return None
-        require(os.geteuid()==ROOT_UID and self.stage=='qa');directory(root)
+        require(os.geteuid()==ROOT_UID);directory(root)
         if ROOT_UID==0:
             for parent in root.parents:
                 info=parent.lstat()
@@ -243,9 +266,9 @@ class Store:
         value=records.strict_json(raw.decode())
         require(type(value) is dict and set(value)=={'schema_version','artifact_kind','stage',
             'failed_record_sha256','state_sha256','origin_controller','origin_source_manifest_sha256',
-            'baseline_sha256','database','native_proof_sha256','successor','files'}
+            'baseline_sha256','database','native_proof_sha256','successor','files'} | ({'runtime'} if self.stage=='staging' and 'runtime' in value else set())
             and type(value['schema_version']) is int and value['schema_version']==1
-            and value['artifact_kind']=='qa-failed-initial-baseline' and value['stage']=='qa')
+            and value['artifact_kind']==self.stage+'-failed-initial-baseline' and value['stage']==self.stage)
         for key in ('failed_record_sha256','state_sha256','origin_source_manifest_sha256',
                     'baseline_sha256','native_proof_sha256'):
             require(type(value[key]) is str and re.fullmatch(r'[a-f0-9]{64}',value[key]))
@@ -268,6 +291,18 @@ class Store:
                 and type(database['data_uid']) is int and database['data_uid']==70
                 and type(database['data_mode']) is int and database['data_mode']==0o700)
         expected={'origin/'+name for name in migration_transport.expected_files()}
+        if 'runtime' in value:
+            runtime=value['runtime'];require(type(runtime) is dict and set(runtime)=={'prepared','containers'})
+            spec=runtime['prepared'];require(type(spec) is dict and set(spec)=={'sha256','images','storage_generation'}
+                and all(type(spec[k]) is str and re.fullmatch('[a-f0-9]{64}',spec[k]) for k in ('sha256','storage_generation'))
+                and type(spec['images']) is dict and set(spec['images'])==set(host_compose.SERVICE_IMAGES.values())
+                and all(type(image) is str and re.fullmatch(r'[^\s]+@sha256:[a-f0-9]{64}',image) for image in spec['images'].values()))
+            rows=runtime['containers'];require(type(rows) is dict and set(rows)==host_compose.SERVICES)
+            for service,key in host_compose.SERVICE_IMAGES.items():
+                row=rows[service];require(type(row) is dict and set(row)=={'id','image'}
+                    and type(row['id']) is str and re.fullmatch('[a-f0-9]{64}',row['id']) and row['image']==spec['images'][key])
+            require(len({row['id'] for row in rows.values()})==14 and rows['supabase-db']['id']==database['container_id'])
+            expected.add('runtime/compose.json')
         require(type(value['files']) is dict and set(value['files'])==expected)
         actual=set();directories={str(p) for name in expected for p in Path(name).parents if str(p)!='.'}
         for path in root.rglob('*'):
@@ -278,40 +313,41 @@ class Store:
             require(type(binding) is dict and set(binding)=={'size','sha256'} and type(binding['size']) is int)
             content=read(root/name,limit=migration_transport.MAX_FILE)
             require(len(content)==binding['size'] and hashlib.sha256(content).hexdigest()==binding['sha256'])
+        if 'runtime' in value:require(value['files']['runtime/compose.json']['sha256']==value['runtime']['prepared']['sha256'])
         origin=self._verified(root,'origin')
         require(origin.controller==value['origin_controller']
-                and origin.controller['commit']==INITIAL_ORIGIN_COMMIT
-                and origin.source_manifest_sha256==value['origin_source_manifest_sha256']==INITIAL_ORIGIN_MANIFEST)
+                and origin.controller['commit']==policy['commit']
+                and origin.source_manifest_sha256==value['origin_source_manifest_sha256']==policy['manifest'])
         units,_=migration_transport.application_inputs(origin)
         try:
             from . import host_migrate
         except ImportError:
             import host_migrate
-        require(len(units)==40 and host_migrate.baseline(units)==value['baseline_sha256']==INITIAL_ORIGIN_BASELINE)
+        require(len(units)==40 and host_migrate.baseline(units)==value['baseline_sha256']==policy['baseline'])
         return value,origin,{'capsule_sha256':digest,'origin_source_manifest_sha256':origin.source_manifest_sha256}
 
     def initial_origin(self,state,current,publication,*,expected_prior=None):
         """Authorize one initial successor, then its genuinely accepted lineage."""
-        packet=self.initial_capsule()
+        packet=self.initial_capsule();policy=initial_policy(self.stage)
         if packet is None:
-            if self.stage=='qa':
+            if policy is not None:
                 # This known interrupted baseline must not fall back to fresh
                 # SQL application merely because its root packet is absent.
                 require(not any(r['status']=='failed'
-                    and r['request']['controller']['commit']==INITIAL_ORIGIN_COMMIT
-                    and r['request']['deployment']==INITIAL_FAILED_DEPLOYMENT
-                    and r['source_sha256']=='sha256:'+INITIAL_ORIGIN_MANIFEST
+                    and r['request']['controller']['commit']==policy['commit']
+                    and r['request']['deployment']==policy['deployment']
+                    and r['source_sha256']=='sha256:'+policy['manifest']
                     for r in state.data['attempts']))
             return None
-        value,origin,proof=packet
+        value,origin,proof=packet;require(policy is not None)
         require(type(state) is host_release_state.ReleaseState and state.owner_uid==ROOT_UID
-                and state.stage==self.stage=='qa' and state._read()==state.data
+                and state.stage==self.stage and state._read()==state.data
                 and type(current) is migration_transport.Verified and current.deployable is False)
         failures=[r for r in state.data['attempts'] if r['status']=='failed'
                   and hashlib.sha256(encode(r)).hexdigest()==value['failed_record_sha256']]
         require(len(failures)==1 and failures[0]['request']['controller']==origin.controller
-                and failures[0]['request']['deployment']==INITIAL_FAILED_DEPLOYMENT
-                and failures[0]['request']['publication']==INITIAL_FAILED_PUBLICATION
+                and failures[0]['request']['deployment']==policy['deployment']
+                and failures[0]['request']['publication']==policy['publication']
                 and failures[0]['source_sha256']=='sha256:'+origin.source_manifest_sha256)
         require(not any(r['status']=='accepted' and r['request']['controller']==origin.controller
                         for r in state.data['attempts']))
@@ -329,7 +365,7 @@ class Store:
                  and successor_build(r['request']['controller'],r['source_sha256'][7:],successor)]
         if anchors:
             # The earliest accepted successor build in ledger order is the anchor.
-            # Later accepted builds of the same commit never lock QA out, and a
+            # Later accepted builds of the same commit never lock the stage out, and a
             # bad earliest anchor never falls back to a later one.
             retained,_=self.original(anchors[0])
             meta=records.strict_json(read(self.destination(anchors[0]['token'])/'asset-record.json').decode())
@@ -337,7 +373,7 @@ class Store:
                     and retained.origin.controller==origin.controller
                     and retained.origin.source_manifest_sha256==origin.source_manifest_sha256)
         else:
-            require(initial_database()==value['database'])
+            require((initial_database() if self.stage=='qa' else initial_database(self.stage))==value['database'])
             require(state.data['current'] is None and state.data['previous'] is None
                     and not any(r['status']=='accepted' for r in state.data['attempts'])
                     and successor_build(current.controller,current.source_manifest_sha256,successor)
@@ -360,6 +396,28 @@ class Store:
                         and pending['request']['publication']==publication
                         and pending['source_sha256']=='sha256:'+current.source_manifest_sha256)
         return origin,proof
+
+    def initial_runtime(self,state,current,publication):
+        """Read-only operational authority for one unaccepted staging baseline.
+
+        This is never an accepted release or rollback target. Every native CID,
+        image and Compose hash is independently checked by the Driver before a
+        new attempt begins; a partially replaced successor must be reconciled.
+        """
+        if self.stage!='staging':return None
+        require(type(state) is host_release_state.ReleaseState and state.stage==self.stage and state.owner_uid==ROOT_UID)
+        if state.read_accepted()['current'] is not None:return None
+        require(state.read_pending() is None)
+        authorized=self.initial_origin(state,current,publication)
+        if authorized is None:return None
+        packet=self.initial_capsule();require(packet is not None)
+        value,origin,proof=packet
+        require(proof==authorized[1] and origin.controller==authorized[0].controller and origin.files==authorized[0].files)
+        require('runtime' in value)
+        runtime=value['runtime'];spec=runtime['prepared'];root=initial_policy(self.stage)['root']
+        prepared=host_compose.Prepared(self.stage,root/'runtime/compose.json',spec['sha256'],copy.deepcopy(spec['images']),
+            storage_generation=spec['storage_generation'])
+        return host_compose.InitialRuntime(prepared,copy.deepcopy(runtime['containers']),proof['capsule_sha256'])
 
     def _load(self,destination,meta):
         require(type(meta) is dict and set(meta)==META_KEYS and type(meta['schema_version']) is int
