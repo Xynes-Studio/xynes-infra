@@ -119,6 +119,63 @@ class Tests(unittest.TestCase):
   with patch.dict(os.environ,self.env,clear=True),self.assertRaises(self.module.PipelineError):
    self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=self.cleanup_command(61),execute=self.execute,migration_writer=self.migration_writer)
   self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-4:]],[('image-batch','start'),('image-batch','failure'),('builder-cleanup','start'),('builder-cleanup','success')])
+ def hosted_cleanup_command(self):
+  original=self.command
+  def command(argv,**options):
+   result=original(argv,**options)
+   if 'rm' in argv:
+    if '--keep-daemon' not in argv:raise subprocess.TimeoutExpired(argv,options['timeout'])
+    self.assertEqual(argv,['docker','--config',str(self.base/'apex-docker'),'buildx','rm','--force','--keep-daemon','apex-build-100-1'])
+    self.assertEqual(options['timeout'],300)
+    for key in ('GH_TOKEN','GH_POLICY_READ_TOKEN','DOCKER_HOST','RUNNER_ENVIRONMENT','RUNNER_OS'):self.assertNotIn(key,options['env'])
+   return result
+  return command
+ def test_hosted_linux_qualified_archives_do_not_wait_for_daemon_shutdown(self):
+  self.env.update(GITHUB_JOB='build-images',RUNNER_ENVIRONMENT='github-hosted',RUNNER_OS='Linux')
+  with patch.dict(os.environ,self.env,clear=True):
+   try:result=self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=self.hosted_cleanup_command(),execute=self.execute,migration_writer=self.migration_writer)
+   except self.module.PipelineError:self.fail('qualified hosted archives were blocked by daemon teardown')
+  self.assertEqual(len(list((result/'archives').iterdir())),15)
+  self.assertFalse(records.read_json(result/'image-receipts.json')['deployable'])
+  self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-4:]],[('image-qualification','start'),('image-qualification','success'),('builder-cleanup','start'),('builder-cleanup','success')])
+ def test_hosted_context_cleanup_errors_still_refuse_qualified_archives(self):
+  self.env.update(GITHUB_JOB='build-images',RUNNER_ENVIRONMENT='github-hosted',RUNNER_OS='Linux')
+  for index,kind in enumerate(('timeout','exit')):
+   with self.subTest(kind=kind):
+    base=self.base/str(index);base.mkdir(mode=0o700);self.env['RUNNER_TEMP']=str(base)
+    def command(argv,**options):
+     result=self.command(argv,**options)
+     if 'rm' in argv:
+      if kind=='timeout':raise subprocess.TimeoutExpired(argv,options['timeout'])
+      raise subprocess.CalledProcessError(1,argv,stderr='private-capability')
+     return result
+    with patch.dict(os.environ,self.env,clear=True),self.assertRaises(self.module.PipelineError):
+     self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=command,execute=self.execute,migration_writer=self.migration_writer)
+    self.assertIn('--keep-daemon',self.commands[-1][0])
+    self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-2:]],[('builder-cleanup','start'),('builder-cleanup','failure')])
+    self.assertNotIn('private-capability',self.captured.getvalue())
+ def test_non_ephemeral_or_non_linux_runners_keep_strict_daemon_teardown(self):
+  self.env['GITHUB_JOB']='build-images'
+  for index,(runner,system) in enumerate((('self-hosted','Linux'),('github-hosted','macOS'),('github-hosted',None),(None,'Linux'))):
+   with self.subTest(runner=runner,system=system):
+    base=self.base/str(index);base.mkdir(mode=0o700);self.env['RUNNER_TEMP']=str(base)
+    for key,value in (('RUNNER_ENVIRONMENT',runner),('RUNNER_OS',system)):
+     self.env.pop(key,None)
+     if value is not None:self.env[key]=value
+    def command(argv,**options):
+     result=self.command(argv,**options)
+     if 'rm' in argv:
+      raise subprocess.TimeoutExpired(argv,options['timeout'])
+     return result
+    with patch.dict(os.environ,self.env,clear=True),self.assertRaises(self.module.PipelineError):
+     self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=command,execute=self.execute,migration_writer=self.migration_writer)
+    self.assertNotIn('--keep-daemon',self.commands[-1][0])
+    self.assertEqual(self.diagnostics()[-1]['status'],'failure')
+ def test_hosted_cleanup_cannot_rescue_corrupt_images(self):
+  self.env.update(GITHUB_JOB='build-images',RUNNER_ENVIRONMENT='github-hosted',RUNNER_OS='Linux');self.corrupt_last=True
+  with patch.dict(os.environ,self.env,clear=True),self.assertRaises(self.module.PipelineError):
+   self.module.build(self.env,read=lambda _:copy.deepcopy(self.metadata),download=self.download,command=self.hosted_cleanup_command(),execute=self.execute,migration_writer=self.migration_writer)
+  self.assertEqual([(v['phase'],v['status']) for v in self.diagnostics()[-4:]],[('image-qualification','start'),('image-qualification','failure'),('builder-cleanup','start'),('builder-cleanup','success')])
  def prepare_reuse(self):
   task=next(t for t in image_build.build_tasks(self.manifest,self.public,self.controller,'release') if t['workload']=='libreoffice')
   temporary=self.base/'approved-processor.oci.tar';_,digest=IMAGE.archive(temporary,task['labels']);temporary.unlink()
