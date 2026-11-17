@@ -25,3 +25,20 @@ Production workflows require protected main and independent release approval.
 Do not add deployment credentials to pull-request workflows or execute builds
 in signing jobs. The final deployment PR will supply the complete pipeline,
 source and image pins, environment configuration, recovery and acceptance evidence.
+
+## Protected build cleanup
+
+The build coordinator removes only the Buildx instance it successfully created,
+using its isolated Docker config and exact run-bound name. On explicitly
+GitHub-hosted Linux runners, `buildx rm --force --keep-daemon` removes the Buildx
+context; the disposable job VM owns final daemon/cache disposal. Buildx `--force`
+alone still waits for daemon shutdown, which blocked run 43575137307 for the
+entire 300-second cleanup budget after all fifteen OCI archives were qualified.
+The underlying Docker failure in that run was not exposed by its diagnostics.
+
+Missing runner identity, self-hosted and non-Linux runners retain full teardown.
+Every cleanup command still has a 300-second bound and errors remain fatal.
+Neither cleanup mode can qualify invalid images or make a failed build
+publishable. Artifact uploads still require coordinator success, followed by
+real CI product smoke, protected publication and independent attestations.
+No shared/local/VPS resource pruning or deployment behavior is changed.

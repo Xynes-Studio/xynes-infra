@@ -225,7 +225,12 @@ def build(env,*,read,download,command=bounded_command,execute=image_build.execut
         if created:
             try:
                 with image_build.diagnostic('builder-cleanup'):
-                    command(docker+['rm','--force',builder],env=clean,cwd=ROOT,timeout=300)
+                    # Hosted job VMs own daemon disposal; removing their context
+                    # must not wait for BuildKit shutdown after OCI qualification.
+                    # Other runners retain strict daemon teardown.
+                    options=['--keep-daemon'] if (env.get('RUNNER_ENVIRONMENT')=='github-hosted'
+                                                   and env.get('RUNNER_OS')=='Linux') else []
+                    command(docker+['rm','--force',*options,builder],env=clean,cwd=ROOT,timeout=300)
             except Exception:raise PipelineError(ERROR) from None
 
 
