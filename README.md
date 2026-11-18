@@ -42,3 +42,17 @@ Neither cleanup mode can qualify invalid images or make a failed build
 publishable. Artifact uploads still require coordinator success, followed by
 real CI product smoke, protected publication and independent attestations.
 No shared/local/VPS resource pruning or deployment behavior is changed.
+
+## Hosted smoke storage cleanup
+
+The pinned storage runtime supports ordinary object deletion but does not wire
+its optional reference repository. Smoke cleanup uses the documented
+non-reference delete only for its own freshly created object, after verifying
+workspace, creator, nonce-bound filename, single upload and explicit
+`dedupHit: false`. A dedup hit or missing freshness signal never authorizes
+object deletion. Validated fresh fixtures are still cleaned up after a failed
+provider PUT; shared objects and application reference semantics are unchanged.
+
+Staging and production still require actual upload, processing and download
+verification, followed by successful owned cleanup. A cleanup failure remains
+fatal and cannot create acceptance or promotion authority.
