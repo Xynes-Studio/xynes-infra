@@ -98,7 +98,9 @@ class Tests(unittest.TestCase):
             if self.mode=='single-envelope':return response({'ok':True,'data':value},status)
             return response({'ok':True,'data':{'ok':True,'data':value,'meta':{'requestId':'service'}},'meta':{'requestId':'gateway'}},status)
         if host==self.virtual:
-            if method=='PUT':self.state['bytes']=raw;return 200,b'','application/octet-stream'
+            if method=='PUT':
+                if self.mode=='provider-put-failure':return 503,b'','application/octet-stream'
+                self.state['bytes']=raw;return 200,b'','application/octet-stream'
             if method=='GET':return 200,self.module.PNG,'image/png'
         if host.startswith('supabase.'):
             return response({'access_token':self.current,'refresh_token':'inert-refresh-token','token_type':'bearer',
@@ -131,12 +133,19 @@ class Tests(unittest.TestCase):
             url='https://'+self.virtual+'/fixture.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature='+'a'*64
             if self.mode=='foreign-provider':url=url.replace(self.virtual,'evil.example.invalid')
             if self.mode=='path-style':url=url.replace(self.virtual+'/',self.storage_host+'/'+self.bucket+'/')
-            return envelope({'uploadId':self.upload,'objectId':self.object,'uploadMethod':'single','uploadUrl':url,'uploadHeaders':({'content-type':'image/png','content-length':str(len(self.module.PNG))} if self.mode=='actual-upload-headers' else {'Content-Type':'image/png'}),'dedupHit':False,
-                'object':{'id':self.object,'workspaceId':self.workspace,'filename':body['filename'],'createdBy':self.user}})
+            value={'uploadId':self.upload,'objectId':self.object,'uploadMethod':'single','uploadUrl':url,'uploadHeaders':({'content-type':'image/png','content-length':str(len(self.module.PNG))} if self.mode=='actual-upload-headers' else {'Content-Type':'image/png'}),'dedupHit':self.mode=='dedup-hit',
+                'object':{'id':self.object,'workspaceId':self.workspace,'filename':body['filename'],'createdBy':self.user}}
+            if self.mode=='dedup-unknown':value.pop('dedupHit')
+            return envelope(value)
         if path.endswith('/complete'):return envelope({'object':{'id':self.object,'status':'processing'}})
         if '/storage/objects/'+self.object in path and method=='GET':
             return envelope({'object':{'id':self.object,'workspaceId':self.workspace,'filename':self.state['filename'],'status':'failed' if self.mode=='processing-failure' else 'ready'}})
         if path.endswith('/download-url'):return envelope({'objectId':self.object,'url':'https://'+self.virtual+'/fixture.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature='+'b'*64,'expiresAt':'2023-11-14T22:28:20Z'})
+        if path==prefix+'/storage/objects/'+self.object and method=='DELETE':
+            # The pinned production composition does not wire the optional reference repository.
+            if body.get('ownerKind') is not None or body.get('ownerId') is not None:
+                return response({'error':{'code':'VALIDATION_ERROR','message':'Reference-counted delete is not available on this deployment'}},400)
+            return envelope({'object':{'id':self.object,'status':'deleted'}})
         if method=='DELETE':return envelope({'success':True,'entryId':self.entry,'object':{'id':self.object,'status':'deleted'}})
         if path.endswith('/abort'):return envelope({'session':{'id':self.upload,'status':'aborted'}})
         return response({'error':{'code':'UNIMPLEMENTED'}},501)
@@ -180,6 +189,29 @@ class Tests(unittest.TestCase):
     def test_storage_skip_policy_cannot_cover_staging_or_prod(self):
         self.verify_storage.stop()
         for stage in ('staging','prod'):self.assertNotIn(stage,self.module.STORAGE_SKIP_STAGES)
+
+    def test_fresh_owned_storage_cleanup_uses_supported_pinned_delete_contract(self):
+        try:result=self.execute()
+        except self.module.SmokeError:self.fail('Pinned-runtime cleanup must accept a validated fresh fixture')
+        self.assertIs(result['storage_verified'],True)
+        deletes=[json.loads(raw) for _,method,path,_,raw in self.calls
+                 if method=='DELETE' and '/storage/objects/' in path]
+        self.assertEqual(deletes,[{'operation':'delete','objectId':self.object}])
+
+    def test_dedup_hit_or_unknown_freshness_never_force_deletes_existing_bytes(self):
+        for mode in ('dedup-hit','dedup-unknown'):
+            self.calls.clear();self.mode=mode
+            self.refused(self.execute)
+            self.assertFalse(any(method=='DELETE' and '/storage/objects/' in path
+                                 for _,method,path,_,_ in self.calls))
+
+    def test_provider_put_failure_still_cleans_only_the_validated_fresh_object(self):
+        self.mode='provider-put-failure'
+        self.refused(self.execute)
+        deletes=[json.loads(raw) for _,method,path,_,raw in self.calls
+                 if method=='DELETE' and '/storage/objects/' in path]
+        self.assertEqual(deletes,[{'operation':'delete','objectId':self.object}])
+        self.assertTrue(any(path.endswith('/abort') for _,_,path,_,_ in self.calls))
 
     def test_required_product_failures_never_return_passed(self):
         for mode in ('publish-failure','storage-failure','processing-failure'):

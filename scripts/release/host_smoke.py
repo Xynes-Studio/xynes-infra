@@ -293,8 +293,8 @@ class Flow:
                         'byteSize':len(PNG),'purpose':'cms_media','visibility':'private','compression':False,'ownerKind':'platform_generic','ownerId':owner})
         oid=identifier(upload['objectId']);uid=identifier(upload['uploadId']);obj=upload.get('object',{})
         require(obj.get('id')==oid and obj.get('workspaceId')==cfg['workspace_id'] and obj.get('filename')==filename and obj.get('createdBy')==cfg['user_id'])
+        require(upload.get('uploadMethod')=='single' and upload.get('dedupHit') is False and type(upload.get('uploadHeaders')) is dict)
         self.resources.update(object=oid,upload=uid,owner=owner)
-        require(upload.get('uploadMethod')=='single' and upload.get('dedupHit',False) is False and type(upload.get('uploadHeaders')) is dict)
         raw_headers=upload['uploadHeaders'];require(len(raw_headers)<=10 and all(type(key) is str and type(value) is str for key,value in raw_headers.items()))
         headers={key.lower():value for key,value in raw_headers.items()};require(len(headers)==len(raw_headers))
         headers.setdefault('content-type','image/png')
@@ -321,8 +321,9 @@ class Flow:
             self.api('owned-upload-abort','POST',prefix+'/storage/uploads/'+self.resources['upload']+'/abort',
                      {'operation':'abort','uploadId':self.resources['upload']})
         if 'object' in self.resources:
+            # Only a validated fresh fixture reaches this supported non-reference delete.
             result=self.api('owned-storage-delete','DELETE',prefix+'/storage/objects/'+self.resources['object'],
-                       {'operation':'delete','objectId':self.resources['object'],'ownerKind':'platform_generic','ownerId':self.resources['owner']})
+                       {'operation':'delete','objectId':self.resources['object']})
             require(result.get('object',{}).get('id')==self.resources['object'] and result['object'].get('status')=='deleted')
         if 'entry' in self.resources:self.api('owned-entry-delete','DELETE',prefix+'/content/entries/'+self.resources['entry'])
         if 'directory' in self.resources:self.api('owned-directory-delete','DELETE',prefix+'/content-directories/'+self.resources['directory'])
