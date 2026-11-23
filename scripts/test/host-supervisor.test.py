@@ -28,6 +28,28 @@ def load():
 
 
 class Tests(unittest.TestCase):
+    def test_legacy_linux_x86_64_pidfd_detects_owned_child_exit(self):
+        if sys.platform != 'linux' or os.uname().machine != 'x86_64':
+            self.skipTest('native Linux x86_64 required')
+        import select
+        with subprocess.Popen([sys.executable,'-I','-c','import sys; sys.stdin.buffer.read()'],
+                              stdin=subprocess.PIPE) as child:
+            with patch.object(self.m.os,'pidfd_open',None,create=True):
+                descriptor = self.m.open_parent_pidfd(child.pid)
+            try:
+                self.assertFalse(os.get_inheritable(descriptor))
+                self.assertEqual(select.select([descriptor],[],[],0)[0],[])
+                child.stdin.close()
+                self.assertEqual(child.wait(timeout=5),0)
+                self.assertEqual(select.select([descriptor],[],[],2)[0],[descriptor])
+            finally:
+                os.close(descriptor)
+
+    def test_legacy_pidfd_refuses_unsupported_operating_system(self):
+        with patch.object(self.m.os,'pidfd_open',None,create=True), patch.object(self.m.sys,'platform','darwin'):
+            with self.assertRaises(self.m.SupervisorError):
+                self.m.open_parent_pidfd(1)
+
     def test_boundary_generated_sealed_wrapper_matches_supervisor_mode(self):
         import host_boundary
         worker=self.root/'sealed-worker'
