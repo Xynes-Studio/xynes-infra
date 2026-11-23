@@ -113,7 +113,7 @@ def upload_url(location, repository, digest):
     require(len(matching) == 1)
     identifier = parsed.path[len(matching[0]):]
     require(re.fullmatch(r'[A-Za-z0-9._-]{1,128}', identifier) and identifier not in ('.', '..'))
-    values = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=True)
+    values = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=True) if parsed.query else []
     require(len(values) <= 1)
     if values:
         key, value = values[0]
@@ -179,7 +179,7 @@ class Session:
         # workload may enter the one-hop credential-free download exception.
         require(repository == self.repository and self.bearer is not None
                 and repository.startswith('xynes-studio/apex/')
-                and repository.removeprefix('xynes-studio/apex/') in WORKLOADS
+                and repository[len('xynes-studio/apex/'):] in WORKLOADS
                 and isinstance(digest, str) and re.fullmatch(r'sha256:[a-f0-9]{64}', digest))
         url = ORIGIN + '/v2/' + repository + '/blobs/' + digest
         response, metadata = self._exchange('GET', url, {'Authorization': 'Bearer ' + self.bearer},
@@ -294,7 +294,9 @@ def _publish(path, task, expected_image, policy, credential, transport, monotoni
     before = path.lstat()
     require(stat.S_ISREG(before.st_mode) and before.st_nlink == 1)
     local = image_build.inspect_oci(path, task)
-    repository = policy['registry_prefix'].removeprefix('ghcr.io/') + '/' + task['workload']
+    prefix = policy['registry_prefix']
+    require(prefix.startswith('ghcr.io/'))
+    repository = prefix[len('ghcr.io/'):] + '/' + task['workload']
     require(expected_image == 'ghcr.io/' + repository + '@' + local['manifest_digest'])
     descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
     with os.fdopen(descriptor, 'rb') as file:

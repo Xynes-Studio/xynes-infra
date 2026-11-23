@@ -7,6 +7,7 @@ the literal host/account/command. Acknowledgment is not deployment evidence.
 """
 import base64
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -24,7 +25,8 @@ except ImportError:
     import release_manifest as records
 
 ERROR = 'Deployment dispatch refused'
-HOST = '84.247.176.134'
+HOST = '173.212.216.212'
+HOST_KEY_SHA256 = '3uFlHXGS+/7NX8uZtEteuVw9s3Qp7ILl5itf+xA9210'
 WORKFLOW = '.github/workflows/apex-deploy.yml'
 SSH_TIMEOUT = 3000
 
@@ -113,11 +115,14 @@ def private_key(value):
 
 def known_hosts(value):
     require(type(value) is str and len(value) <= 1024 and value.isascii())
-    match = re.fullmatch(r'(?:84\.247\.176\.134|\[84\.247\.176\.134\]:22) ssh-ed25519 ([A-Za-z0-9+/=]+)\n?',value)
+    host_pattern = re.escape(HOST)
+    match = re.fullmatch(rf'(?:{host_pattern}|\[{host_pattern}\]:22) ssh-ed25519 ([A-Za-z0-9+/=]+)\n?',value)
     require(match is not None)
     raw = base64.b64decode(match[1],validate=True)
     require(base64.b64encode(raw).decode() == match[1] and len(raw) == 51
             and raw[:19] == struct.pack('>I',11)+b'ssh-ed25519'+struct.pack('>I',32))
+    fingerprint = base64.b64encode(hashlib.sha256(raw).digest()).decode('ascii').rstrip('=')
+    require(fingerprint == HOST_KEY_SHA256)
     return (HOST+' ssh-ed25519 '+match[1]+'\n').encode('ascii')
 
 

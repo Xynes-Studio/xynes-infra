@@ -187,7 +187,7 @@ class Controls:
             evidence={'stage':stage,'database_state':state,'database_image':pg_container_bridge.DB_IMAGE,
                 'database_container_id':container,'data_inode':[before.st_dev,before.st_ino],
                 'data_uid':before.st_uid,'data_mode':stat.S_IMODE(before.st_mode)}
-            return {key:evidence[key] for key in ('stage','database_state','database_image','database_container_id')}|{
+            return {**{key:evidence[key] for key in ('stage','database_state','database_image','database_container_id')},
                 'proof_sha256':hashlib.sha256(json.dumps(evidence,sort_keys=True).encode()).hexdigest(),
                 'observed_at':int(time.time())}
         except Exception:raise ControlError(ERROR) from None
@@ -227,7 +227,8 @@ class Controls:
             require(group in ('auth','cms') and path in ('/warm','/release','/drain','/resume') and type(owner) is str and re.fullmatch(r'deploy-[1-9][0-9]{0,15}',owner))
             token_file=self.path('/etc/xynes/idle/'+self.stage+'/control.token')
             token_snapshot=self.sealed(token_file,65,mode=0o440,gid=self.proxy_gid)
-            require(re.fullmatch(rb'[a-f0-9]{64}\n?',token_snapshot[0]));token=token_snapshot[0].removesuffix(b'\n')
+            require(re.fullmatch(rb'[a-f0-9]{64}\n?',token_snapshot[0]))
+            token=token_snapshot[0][:64]
             target=self.path('/run/xynes/idle/'+self.stage+'/'+group+'/leases.sock')
             # Only the dedicated leaf directory/socket can belong to the proxy UID.
             self.protected(target.parent.parent,directory=True)

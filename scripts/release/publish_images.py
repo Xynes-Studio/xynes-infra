@@ -48,7 +48,9 @@ def qualified_sources(value,manifest):
     catalog=records.read_json(ROOT/'infra/release/source-check-catalog.json');seen=set()
     for source in sources:
         require(isinstance(source,dict) and set(source)=={'repository','commit','checks'})
-        key=source['repository'].removeprefix('Xynes-Studio/') if isinstance(source.get('repository'),str) else ''
+        repository=source.get('repository')
+        prefix='Xynes-Studio/'
+        key=repository[len(prefix):] if isinstance(repository,str) and repository.startswith(prefix) else ''
         require(key not in seen and key in manifest['sources'] and source['repository']==manifest['sources'][key]['repository']
                 and source['commit']==manifest['sources'][key]['commit'])
         seen.add(key);checks=source['checks'];expected=catalog[key]

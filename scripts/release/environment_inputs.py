@@ -163,7 +163,7 @@ def prepare(stage, inputs, *, now=None):
             'NEXT_PUBLIC_API_URL':api,'NEXT_PUBLIC_GATEWAY_URL':api,
             'NEXT_PUBLIC_AUTH_APP_URL':auth,'NEXT_PUBLIC_CMS_APP_URL':cms,
             'NEXT_PUBLIC_SUPABASE_URL':supabase,'NEXT_PUBLIC_SUPABASE_ANON_KEY':anon,
-            'NEXT_PUBLIC_ALLOWED_REDIRECT_DOMAINS':auth.removeprefix('https://')+','+cms.removeprefix('https://'),
+            'NEXT_PUBLIC_ALLOWED_REDIRECT_DOMAINS':auth[len('https://'):]+','+cms[len('https://'):],
             'AUTH_COOKIE_DOMAIN':'.'+namespace,'AUTH_COOKIE_SAMESITE':'Lax','AUTH_COOKIE_SECURE':'true',
             'FEATURE_FLAGS_DEBUG':'false','MAIL_PROVIDER':'resend','R2_REGION':'auto',
             'GOTRUE_EXTERNAL_GOOGLE_ENABLED':'true',
