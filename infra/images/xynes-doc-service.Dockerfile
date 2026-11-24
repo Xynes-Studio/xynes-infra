@@ -15,7 +15,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=4201
 
-RUN apk add --no-cache --upgrade libcrypto3=3.5.9-r0 libssl3=3.5.9-r0
+RUN apk add --no-cache --upgrade 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1'
 
 RUN addgroup -S -g 1001 xynes \
     && adduser -S -u 1001 -G xynes -H xynes

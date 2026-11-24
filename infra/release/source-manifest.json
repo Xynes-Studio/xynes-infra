@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "status": "approved",
-  "approval_reference": "https://github.com/Xynes-Studio/xynes-infra/pull/26",
+  "approval_reference": "https://github.com/Xynes-Studio/xynes-infra/pull/27",
   "sources": {
     "xynes-gateway": {
       "repository": "Xynes-Studio/xynes-gateway",
@@ -56,37 +56,37 @@
     "xynes-gateway": {
       "source": "xynes-infra",
       "path": "infra/images/xynes-gateway.Dockerfile",
-      "sha256": "7dc0b27858de506a9e549553ba9e1152e6b38c2dc6e3b0d3d646c88858d15343",
+      "sha256": "becd82513889eda17b551bbd952a5b6d4a2d4619aca4c777de81ce19b74fdc90",
       "target": "prod"
     },
     "xynes-accounts-service": {
       "source": "xynes-infra",
       "path": "infra/images/xynes-accounts-service.Dockerfile",
-      "sha256": "b377ef4a5518f08fcdb599be4937d6cce82cfe8379b83d30687177f2d3529c36",
+      "sha256": "d03a2435e40f3b6bf2518e1d9adfa18cd4404c9b61d394e0eda49a2f9d66a33d",
       "target": "prod"
     },
     "xynes-authz-service": {
       "source": "xynes-infra",
       "path": "infra/images/xynes-authz-service.Dockerfile",
-      "sha256": "e563405be35a486409b81c51daa7bae9a32e1ea9400a069d4a42220e9b45f212",
+      "sha256": "736c3765332fcc7ef1b952784f31a4f1b9b95e06096fb8b9591731811ce30292",
       "target": "prod"
     },
     "xynes-cms-core": {
       "source": "xynes-infra",
       "path": "infra/images/xynes-cms-core.Dockerfile",
-      "sha256": "2eb024173b951ec60cc34a47decc5786f5eff2e7c1f4968e297c53ebe50776b1",
+      "sha256": "febb3a33ec5d2f8b99c9b50d6f99ddb54f205b44d8dd8120c732d18653983822",
       "target": "prod"
     },
     "xynes-doc-service": {
       "source": "xynes-infra",
       "path": "infra/images/xynes-doc-service.Dockerfile",
-      "sha256": "8eb20050ab0846bf6094e07ac98717c5c4fd0936a1d0c9f3df974f3c3140700f",
+      "sha256": "f4fe807adce1d0005bee0d9bd62863134585c9b05bd7c8e4a1f8191af85370d8",
       "target": "prod"
     },
     "xynes-telemetry-service": {
       "source": "xynes-infra",
       "path": "infra/images/xynes-telemetry-service.Dockerfile",
-      "sha256": "2760697a76d4b18f390976892e06d402a24b36542656f73ab8435650a510aec5",
+      "sha256": "6f77aabcda61c34e3ed6f4b9bdffd879d431600d4d356280dac4033cbbfd234b",
       "target": "prod"
     },
     "xynes-storage-service": {
@@ -98,13 +98,13 @@
     "xynes-auth-app": {
       "source": "xynes-infra",
       "path": "infra/images/auth-app.Dockerfile",
-      "sha256": "2b9050af4d321d9edf877eb709019438a5f1677d30d3b695b3ddbc0ff43a56e3",
+      "sha256": "c400ca3e3100abdbd0b0468ce419f013b3c8bfeeae753094cdc7b81c577f7eb5",
       "target": "prod"
     },
     "xynes-cms-console-web": {
       "source": "xynes-infra",
       "path": "infra/images/cms-console-web.Dockerfile",
-      "sha256": "8179d53e7e9fe084c54a1371c29f34fa62fd343e9dc68a8de756881167aab4e8",
+      "sha256": "1bcdc091a90bdf33f8b5e73b6bf02b457c4421cd418fa98eaf5768e720363573",
       "target": "prod"
     }
   },

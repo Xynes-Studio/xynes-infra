@@ -283,7 +283,7 @@ class ContextTest(unittest.TestCase):
         self.assertEqual(record['recipes'],manifest['recipes'])
         self.assertFalse(record['deployable'])
 
-    def test_coordinated_backend_runtime_and_available_ssl_packages_are_pinned(self):
+    def test_coordinated_backend_runtime_and_ssl_security_floor(self):
         manifest=json.loads((ROOT/'infra/release/source-manifest.json').read_text())
         for name in SOURCES[:6]:
             recipe=manifest['recipes'][name]
@@ -291,7 +291,7 @@ class ContextTest(unittest.TestCase):
             contents=(ROOT/recipe['path']).read_bytes()
             self.assertEqual(hashlib.sha256(contents).hexdigest(),recipe['sha256'],name)
             self.assertIn(b'oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f',contents,name)
-            self.assertIn(b'libcrypto3=3.5.9-r0 libssl3=3.5.9-r0',contents,name)
+            self.assertIn(b"'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1'",contents,name)
             self.assertNotIn(b'--allow-untrusted',contents,name)
 
     def test_refuses_foreign_backend_recipe_path_and_mismatched_owner(self):
@@ -315,7 +315,7 @@ class ContextTest(unittest.TestCase):
         contents=recipe.read_text()
         self.assertIn('node:22.23.1-alpine3.23@sha256:8516dce0483394d5708d4b2ee6cacb79fb1d617ea4e2787c2120bcca92ce372e',contents)
         self.assertNotIn('node:20-',contents)
-        self.assertIn('libcrypto3=3.5.9-r0 libssl3=3.5.9-r0',contents)
+        self.assertIn("'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1'",contents)
         self.assertIn('.next/standalone',contents)
         self.assertIn('exec node server.js',contents)
         self.assertIn('cp -a /tmp/icons-generated',contents)
@@ -326,6 +326,8 @@ class ContextTest(unittest.TestCase):
             contents=(ROOT/('infra/images/'+name+'.Dockerfile')).read_text()
             self.assertIn('cd /app/lumia-ds &&',contents,name)
             self.assertIn('test "$(pnpm --version)" = 10.23.0',contents,name)
+            self.assertIn("'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1'",contents,name)
+            self.assertNotIn('--allow-untrusted',contents,name)
             self.assertNotIn('pnpm --dir lumia-ds',contents,name)
 
     def test_rejects_moving_ref_before_output(self):

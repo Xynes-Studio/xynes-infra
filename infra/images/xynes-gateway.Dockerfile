@@ -13,7 +13,7 @@ CMD ["bun", "--watch", "src/index.ts"]
 FROM oven/bun:1.4.2-alpine@sha256:d888c0ae6c86d7866ff10c5aafdd9077b36aee6455b33dd270fb93c0dd5cef6f AS prod
 WORKDIR /app
 
-RUN apk add --no-cache --upgrade libcrypto3=3.5.9-r0 libssl3=3.5.9-r0
+RUN apk add --no-cache --upgrade 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1'
 
 RUN addgroup -S -g 1001 xynes && \
     adduser  -S -u 1001 -G xynes -H xynes

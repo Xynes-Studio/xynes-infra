@@ -87,7 +87,7 @@ RUN for package in /app/xynes-auth-app /app/xynes-auth-sdk /app/xynes-i18n; do \
 
 FROM node:22.23.1-alpine3.23@sha256:8516dce0483394d5708d4b2ee6cacb79fb1d617ea4e2787c2120bcca92ce372e AS prod
 WORKDIR /app
-RUN apk add --no-cache --upgrade libcrypto3=3.5.9-r0 libssl3=3.5.9-r0 && \
+RUN apk add --no-cache --upgrade 'libcrypto3>=3.5.9-r1' 'libssl3>=3.5.9-r1' && \
     addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 --ingroup nodejs --home /nonexistent nextjs
 ARG XYNES_BUILD_VERSION
