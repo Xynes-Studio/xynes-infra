@@ -34,6 +34,16 @@ class Tests(unittest.TestCase):
                 module = load()
             self.assertEqual(module.SYSTEMCTL, expected)
 
+    def test_hybrid_cgroup_requires_one_matching_systemd_path(self):
+        expected = '/system.slice/xynes-apex-deploy-qa-901.service'
+        unified = '0::' + expected
+        legacy = '1:name=systemd:' + expected
+        with patch.object(Path, 'read_text', return_value=unified + '\n' + legacy + '\n'):
+            self.assertEqual(self.m.self_cgroup(), expected)
+        for second in ('1:name=systemd:/different.service', '0::' + expected):
+            with self.subTest(second=second), patch.object(Path, 'read_text', return_value=unified + '\n' + second + '\n'):
+                self.refuse(self.m.self_cgroup)
+
     def test_legacy_linux_x86_64_pidfd_detects_owned_child_exit(self):
         if sys.platform != 'linux' or os.uname().machine != 'x86_64':
             self.skipTest('native Linux x86_64 required')

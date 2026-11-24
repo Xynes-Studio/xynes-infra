@@ -251,11 +251,22 @@ def parent_identity(parent,ticks,stage):
 
 def self_cgroup():
     raw=Path('/proc/self/cgroup').read_text();require(len(raw)<=8192)
-    values=[]
+    hierarchies={}
     for line in raw.splitlines():
         fields=line.split(':',2);require(len(fields)==3)
-        if fields[0]=='0' and fields[1]=='' or 'name=systemd' in fields[1].split(','):values.append(fields[2])
-    require(len(values)==1);return values[0]
+        number,controllers,path=fields
+        if number=='0' and controllers=='':
+            hierarchy='unified'
+        elif 'name=systemd' in controllers.split(','):
+            hierarchy='systemd'
+        else:
+            continue
+        require(hierarchy not in hierarchies)
+        hierarchies[hierarchy]=path
+    # Hybrid hosts can expose both hierarchies for the same systemd unit.
+    paths=set(hierarchies.values())
+    require(len(paths)==1)
+    return paths.pop()
 
 
 def worker_binding(stage,job,parent,ticks):
