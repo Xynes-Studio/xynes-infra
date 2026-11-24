@@ -57,7 +57,7 @@ def identity(info):
 
 
 def root_path(path, *, directory=False):
-    for parent in reversed((path, *path.parents[:-1])):
+    for parent in reversed((path, *tuple(path.parents)[:-1])):
         info=parent.lstat()
         require(info.st_uid==0 and not info.st_mode & 0o022 and not stat.S_ISLNK(info.st_mode)
                 and (stat.S_ISDIR(info.st_mode) if parent!=path or directory else stat.S_ISREG(info.st_mode)))

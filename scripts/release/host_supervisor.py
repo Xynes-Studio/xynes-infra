@@ -28,6 +28,7 @@ import select
 import selectors
 import signal
 import stat
+import struct
 import subprocess
 import sys
 import threading
@@ -42,7 +43,8 @@ ERROR='Root deployment supervision refused'
 ROOT_UID=0
 WORKER='/usr/local/libexec/xynes-deploy-root'
 SYSTEMD_RUN='/usr/bin/systemd-run'
-SYSTEMCTL='/usr/bin/systemctl'
+# Ubuntu 20.04 can have a real /bin directory instead of a usrmerge symlink.
+SYSTEMCTL='/usr/bin/systemctl' if Path('/usr/bin/systemctl').is_file() else '/bin/systemctl'
 BOUNDARY=Path('/etc/xynes/deploy-boundary.json')
 STATE_DIRECTORY=Path('/var/lib/xynes/deploy/state')
 LOCK_DIRECTORY=Path('/var/lib/xynes/deploy/work/supervisor-locks')
@@ -82,7 +84,7 @@ def identity(info):
 
 
 def root_path(path,*,directory=False):
-    for parent in reversed((path,*path.parents[:-1])):
+    for parent in reversed((path,*tuple(path.parents)[:-1])):
         info=parent.lstat()
         require(info.st_uid==ROOT_UID and not info.st_mode & 0o022 and not stat.S_ISLNK(info.st_mode)
                 and (stat.S_ISDIR(info.st_mode) if parent!=path or directory else stat.S_ISREG(info.st_mode)))
@@ -373,12 +375,30 @@ def outer(stage,*,fd=0):
     except Exception:raise SupervisorError(ERROR) from None
 
 
+def open_parent_pidfd(parent):
+    opener = getattr(os, 'pidfd_open', None)
+    if opener is not None:
+        return opener(parent, 0)
+    # Ubuntu 20.04's Python lacks the wrapper. Linux x86-64 syscall 434
+    # opens the same kernel-backed descriptor, with close-on-exec set.
+    # https://github.com/torvalds/linux/blob/v5.4/arch/x86/entry/syscalls/syscall_64.tbl
+    require(sys.platform == 'linux' and os.uname().machine == 'x86_64'
+            and struct.calcsize('P') == 8 and type(parent) is int and 0 < parent <= 2147483647)
+    import ctypes
+    syscall = ctypes.CDLL(None, use_errno=True).syscall
+    syscall.restype = ctypes.c_long
+    descriptor = syscall(ctypes.c_long(434), ctypes.c_int(parent), ctypes.c_uint(0))
+    if descriptor < 0:
+        raise OSError(ctypes.get_errno(), 'pidfd_open failed')
+    return descriptor
+
+
 @contextmanager
 def parent_watchdog(stage,job,parent,ticks,owned):
     fd=None;stop=threading.Event();thread=None
     try:
-        require(hasattr(os,'pidfd_open'));parent_identity(parent,ticks,stage)
-        fd=os.pidfd_open(parent,0);parent_identity(parent,ticks,stage)
+        parent_identity(parent,ticks,stage)
+        fd=open_parent_pidfd(parent);parent_identity(parent,ticks,stage)
         def watch():
             while not stop.is_set():
                 ready,_,_=select.select([fd],[],[],.1)

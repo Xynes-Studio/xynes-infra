@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import pwd
 import re
 import stat
 import subprocess
@@ -208,7 +209,7 @@ class RootTree:
 
 
 class Substrate:
-    def __init__(self, root=LIVE_ROOT, uid=0, gid=1003, root_gid=0, runner=live_runner, euid=os.geteuid):
+    def __init__(self, root=LIVE_ROOT, uid=0, *, gid, root_gid=0, runner=live_runner, euid=os.geteuid):
         self.root = Path(root)
         require(self.root.is_absolute() and '..' not in self.root.parts
                 and all(type(x) is int and 0 <= x <= 2147483647 for x in (uid, gid, root_gid)))
@@ -286,6 +287,18 @@ class Parser(argparse.ArgumentParser):
     def error(self, _):raise SubstrateError('Staging substrate refused: invalid arguments')
 
 
+def xynes_group_id():
+    group = grp.getgrnam('xynes')
+    gid = group.gr_gid
+    require(type(gid) is int and 0 < gid <= 2147483647)
+    matching = [entry for entry in grp.getgrall() if entry.gr_gid == gid]
+    require(len(matching) == 1 and matching[0].gr_name == 'xynes')
+    supplementary = set(group.gr_mem) | set(matching[0].gr_mem)
+    primary = {entry.pw_name for entry in pwd.getpwall() if entry.pw_gid == gid}
+    require(primary == {'xynes'} and supplementary <= {'xynes'})
+    return gid
+
+
 def main():
     try:
         parser = Parser(prog='staging-substrate', description=__doc__)
@@ -295,8 +308,7 @@ def main():
         args = parser.parse_args()
         require(bool(args.apply) == bool(args.plan_sha256))
         if args.apply:require(os.geteuid() == 0 and re.fullmatch(r'[a-f0-9]{64}', args.plan_sha256))
-        require(grp.getgrnam('xynes').gr_gid == 1003)
-        instance = Substrate()
+        instance = Substrate(gid=xynes_group_id())
         result = instance.apply(args.plan_sha256) if args.apply else instance.plan()
         print(json.dumps(result, sort_keys=True, indent=2));return 0
     except (OSError, ValueError, KeyError, TypeError):

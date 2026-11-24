@@ -62,7 +62,7 @@ class Tests(unittest.TestCase):
    'caddy_net':dict(NetworkID=policy['ingress']['id'],Gateway=policy['ingress']['gateway'],IPAddress=policy['caddy']['ip'])})
   def run(args,**kwargs):
    calls.append(args)
-   if args[0]=='/usr/bin/systemctl':return b'inactive\n' if args[1]=='show' else b''
+   if args[0]=='/bin/systemctl':return b'inactive\n' if args[1]=='show' else b''
    if 'network' in args:
     network=next(row for row in (policy['network'],policy['ingress']) if row['id']==args[-1])
     return self.m.canonical(dict(id=network['id'],name=network['name'],driver='bridge',ipam=[dict(Subnet=network['subnet'],Gateway=network['gateway'])]))
@@ -89,7 +89,7 @@ class Tests(unittest.TestCase):
    self.assertEqual(idle.path('/var/lib/xynes/idle/qa/'+group+'/warm.json').read_bytes(),warm[group])
   broker=json.loads(idle.config_path('broker.json').read_bytes())
   self.assertTrue(all(target['network_id']==policy['network']['id'] for target in broker['targets'].values()))
-  self.assertEqual([a[1:] for a in calls if a[0]=='/usr/bin/systemctl' and a[1] in ('stop','start')],
+  self.assertEqual([a[1:] for a in calls if a[0]=='/bin/systemctl' and a[1] in ('stop','start')],
    [[action,'xynes-idle-qa-'+group+'.service'] for action,groups in [('stop',('auth','cms','broker')),('start',('broker','auth','cms'))] for group in groups])
   idle.finish('deploy-123');self.assertFalse(idle.config_path('deployment.json').exists())
   for group in self.m.GROUPS:self.assertFalse(json.loads(idle.config_path(group+'-proxy.json').read_bytes())['start_drained'])
@@ -117,7 +117,7 @@ class Tests(unittest.TestCase):
    with self.subTest(mutation=mutation):
     with self.assertRaises(self.m.IdleError):idle.rebind(prepared,inventory)
     self.assertTrue(idle.config_path('deployment.json').exists());self.assertFalse(events)
-    self.assertFalse(any(a[0]=='/usr/bin/systemctl' and a[1]=='start' for a in calls))
+    self.assertFalse(any(a[0]=='/bin/systemctl' and a[1]=='start' for a in calls))
  def test_unknown_fresh_state_and_missing_generation_never_adopt_existing_runtime(self):
   for name in ('warm.json','warm.lock'):
    idle,*rest=self.fixture();path=idle.path('/var/lib/xynes/idle/qa/auth/'+name);path.write_text('preserve');path.chmod(0o600)
@@ -192,7 +192,7 @@ class Tests(unittest.TestCase):
  def test_fallback_attempts_both_exact_proxy_stops_even_if_first_stop_fails(self):
   idle,*rest=self.fixture();original=idle.run;stops=[]
   def stop(args,**kwargs):
-   if args[:2]==['/usr/bin/systemctl','stop']:
+   if args[:2]==['/bin/systemctl','stop']:
     stops.append(args[-1])
     if args[-1]=='xynes-idle-qa-auth.service':raise OSError('inert first stop failure')
    return original(args,**kwargs)
@@ -216,7 +216,7 @@ class Tests(unittest.TestCase):
  def test_fresh_enabled_state_refuses_live_broker_before_warm_seeding(self):
   idle,*rest=self.fixture();run=idle.run
   def active_broker(args,**kwargs):
-   if args[0]=='/usr/bin/systemctl' and args[-1]=='xynes-idle-qa-broker.service':return b'active\n'
+   if args[0]=='/bin/systemctl' and args[-1]=='xynes-idle-qa-broker.service':return b'active\n'
    return run(args,**kwargs)
   idle.run=active_broker
   with self.assertRaises(self.m.IdleError):idle.begin('deploy-123',first=True,lease=rest[-1])

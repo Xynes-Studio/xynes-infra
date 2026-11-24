@@ -130,8 +130,13 @@ class Tests(unittest.TestCase):
     time.sleep(.02)
    else:self.fail('Exact hook did not reach owned fixture barrier')
    before=self.snapshot()
-   for query in [self.insert(target,bucket='concurrent-bucket'),"UPDATE platform.workspace_storage_providers SET workspace_id='%s';"%target,"DELETE FROM authz.user_roles WHERE workspace_id='%s';"%target,"UPDATE platform.workspace_members SET status='inactive' WHERE workspace_id='%s';"%target]:
-    r=self.query("SET lock_timeout='200ms';"+query,ok=False);self.assertNotEqual(r.returncode,0);self.assertIn(b'lock timeout',r.stderr);self.assertEqual(self.snapshot(),before)
+   queries=[self.insert(target,bucket='concurrent-bucket'),"UPDATE platform.workspace_storage_providers SET workspace_id='%s';"%target,"DELETE FROM authz.user_roles WHERE workspace_id='%s';"%target,"UPDATE platform.workspace_members SET status='inactive' WHERE workspace_id='%s';"%target]
+   # One exec keeps every assertion inside the hook's production lock deadline.
+   statements='\\set ON_ERROR_STOP off\nSET lock_timeout=\'200ms\';\n'
+   statements+=''.join(query+'\n\\echo :SQLSTATE\n' for query in queries)
+   result=self.query(statements)
+   self.assertEqual(result.stdout.splitlines(),[b'55P03']*len(queries))
+   self.assertEqual(self.snapshot(),before)
    self.release(blocker);blocker=None
    out,err=hook.communicate(timeout=10);self.assertEqual(hook.returncode,0);self.assertEqual(json.loads(out),{'stage':'staging','storage_provider_ready':True});self.assertEqual(len(json.loads(self.snapshot())),2)
   finally:
@@ -165,6 +170,25 @@ class Tests(unittest.TestCase):
    if holder:self.release(holder)
    if hook and hook.poll() is None:hook.kill();hook.communicate()
 class LifecycleTests(unittest.TestCase):
+ def test_readiness_waits_for_the_final_postgres_server(self):
+  fixture=postgres_fixture.PostgresFixture()
+  image='sha256:'+'a'*64;cid='b'*64
+  ready_hosts=[]
+  def command(args, **kwargs):
+   if args[:2]==['image','inspect']:
+    return subprocess.CompletedProcess(args,0,json.dumps([{'Os':'linux','Architecture':'amd64','Id':image,
+     'RepoDigests':['postgres@'+postgres_fixture.INDEX_DIGEST]}]),'')
+   if args[0]=='run':return subprocess.CompletedProcess(args,0,cid,'')
+   host=args[args.index('-h')+1];ready_hosts.append(host)
+   # The temporary server already accepts socket connections. TCP starts later.
+   accepting=host=='/var/run/postgresql' or len(ready_hosts)==2
+   return subprocess.CompletedProcess(args,0 if accepting else 2,'','')
+  with patch.object(fixture,'command',side_effect=command),patch.object(fixture,'verify_owned'), \
+       patch.object(fixture,'sql',return_value=subprocess.CompletedProcess([],0,'1\n','')) as sql, \
+       patch.object(postgres_fixture.time,'sleep'):
+   self.assertIs(fixture.start(),fixture)
+   self.assertEqual(ready_hosts,['127.0.0.1','127.0.0.1'])
+   sql.assert_called_once_with('postgres','SELECT 1;',timeout=5)
  def test_launch_failure_still_closes_only_the_owned_fixture(self):
   fixture=Mock();fixture.start.side_effect=postgres_fixture.FixtureError('fixture startup refused')
   with patch.object(postgres_fixture,'PostgresFixture',return_value=fixture):

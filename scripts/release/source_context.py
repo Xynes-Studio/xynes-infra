@@ -314,7 +314,9 @@ def prepare(args):
     try:
         for name, source in manifest['sources'].items():
             repo = workspace / ('xynes' if name in BACKENDS else 'xynes-front-end') / name
-            require(repo.is_dir() and repo.resolve().is_relative_to(workspace), 'Source repository missing or outside workspace')
+            resolved_repo = repo.resolve()
+            require(repo.is_dir() and (resolved_repo == workspace or workspace in resolved_repo.parents),
+                    'Source repository missing or outside workspace')
             destination = work / ('backends/' + name if name in BACKENDS else 'frontend/' + name)
             for path, mode, contents in tracked_files(repo, source['commit'], name):
                 require(not re.search(rb'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|AKIA[A-Z0-9]{16}|xynes_live_[a-f0-9]{64}|sb_secret_[A-Za-z0-9_-]{20,}', contents), 'Tracked secret material is refused')

@@ -18,6 +18,7 @@ sys.path.insert(0,str(ROOT/'scripts/release'))
 P = '/repos/Xynes-Studio/xynes-infra'
 SHA = 'a'*40
 ERROR = 'Deployment dispatch refused'
+DESTINATION = '173.212.216.212'
 
 
 def load(name,path):
@@ -53,6 +54,10 @@ class Tests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.base=Path(self.tmp.name).resolve()
         self.key,self.public=inert_key()
+        fingerprint=base64.b64encode(hashlib.sha256(self.public).digest()).decode().rstrip('=')
+        patcher=patch.object(self.module,'HOST_KEY_SHA256',fingerprint)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.env={'GITHUB_ACTIONS':'true','GITHUB_REPOSITORY':'Xynes-Studio/xynes-infra',
             'GITHUB_REPOSITORY_ID':'1415400917','GITHUB_REF':'refs/heads/main','GITHUB_REF_PROTECTED':'true',
             'GITHUB_EVENT_NAME':'workflow_dispatch','GITHUB_RUN_ATTEMPT':'1','GITHUB_RUN_ID':'101',
@@ -62,7 +67,7 @@ class Tests(unittest.TestCase):
             'GITHUB_ACTOR':'archan96','GITHUB_ACTOR_ID':'7','GITHUB_TRIGGERING_ACTOR':'archan96',
             'GH_TOKEN':'ghs_INERT_FIXTURE_READ_ONLY_TOKEN_123456',
             'APEX_STAGE':'qa','APEX_BUILD_RUN_ID':'100','APEX_SSH_PRIVATE_KEY':self.key,
-            'APEX_SSH_KNOWN_HOSTS':'84.247.176.134 ssh-ed25519 '+base64.b64encode(self.public).decode(),
+            'APEX_SSH_KNOWN_HOSTS':DESTINATION+' ssh-ed25519 '+base64.b64encode(self.public).decode(),
             'RUNNER_TEMP':str(self.base)}
         self.data[P+'/actions/runs/100'].update(status='completed',conclusion='success')
         run=copy.deepcopy(self.data[P+'/actions/runs/100'])
@@ -99,7 +104,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(key.read_text(),self.key)
         self.assertEqual(known.read_text(),self.env['APEX_SSH_KNOWN_HOSTS']+'\n')
         account=argv[argv.index('-l')+1]
-        stage=account.removeprefix('xynes_').removesuffix('_deploy')
+        stage=account[len('xynes_'):-len('_deploy')]
         return (0,json.dumps(dict(artifact_kind='apex-ssh-entry-result',stage=stage,root_command_completed=True,deployable=False)).encode(),b'private diagnostic discarded')
 
     def invoke(self,**overrides):
@@ -113,7 +118,7 @@ class Tests(unittest.TestCase):
         result=self.invoke()
         argv,data,env,cwd,timeout,limit=self.calls[0]
         self.assertEqual(argv[0],'/usr/bin/ssh')
-        self.assertEqual(argv[-2:],['84.247.176.134','apex-deploy'])
+        self.assertEqual(argv[-2:],[DESTINATION,'apex-deploy'])
         self.assertIn('-T',argv)
         self.assertIn('BatchMode=yes',argv)
         self.assertIn('StrictHostKeyChecking=yes',argv)
@@ -184,9 +189,9 @@ class Tests(unittest.TestCase):
         for key,value in [('APEX_SSH_PRIVATE_KEY','private-value'),('APEX_SSH_PRIVATE_KEY',self.key+'extra'),
             ('APEX_SSH_PRIVATE_KEY',encrypted),
             ('APEX_SSH_PRIVATE_KEY',self.key.replace('b3BlbnNzaC1rZXktdjE','wrong')),
-            ('APEX_SSH_KNOWN_HOSTS',self.env['APEX_SSH_KNOWN_HOSTS'].replace('84.247.176.134','other.invalid')),
+            ('APEX_SSH_KNOWN_HOSTS',self.env['APEX_SSH_KNOWN_HOSTS'].replace(DESTINATION,'other.invalid')),
             ('APEX_SSH_KNOWN_HOSTS',self.env['APEX_SSH_KNOWN_HOSTS']+'\nother.invalid ssh-ed25519 AAAA'),
-            ('APEX_SSH_KNOWN_HOSTS','84.247.176.134 ssh-rsa AAAA')]:
+            ('APEX_SSH_KNOWN_HOSTS',DESTINATION+' ssh-rsa AAAA')]:
             saved=self.env[key];self.env[key]=value;self.refused();self.env[key]=saved
         self.assertEqual(self.calls,[])
 
@@ -206,9 +211,18 @@ class Tests(unittest.TestCase):
         self.assertTrue(result['ssh_entry_acknowledged'])
         self.assertEqual(list(self.base.iterdir()),[])
 
+    def test_retiring_host_and_wrong_destination_key_are_refused(self):
+        accepted=self.env['APEX_SSH_KNOWN_HOSTS']
+        wrong_key=string(b'ssh-ed25519')+string(b'q'*32)
+        for rejected in (accepted.replace(DESTINATION,'84.247.176.134'),
+                         DESTINATION+' ssh-ed25519 '+base64.b64encode(wrong_key).decode()):
+            self.env['APEX_SSH_KNOWN_HOSTS']=rejected
+            self.refused()
+        self.assertEqual(self.calls,[])
+
     def test_explicit_default_port_host_binding_normalizes_only_the_literal_host(self):
         binding=self.env['APEX_SSH_KNOWN_HOSTS']
-        self.assertEqual(self.module.known_hosts(binding.replace('84.247.176.134','[84.247.176.134]:22')),
+        self.assertEqual(self.module.known_hosts(binding.replace(DESTINATION,f'[{DESTINATION}]:22')),
                          (binding+'\n').encode())
 
     def test_failed_or_unbounded_or_fabricated_ssh_response_is_redacted_and_keys_cleaned(self):

@@ -79,6 +79,39 @@ class StagingTests(unittest.TestCase):
             p = self.root / path;p.mkdir();p.chmod(mode)
         self.docker.state = network()
 
+    def test_destination_group_uses_local_binding_and_refuses_alias_or_root(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        tool = self.tool()
+        dedicated = SimpleNamespace(gr_name='xynes', gr_gid=3104, gr_mem=[])
+        existing_mail = SimpleNamespace(gr_name='automx', gr_gid=1003)
+        alias = SimpleNamespace(gr_name='legacy', gr_gid=3104)
+        with patch.object(tool.grp, 'getgrnam', return_value=dedicated):
+            with patch.object(tool.grp, 'getgrall', return_value=[existing_mail,dedicated]), \
+                 patch('pwd.getpwall', return_value=[SimpleNamespace(pw_name='xynes', pw_gid=3104)]):
+                self.assertEqual(tool.xynes_group_id(), 3104)
+            with patch.object(tool.grp, 'getgrall', return_value=[existing_mail,dedicated,alias]):
+                with self.assertRaises(tool.SubstrateError):
+                    tool.xynes_group_id()
+        with patch.object(tool.grp, 'getgrnam', return_value=SimpleNamespace(gr_name='xynes', gr_gid=0)):
+            with self.assertRaises(tool.SubstrateError):
+                tool.xynes_group_id()
+
+    def test_destination_group_refuses_unapproved_primary_or_supplementary_members(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        tool = self.tool()
+        for supplementary, primary in ((['automx'], ['xynes']), ([], ['xynes', 'automx']),
+                                       (['xynes_qa_deploy'], ['xynes'])):
+            with self.subTest(supplementary=supplementary, primary=primary):
+                dedicated = SimpleNamespace(gr_name='xynes', gr_gid=3104, gr_mem=supplementary)
+                users = [SimpleNamespace(pw_name=name, pw_gid=3104) for name in primary]
+                with patch.object(tool.grp, 'getgrnam', return_value=dedicated), \
+                     patch.object(tool.grp, 'getgrall', return_value=[dedicated]), \
+                     patch('pwd.getpwall', return_value=users):
+                    with self.assertRaises(tool.SubstrateError):
+                        tool.xynes_group_id()
+
     def test_default_plan_is_deterministic_read_only_and_precisely_scoped(self):
         instance = self.provisioner();first = instance.plan();second = instance.plan()
         self.assertEqual(first, second)

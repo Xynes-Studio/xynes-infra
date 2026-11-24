@@ -116,10 +116,11 @@ class PostgresFixture:
         self.verify_owned()
         deadline = time.monotonic() + 40
         while time.monotonic() < deadline:
+            # Initdb's temporary server is socket-only. Probe loopback inside
+            # the isolated container so SQL only starts on the final server.
             ready = self.command(['exec', '--user', '70:70', self.cid,
-                                  'pg_isready', '-h', '/var/run/postgresql', '-U', 'postgres', '-d', 'postgres'], timeout=5)
+                                  'pg_isready', '-h', '127.0.0.1', '-U', 'postgres', '-d', 'postgres'], timeout=5)
             if ready.returncode == 0:
-                # isready may observe initdb's temporary server; require SQL too.
                 probe = self.sql('postgres', 'SELECT 1;', timeout=5)
                 if probe.returncode == 0 and probe.stdout.strip() == '1':
                     return self
