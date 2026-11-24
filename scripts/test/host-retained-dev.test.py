@@ -64,7 +64,7 @@ class Tests(unittest.TestCase):
             out=b'passwordauthentication no\npermittty yes\nforcecommand none\ndenyusers old_disabled_user\n'
             if parked:out+=b'denyusers '+NAME.encode()+b'\n'
         elif argv==['/usr/sbin/sshd','-t','-f',str(self.main)]:out=b''
-        elif argv==['/usr/bin/systemctl','reload','ssh']:out=b''
+        elif argv==['/bin/systemctl','reload','ssh']:out=b''
         else:self.fail('unexpected operation '+repr(argv))
         return 0,out,b''
 
@@ -168,7 +168,7 @@ class Tests(unittest.TestCase):
             return value
         with self.assertRaises(self.module.ParkingError):self.park(verify=withdrawn)
         self.assertEqual(self.current,self.account);self.assertEqual(self.main.read_bytes(),self.original)
-        self.assertGreaterEqual(len([a for a in self.calls if a==['/usr/bin/systemctl','reload','ssh']]),2)
+        self.assertGreaterEqual(len([a for a in self.calls if a==['/bin/systemctl','reload','ssh']]),2)
 
     def test_partial_group_failure_keeps_deny_and_never_regrants_authority(self):
         def fail(argv,**options):

@@ -157,7 +157,7 @@ def park(plan,*,root=Path('/'),run=boundary.command,token=None,verify=None):
             compare_profile(before,after,added=added)
             if name=='xynes':require(boundary.allowed(after,name))
             if name==NAME:require(NAME in after.get('denyusers','').split() and not boundary.allowed(after,name))
-        reload_started=True;boundary.invoke(bounded,['/usr/bin/systemctl','reload','ssh'])
+        reload_started=True;boundary.invoke(bounded,['/bin/systemctl','reload','ssh'])
         qualify(token,verify,plan)
         shell,groups=native_account(bounded,plan)
         revocation_started=True
@@ -176,6 +176,6 @@ def park(plan,*,root=Path('/'),run=boundary.command,token=None,verify=None):
         if not revocation_started and change is not None:
             boundary.rollback(root,[change],uid)
             if reload_started:
-                try:boundary.invoke(bounded,['/usr/bin/systemctl','reload','ssh'])
+                try:boundary.invoke(bounded,['/bin/systemctl','reload','ssh'])
                 except Exception:pass
         raise ParkingError(ERROR) from None

@@ -149,7 +149,7 @@ def command_label(argv):
         if argv[5]=='compose':
             return 'compose '+next((item for item in argv[6:] if item in COMPOSE_COMMANDS),'other')
         return 'docker '+(argv[5] if argv[5] in DOCKER_COMMANDS else 'other')
-    if len(argv)>=3 and argv[0]=='/usr/bin/systemctl' and argv[1] in ('show','start','stop'):
+    if len(argv)>=3 and argv[0]=='/bin/systemctl' and argv[1] in ('show','start','stop'):
         return 'systemctl '+argv[1]
     return 'refused'
 
@@ -168,10 +168,10 @@ def run_command(argv, *, env, timeout, limit):
     outcome='refused'; code=None; killed=False; output=bytearray(); errors=0
     try:
         readonly_idle=(type(argv) is list and len(argv)==5
-            and argv[:4]==['/usr/bin/systemctl','show','--property=ActiveState','--value']
+            and argv[:4]==['/bin/systemctl','show','--property=ActiveState','--value']
             and type(argv[4]) is str
             and re.fullmatch(r'xynes-idle-(qa|staging|prod)-(auth|cms|broker)\.service',argv[4]))
-        idle_lifecycle=(type(argv) is list and len(argv)==3 and argv[0]=='/usr/bin/systemctl'
+        idle_lifecycle=(type(argv) is list and len(argv)==3 and argv[0]=='/bin/systemctl'
             and argv[1] in ('start','stop') and type(argv[2]) is str
             and re.fullmatch(r'xynes-idle-(qa|staging|prod)-(auth|cms|broker)\.service',argv[2]))
         require(type(argv) is list and (argv[:5] == BASE or readonly_idle or idle_lifecycle)

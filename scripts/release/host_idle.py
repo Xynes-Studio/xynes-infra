@@ -255,7 +255,7 @@ class Idle:
                 except FileNotFoundError:pass
                 else:require(False)
             for group in ('broker','auth','cms'):
-                raw=self.call(['/usr/bin/systemctl','show','--property=ActiveState','--value','xynes-idle-'+self.stage+'-'+group+'.service'])
+                raw=self.call(['/bin/systemctl','show','--property=ActiveState','--value','xynes-idle-'+self.stage+'-'+group+'.service'])
                 require(raw.strip() in (b'inactive',b'failed'))
             for group in GROUPS:
                 parent=self.path('/var/lib/xynes/idle/'+self.stage+'/'+group)
@@ -283,7 +283,7 @@ class Idle:
         for group in GROUPS:
             try:
                 require(self.read(self.path('/etc/systemd/system/xynes-idle-'+self.stage+'-'+group+'.service'),mode=0o644)==unit(self.stage,group))
-                self.call(['/usr/bin/systemctl','stop','xynes-idle-'+self.stage+'-'+group+'.service'],timeout=120)
+                self.call(['/bin/systemctl','stop','xynes-idle-'+self.stage+'-'+group+'.service'],timeout=120)
             except Exception:failed=True
         require(not failed)
     def restart_policy(self,generation,*,drained):
@@ -345,7 +345,7 @@ class Idle:
                     for group in GROUPS:
                         try:
                             require(self.read(self.path('/etc/systemd/system/xynes-idle-'+self.stage+'-'+group+'.service'),mode=0o644)==unit(self.stage,group))
-                            self.call(['/usr/bin/systemctl','stop','xynes-idle-'+self.stage+'-'+group+'.service'],timeout=120)
+                            self.call(['/bin/systemctl','stop','xynes-idle-'+self.stage+'-'+group+'.service'],timeout=120)
                         except Exception:pass
             raise IdleError(ERROR) from None
     def _rebind(self,prepared,inventory):
@@ -370,12 +370,12 @@ class Idle:
                 'idle_seconds':policy['idle_seconds'],'wake_seconds':WAKE_SECONDS[self.stage],'max_in_flight':64,
                 'state_file':'/var/lib/xynes/idle/'+self.stage+'/'+group+'/warm.json','host_network':True,'start_drained':True}
         self.switch_started=True
-        for group in ('auth','cms','broker'):self.call(['/usr/bin/systemctl','stop','xynes-idle-'+self.stage+'-'+group+'.service'],timeout=120)
+        for group in ('auth','cms','broker'):self.call(['/bin/systemctl','stop','xynes-idle-'+self.stage+'-'+group+'.service'],timeout=120)
         for name,value in config.items():self.write(self.config_path(name),canonical(value),mode=0o640,gid=self.proxy_gid)
         generation={'schema_version':1,'bindings':bindings,'configuration_sha256':{n:digest(canonical(v)) for n,v in config.items()},'policy_sha256':sha}
         self.write(self.config_path('generation.json'),canonical(generation))
         for group in ('broker','auth','cms'):
-            self.call(['/usr/bin/systemctl','start','xynes-idle-'+self.stage+'-'+group+'.service'],timeout=120)
+            self.call(['/bin/systemctl','start','xynes-idle-'+self.stage+'-'+group+'.service'],timeout=120)
             if group=='broker':self.wait_broker()
         require(self.bindings(policy,prepared,inventory)==bindings and self.policy()[1]==sha)
         require(callable(self.lease))

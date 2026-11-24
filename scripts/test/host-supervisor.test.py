@@ -28,6 +28,12 @@ def load():
 
 
 class Tests(unittest.TestCase):
+    def test_systemctl_supports_legacy_and_merged_ubuntu_layouts(self):
+        for merged, expected in ((False, '/bin/systemctl'), (True, '/usr/bin/systemctl')):
+            with self.subTest(merged=merged), patch.object(Path, 'is_file', return_value=merged):
+                module = load()
+            self.assertEqual(module.SYSTEMCTL, expected)
+
     def test_legacy_linux_x86_64_pidfd_detects_owned_child_exit(self):
         if sys.platform != 'linux' or os.uname().machine != 'x86_64':
             self.skipTest('native Linux x86_64 required')

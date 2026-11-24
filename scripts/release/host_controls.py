@@ -62,7 +62,7 @@ def command(args,*,env,data=None):
                     '--filter','label=com.xynes.role='+role,'--no-trunc','--format','{{.ID}}'])
         require(args in expected and data is None)
         return host_compose.run_command(args,env=env,timeout=30,limit=65536)
-    require(args[0]=='/usr/bin/systemctl' and len(args)==5
+    require(args[0]=='/bin/systemctl' and len(args)==5
             and args[1:4]==['show','--property=ActiveState','--value']
             and re.fullmatch(r'xynes-idle-(qa|staging|prod)-(auth|cms|broker)\.service',args[4]))
     return host_compose.run_command(args,env=env,timeout=15,limit=65536)
@@ -211,7 +211,7 @@ class Controls:
                 '--filter','label=com.xynes.role='+role,'--no-trunc','--format','{{.ID}}'],env=host_compose.CLEAN_ENV)
             require(type(raw) is bytes and len(raw)<=65536 and not raw.strip())
         for group in ('auth','cms','broker'):
-            raw=self.run(['/usr/bin/systemctl','show','--property=ActiveState','--value',
+            raw=self.run(['/bin/systemctl','show','--property=ActiveState','--value',
                 'xynes-idle-'+self.stage+'-'+group+'.service'],env=host_compose.CLEAN_ENV)
             require(raw.strip() in (b'inactive',b'failed'))
         for name in ('control.sock','auth/leases.sock','cms/leases.sock'):

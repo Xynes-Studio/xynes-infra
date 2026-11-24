@@ -29,15 +29,15 @@ class Tests(unittest.TestCase):
     def test_bounded_runner_permits_only_fixed_readonly_idle_unit_queries(self):
         for stage in ('qa','staging','prod'):
             for group in ('auth','cms','broker'):
-                command=['/usr/bin/systemctl','show','--property=ActiveState','--value',
+                command=['/bin/systemctl','show','--property=ActiveState','--value',
                          'xynes-idle-'+stage+'-'+group+'.service']
                 with patch.object(self.module.subprocess,'Popen',side_effect=OSError('inert')) as process:
                     with self.assertRaises(self.module.ComposeError):
                         self.module.run_command(command,env=self.module.CLEAN_ENV,timeout=15,limit=65536)
                     process.assert_called_once()
-        for command in (['/usr/bin/systemctl','restart','xynes-idle-qa-auth.service'],
-                        ['/usr/bin/systemctl','show','--property=ActiveState','--value','unknown.service'],
-                        ['/usr/bin/systemctl','show','--property=ActiveState','--value','xynes-idle-qa-auth.service','extra']):
+        for command in (['/bin/systemctl','restart','xynes-idle-qa-auth.service'],
+                        ['/bin/systemctl','show','--property=ActiveState','--value','unknown.service'],
+                        ['/bin/systemctl','show','--property=ActiveState','--value','xynes-idle-qa-auth.service','extra']):
             with patch.object(self.module.subprocess,'Popen') as process:
                 with self.assertRaises(self.module.ComposeError):
                     self.module.run_command(command,env=self.module.CLEAN_ENV,timeout=15,limit=65536)
@@ -350,7 +350,7 @@ class Tests(unittest.TestCase):
             self.assertIn('/srv/xynes/qa/compose/'+path,argv)
         self.assertEqual(argv[-3:],['config','--format','json'])
         self.assertEqual(os.stat(prepared.file).st_mode & 0o777,0o600)
-        self.assertTrue(prepared.file.is_relative_to(self.work))
+        self.assertIn(self.work, prepared.file.parents)
         self.assertNotIn('inert-test-only-value',repr(prepared))
         self.assertEqual(env['XYNES_ENV'],'qa')
         self.assertNotIn('GH_TOKEN',env)
@@ -585,7 +585,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(label(self.module.BASE+['compose','--project-name','xynes-qa','-f','/x','config','--hash','gateway']),'compose config')
         self.assertEqual(label(self.module.BASE+['compose','-f',secret]),'compose other')
         self.assertEqual(label(self.module.BASE+[secret]),'docker other')
-        self.assertEqual(label(['/usr/bin/systemctl','stop','xynes-idle-qa-auth.service']),'systemctl stop')
+        self.assertEqual(label(['/bin/systemctl','stop','xynes-idle-qa-auth.service']),'systemctl stop')
         good={'command':'compose up','outcome':'exit','exit_code':1,'stdout_bytes':0,'stderr_bytes':5,'killed':False}
         self.assertEqual(self.module.native_failure(good),good)
         for change in ({'command':secret},{'outcome':secret},{'exit_code':'1'},{'stdout_bytes':-1},{'killed':1},{'extra':secret}):

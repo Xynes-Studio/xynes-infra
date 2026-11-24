@@ -43,7 +43,8 @@ ERROR='Root deployment supervision refused'
 ROOT_UID=0
 WORKER='/usr/local/libexec/xynes-deploy-root'
 SYSTEMD_RUN='/usr/bin/systemd-run'
-SYSTEMCTL='/usr/bin/systemctl'
+# Ubuntu 20.04 can have a real /bin directory instead of a usrmerge symlink.
+SYSTEMCTL='/usr/bin/systemctl' if Path('/usr/bin/systemctl').is_file() else '/bin/systemctl'
 BOUNDARY=Path('/etc/xynes/deploy-boundary.json')
 STATE_DIRECTORY=Path('/var/lib/xynes/deploy/state')
 LOCK_DIRECTORY=Path('/var/lib/xynes/deploy/work/supervisor-locks')
@@ -83,7 +84,7 @@ def identity(info):
 
 
 def root_path(path,*,directory=False):
-    for parent in reversed((path,*path.parents[:-1])):
+    for parent in reversed((path,*tuple(path.parents)[:-1])):
         info=parent.lstat()
         require(info.st_uid==ROOT_UID and not info.st_mode & 0o022 and not stat.S_ISLNK(info.st_mode)
                 and (stat.S_ISDIR(info.st_mode) if parent!=path or directory else stat.S_ISREG(info.st_mode)))

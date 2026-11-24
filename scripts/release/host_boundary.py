@@ -421,7 +421,7 @@ def install(plan,*,root=Path('/'),run=command,executor_token=None,verify_executo
         for directory in sorted((p for p in library.rglob('*') if p.is_dir()),key=lambda p:len(p.parts),reverse=True):directory.chmod(0o555)
         library.chmod(0o555)
         audit(plan,root=root)
-        reload_started=True;invoke(run,['/usr/bin/systemctl','reload','ssh'])
+        reload_started=True;invoke(run,['/bin/systemctl','reload','ssh'])
         ledger={'schema_version':1,'plan_sha256':plan.plan_sha256,'bundle_sha256':plan.bundle_sha256,
                 'files':{asset.path:digest(asset.data) for asset in plan.files}}
         prior_hash=None
@@ -437,7 +437,7 @@ def install(plan,*,root=Path('/'),run=command,executor_token=None,verify_executo
             try:invoke(run,['/usr/sbin/usermod','--shell',shell,user.name])
             except Exception:pass
         if reload_started:
-            try:invoke(run,['/usr/bin/systemctl','reload','ssh'])
+            try:invoke(run,['/bin/systemctl','reload','ssh'])
             except Exception:pass
         raise BoundaryError(ERROR) from None
 

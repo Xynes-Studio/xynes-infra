@@ -108,7 +108,7 @@ class Tests(unittest.TestCase):
                 'allowusers':'xynes xynes_dev_deploy xynes_qa_deploy xynes_staging_deploy xynes_prod_deploy'}
             out=('\n'.join(k+' '+v for k,v in profile.items())+'\n').encode()
         else:
-            self.assertIn(argv[0],('/usr/sbin/visudo','/usr/sbin/sshd','/usr/bin/systemctl'))
+            self.assertIn(argv[0],('/usr/sbin/visudo','/usr/sbin/sshd','/bin/systemctl'))
             out=b''
         return 0,out,b''
 

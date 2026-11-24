@@ -13,7 +13,7 @@ class Tests(unittest.TestCase):
   self.controls=self.m.Controls('qa',root=self.root,owner_uid=os.getuid(),data_uid=os.getuid(),run=self.command,environment=lambda stage:{'XYNES_ENV':stage,'POSTGRES_PASSWORD':'INERT_DB_PASSWORD'},container=lambda stage:self.cid)
  def command(self,args,*,env,data=None):
   self.calls.append((args,env,data))
-  if args[0]=='/usr/bin/systemctl':return b'inactive\n'
+  if args[0]=='/bin/systemctl':return b'inactive\n'
   if 'ps' in args:return b''
   self.assertEqual(args[:5],self.m.host_compose.BASE)
   self.assertNotIn('INERT_DB_PASSWORD',str(args));self.assertEqual(env['PGPASSWORD'],'INERT_DB_PASSWORD')
@@ -52,7 +52,7 @@ class Tests(unittest.TestCase):
  def test_disabled_warmth_needs_sealed_policy_no_idle_containers_and_no_units(self):
   self.policy({'schema_version':1,'stage':'qa','mode':'disabled','groups':[]})
   with self.controls.warm('qa',type('Current',(),{'controller':{'run_id':123}})(),None):pass
-  self.assertEqual(len([c for c in self.calls if c[0][0]=='/usr/bin/systemctl']),6)
+  self.assertEqual(len([c for c in self.calls if c[0][0]=='/bin/systemctl']),6)
   self.controls.run=lambda *a,**kw:b'active\n'
   with self.assertRaises(self.m.ControlError):
    with self.controls.warm('qa',type('Current',(),{'controller':{'run_id':123}})(),None):pass
@@ -146,7 +146,7 @@ class Tests(unittest.TestCase):
  def test_disabled_policy_cannot_hide_an_active_broker(self):
   self.policy({'schema_version':1,'stage':'qa','mode':'disabled','groups':[]})
   def command(args,**options):
-   if args[0]=='/usr/bin/systemctl' and args[-1]=='xynes-idle-qa-broker.service':return b'active\n'
+   if args[0]=='/bin/systemctl' and args[-1]=='xynes-idle-qa-broker.service':return b'active\n'
    return self.command(args,**options)
   self.controls.run=command
   with self.assertRaises(self.m.ControlError):
