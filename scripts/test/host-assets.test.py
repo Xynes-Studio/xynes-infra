@@ -47,13 +47,14 @@ class Tests(unittest.TestCase):
   self.assets=self.m.root_executor.ReleaseAssets(prepared,self.verified,self.verified.controller,self.request['publication'],self.fixture.manifest,{}, {'fixture':'not a qualified publisher receipt'},self.verified)
  def config(self,generation):
   # Meaningful inert binding fragment; no native service/approval is fabricated.
-  return self.m.encode({'services':{'storage-service':{'image':'inert-storage-digest',
+  return (json.dumps({'services':{'storage-service':{'image':'inert-storage-digest','cpus':0.25,
     'labels':{'com.xynes.storage-generation':generation,'retained':'unchanged'},
     'environment':{'FIXTURE_ONLY':'inert-private-value'},'volumes':[
       {'type':'bind','source':'/run/xynes/storage/qa/'+generation[:32],
        'target':'/run/xynes/storage-control','read_only':False,'bind':{'create_host_path':False}},
       {'type':'bind','source':'/etc/xynes/storage-control/qa/control.token',
-       'target':'/run/secrets/storage-quiesce-token','read_only':True,'bind':{'create_host_path':False}}]}}})
+       'target':'/run/secrets/storage-quiesce-token','read_only':True,'bind':{'create_host_path':False}}]}}},
+       sort_keys=True,separators=(',',':'))+'\n').encode()
  def rollback_fixture(self,generation='e'*64):
   self.persist();accepted=self.accept();previous=self.store.load_release('qa',accepted)
   request=copy.deepcopy(self.request);request['controller']['run_id']+=1000
@@ -138,9 +139,21 @@ class Tests(unittest.TestCase):
              lambda v:v['services']['storage-service']['labels'].update(retained='changed'),
              lambda v:v['services']['storage-service']['volumes'][1].update(source='/other/token'),
              lambda v:v['services']['storage-service']['volumes'][0].update(read_only=True),
-             lambda v:v['services']['storage-service'].update(command=['sh','-c','anything']))
+             lambda v:v['services']['storage-service'].update(command=['sh','-c','anything']),
+             lambda v:v['services']['storage-service'].update(cpus=0.5))
   for mutate in mutations:
-   value=json.loads(original);mutate(value);raw=self.m.encode(value);rebound.file.write_bytes(raw)
+   value=json.loads(original);mutate(value);raw=json.dumps(value).encode();rebound.file.write_bytes(raw)
+   changed=self.m.replace(rebound,sha256=hashlib.sha256(raw).hexdigest())
+   with self.assertRaises(self.m.AssetError):self.recover(previous,changed,token)
+  self.assertFalse((self.base/'recovery').exists())
+ def test_compose_float_opt_in_preserves_strict_parsing(self):
+  with self.assertRaises(self.m.records.RecordError):self.m.records.strict_json('{"cpus":0.25}')
+  with self.assertRaises(self.m.records.RecordError):self.m.encode({'cpus':0.25})
+  accepted,previous,token,rebound=self.rollback_fixture()
+  original=rebound.file.read_bytes()
+  for replacement in (b'"cpus":1e400',b'"cpus":NaN',b'"cpus":0.25,"cpus":0.25'):
+   raw=original.replace(b'"cpus":0.25',replacement);self.assertNotEqual(raw,original)
+   rebound.file.write_bytes(raw)
    changed=self.m.replace(rebound,sha256=hashlib.sha256(raw).hexdigest())
    with self.assertRaises(self.m.AssetError):self.recover(previous,changed,token)
   self.assertFalse((self.base/'recovery').exists())

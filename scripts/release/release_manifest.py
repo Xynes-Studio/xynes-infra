@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -49,7 +50,7 @@ def canonical_sha256(value):
                                    ensure_ascii=True, allow_nan=False).encode()).hexdigest()
 
 
-def bounded_tree(value):
+def bounded_tree(value, *, allow_finite_floats=False):
     pending = [(value, 0)]
     nodes = 0
     while pending:
@@ -64,10 +65,11 @@ def bounded_tree(value):
         elif isinstance(item, str):
             require(len(item) <= 8192 and not SECRET.search(item))
         else:
-            require(item is None or type(item) in (bool, int))
+            require(item is None or type(item) in (bool, int)
+                    or (allow_finite_floats and type(item) is float and math.isfinite(item)))
 
 
-def strict_json(data):
+def strict_json(data, *, allow_finite_floats=False):
     def pairs(items):
         result = {}
         for key, value in items:
@@ -75,7 +77,7 @@ def strict_json(data):
             result[key] = value
         return result
     value = json.loads(data, object_pairs_hook=pairs, parse_constant=lambda _: require(False))
-    bounded_tree(value)
+    bounded_tree(value, allow_finite_floats=allow_finite_floats)
     return value
 
 
