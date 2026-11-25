@@ -58,8 +58,8 @@ def stamp(info):
     return (info.st_dev,info.st_ino,info.st_uid,info.st_mode,info.st_nlink,
             info.st_size,info.st_mtime_ns,info.st_ctime_ns)
 
-def encode(value):
-    records.bounded_tree(value)
+def encode(value, *, allow_finite_floats=False):
+    records.bounded_tree(value, allow_finite_floats=allow_finite_floats)
     return (json.dumps(value,sort_keys=True,separators=(',',':'),allow_nan=False)+'\n').encode()
 
 def read(path,*,limit=1024*1024):
@@ -467,7 +467,8 @@ class Store:
                 and prepared.host_approved is False and type(prepared.storage_generation) is str
                 and re.fullmatch(r'[a-f0-9]{64}',prepared.storage_generation))
         raw=read(prepared.file);require(hashlib.sha256(raw).hexdigest()==prepared.sha256)
-        value=records.strict_json(raw.decode('utf-8'))
+        # Native Compose uses fractional CPU limits. Release records stay integer-only.
+        value=records.strict_json(raw.decode('utf-8'),allow_finite_floats=True)
         storage=value['services']['storage-service'];labels=storage['labels']
         require(type(labels) is dict and labels.get('com.xynes.storage-generation')==prepared.storage_generation
                 and type(storage['volumes']) is list)
@@ -476,7 +477,7 @@ class Store:
                 and mounts[0].get('source')=='/run/xynes/storage/'+self.stage+'/'+prepared.storage_generation[:32])
         labels['com.xynes.storage-generation']='fixed-generation-placeholder'
         mounts[0]['source']='/run/xynes/storage/'+self.stage+'/fixed-generation-placeholder'
-        return encode(value)
+        return encode(value,allow_finite_floats=True)
 
     def accepted_binding(self,record):
         require(type(record) is dict and record.get('status')=='accepted')
