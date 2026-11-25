@@ -122,13 +122,14 @@ class Tests(unittest.TestCase):
 
     def test_foreign_network_db_image_and_alias_refused_before_create(self):
         original_network=copy.deepcopy(self.network);original_db=copy.deepcopy(self.db)
-        for mode in ('network-name','network-label','db-image','db-stage','db-health','db-alias'):
+        for mode in ('network-name','network-label','db-image','db-stage','db-health','db-no-healthcheck','db-alias'):
             self.network=copy.deepcopy(original_network);self.db=copy.deepcopy(original_db)
             if mode=='network-name':self.network['Name']='xynes_prod_net'
             elif mode=='network-label':self.network['Labels']['com.xynes.environment']='prod'
             elif mode=='db-image':self.db['image']='postgres:unknown'
             elif mode=='db-stage':self.db['labels']['com.xynes.environment']='prod'
             elif mode=='db-health':self.db['health']='unhealthy'
+            elif mode=='db-no-healthcheck':self.db['health']=None
             else:self.db['networks']['xynes_qa_net']['Aliases']=[]
             before=len(self.commands);self.refused(self.execute)
             self.assertFalse(any(a[5]=='create' for a in self.commands[before:]))

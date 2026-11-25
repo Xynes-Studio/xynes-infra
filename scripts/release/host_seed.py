@@ -28,7 +28,7 @@ EXPECTED=(('xynes-authz-service','src/db/seed/authz.seed.ts','seedAuthz','after-
           ('xynes-cms-core','src/infra/db/seeders.ts','seedAllDefaultTemplates','after-cms-schema-no-workspace-required'),
           ('xynes-cms-core','src/infra/db/seeders.ts','seedAllDefaultContentTypes','existing-workspaces-only'))
 PEER_INSPECT=('{"id":{{json .Id}},"image":{{json .Config.Image}},"labels":{{json .Config.Labels}},'
-              '"state":{{json .State.Status}},"health":{{if .State.Health}}{{json .State.Health.Status}}{{else}}null{{end}},'
+              '"state":{{json .State.Status}},"health":{{with index .State "Health"}}{{json .Status}}{{else}}null{{end}},'
               '"networks":{{json .NetworkSettings.Networks}}}')
 SEED_INSPECT=('{"id":{{json .Id}},"image":{{json .Config.Image}},"labels":{{json .Config.Labels}},'
               '"user":{{json .Config.User}},"readonly":{{json .HostConfig.ReadonlyRootfs}},'
