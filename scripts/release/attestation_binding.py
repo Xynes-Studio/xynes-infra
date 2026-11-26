@@ -70,12 +70,15 @@ def qualify_native_result(raw,image,controller):
                   'sourceRepositoryOwnerURI':'https://github.com/Xynes-Studio',
                   'runnerEnvironment':'github-hosted','buildConfigURI':workflow,
                   'buildConfigDigest':controller['commit'],'buildTrigger':'workflow_dispatch',
-                  'runInvocationURI':invocation,'sourceRepositoryVisibilityAtSigning':'public'}
+                  'sourceRepositoryVisibilityAtSigning':'public'}
+        invocation_pattern=re.compile(re.escape(repository)+r'/actions/runs/[1-9][0-9]{0,15}/attempts/1')
         statements=[]
         for value in values:
             require(isinstance(value,dict) and isinstance(value.get('verificationResult'),dict))
             verified=value['verificationResult'];certificate=verified['signature']['certificate']
             require(isinstance(certificate,dict) and all(certificate.get(k)==v for k,v in expected.items()))
+            signed_invocation=certificate.get('runInvocationURI')
+            require(isinstance(signed_invocation,str) and invocation_pattern.fullmatch(signed_invocation))
             timestamps=verified['verifiedTimestamps']
             require(isinstance(timestamps,list) and timestamps
                     and all(isinstance(t,dict) and isinstance(t.get('timestamp'),str) and t['timestamp'] for t in timestamps))
@@ -90,8 +93,11 @@ def qualify_native_result(raw,image,controller):
                     and github.get('repository_id')==str(admission.REPOSITORY_ID)
                     and github.get('runner_environment')=='github-hosted')
             require(definition['resolvedDependencies']==[{'digest':{'gitCommit':controller['commit']},'uri':'git+'+repository+'@refs/heads/main'}]
-                    and details['builder']['id']==workflow and details['metadata']['invocationId']==invocation)
-            statements.append(records.canonical_sha256(statement))
+                    and details['builder']['id']==workflow and details['metadata']['invocationId']==signed_invocation)
+            # Reproducible digests can carry signatures from multiple release runs.
+            if signed_invocation==invocation:
+                statements.append(records.canonical_sha256(statement))
+        require(statements)
         return {'artifact_kind':'native-attestation-result-bindings','controller':copy.deepcopy(controller),
                 'image':image,'statement_sha256':statements,'bindings_verified':True,'deployable':False}
     except Exception:raise AttestationError('Attestation verification refused') from None
