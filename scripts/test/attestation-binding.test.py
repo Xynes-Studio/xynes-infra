@@ -29,6 +29,29 @@ class Tests(unittest.TestCase):
  def test_actual_native_shape_is_bound_without_granting_deployment_authority(self):
   proof=self.qualify();self.assertTrue(proof['bindings_verified']);self.assertFalse(proof['deployable'])
   self.assertEqual(proof['image'],self.image);self.assertEqual(proof['controller'],self.controller)
+ def prior_run_result(self):
+  result=copy.deepcopy(self.result);verified=result['verificationResult']
+  invocation='https://github.com/'+admission.REPOSITORY+'/actions/runs/99/attempts/1'
+  verified['signature']['certificate']['runInvocationURI']=invocation
+  verified['statement']['predicate']['runDetails']['metadata']['invocationId']=invocation
+  return result
+ def test_identical_images_signed_by_multiple_runs_keep_only_the_requested_run(self):
+  prior=self.prior_run_result()
+  for values in ([prior,self.result],[self.result,prior]):
+   proof=self.module.qualify_native_result(json.dumps(values).encode(),self.image,self.controller)
+   self.assertEqual(proof,self.qualify())
+ def test_other_run_cannot_replace_requested_run_or_carry_conflicting_claims(self):
+  prior=self.prior_run_result()
+  self.refused(prior)
+  for mode in ('invocation','digest','timestamp'):
+   result=copy.deepcopy(prior);verified=result['verificationResult']
+   if mode=='invocation':
+    verified['statement']['predicate']['runDetails']['metadata']['invocationId']=self.result['verificationResult']['signature']['certificate']['runInvocationURI']
+   elif mode=='digest':verified['statement']['subject'][0]['digest']['sha256']='c'*64
+   else:verified['verifiedTimestamps']=[]
+   raw=json.dumps([self.result,result]).encode()
+   with self.assertRaises(self.module.AttestationError):
+    self.module.qualify_native_result(raw,self.image,self.controller)
  def test_certificate_cannot_change_repository_workflow_commit_runner_or_run_attempt(self):
   for key,value in [('issuer','https://foreign.invalid'),('subjectAlternativeName','https://github.com/other/repo/workflow'),('buildSignerDigest','c'*40),('sourceRepositoryDigest','c'*40),('sourceRepositoryRef','refs/heads/develop'),('sourceRepositoryIdentifier','1113600873'),('runnerEnvironment','self-hosted'),('buildTrigger','pull_request'),('runInvocationURI','https://github.com/'+admission.REPOSITORY+'/actions/runs/100/attempts/2'),('sourceRepositoryVisibilityAtSigning','private')]:
    result=copy.deepcopy(self.result);result['verificationResult']['signature']['certificate'][key]=value;self.refused(result)
